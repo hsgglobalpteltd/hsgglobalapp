@@ -454,45 +454,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Initial silent background fetch
   fetchDataSilently();
 
-  // Register Service Worker for PWA
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js')
-      .then((reg) => {
-        console.log('Service Worker registered successfully:', reg.scope);
-        
-        // Check if there is already a waiting worker
-        if (reg.waiting) {
-          showUpdatePrompt(reg.waiting);
-        }
 
-        // Listen for new installing workers
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed') {
-                if (navigator.serviceWorker.controller) {
-                  // A new update is installed and waiting
-                  showUpdatePrompt(newWorker);
-                }
-              }
-            });
-          }
-        });
-
-        // Listen for controllerchange
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          console.log('New service worker activated, reloading page.');
-          window.location.reload();
-        });
-
-        // Periodically check for updates every 15 minutes
-        setInterval(() => {
-          reg.update();
-        }, 15 * 60 * 1000);
-      })
-      .catch((err) => console.error('Service Worker registration failed:', err));
-  }
   // Set app version in footer
   const versionSpan = document.getElementById('app-version');
   if (versionSpan) {

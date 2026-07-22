@@ -618,6 +618,54 @@ function openWhatsAppShareFromComplete(orderId) {
 
 window.openWhatsAppShareFromComplete = openWhatsAppShareFromComplete;
 
+// Check and restore active job from database if not present locally
+async function checkActiveJobFromDatabase() {
+  const driverName = getCachedAuth();
+  if (!driverName) return;
+
+  try {
+    const res = await fetch(`${WORKER_URL}/api/app/driver/Deliver_Job?t=${Date.now()}`);
+    if (res.ok) {
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data && Array.isArray(data.value) ? data.value : []);
+      
+      const activeJob = list.find(j => 
+        (j.Driver || "").trim() === driverName && 
+        (j.Status || "").trim().toUpperCase() === "ON"
+      );
+
+      if (activeJob) {
+        const jobId = activeJob.ID || activeJob.id;
+        const currentLocalJobId = localStorage.getItem('active_job_id');
+        
+        if (currentLocalJobId !== jobId) {
+          console.log("Restoring active job from database:", jobId);
+          localStorage.setItem('active_job_id', jobId);
+          
+          let deliveredRec = [];
+          const rawDelivered = activeJob.Delivered_Record;
+          if (rawDelivered) {
+            try {
+              deliveredRec = typeof rawDelivered === "string" ? JSON.parse(rawDelivered) : rawDelivered;
+            } catch (_) {}
+          }
+          localStorage.setItem('active_job_delivered_record', JSON.stringify(deliveredRec));
+          
+          const jobToggle = document.getElementById('job-toggle-input');
+          if (jobToggle) {
+            jobToggle.checked = true;
+          }
+          updateOnModeUI(true);
+          renderMapPins();
+          renderOnModeList();
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to check active job from database:", err);
+  }
+}
+
 // Fetch shared Track_Orders sheet from Worker API
 async function fetchData() {
   if (isFetchingData) return;
@@ -646,6 +694,7 @@ async function fetchData() {
 
     allOrders = ordersList;
     localStorage.setItem('driver_orders', JSON.stringify(ordersList));
+    await checkActiveJobFromDatabase();
   } catch (err) {
     console.error("Failed to load orders from Worker API:", err);
     showToast("Server offline", "error");
@@ -4575,4 +4624,13 @@ async function compressImageToMax250kb(file) {
     attempts++;
   }
   return result.file;
+}
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => console.log('Service Worker registered successfully:', reg.scope))
+      .catch((err) => console.error('Service Worker registration failed:', err));
+  });
 }

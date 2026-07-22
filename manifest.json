@@ -1,7 +1,7 @@
 {
-  "name": "iB-Merch",
-  "short_name": "iB-Merch",
-  "description": "iB-Merch App - HSG Global",
+  "name": "iB - HSG Global Apps",
+  "short_name": "iB Apps",
+  "description": "iB Mobile Applications Portal - HSG Global",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0F172A",

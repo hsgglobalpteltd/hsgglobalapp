@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ib-merch-v37';
+const CACHE_NAME = 'ib-apps-v1';
 const ASSETS = [
   './index.html',
   './style.css',
@@ -38,15 +38,13 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Pass API requests, maps, and CDNs directly through without local cache intercept
-  if (e.request.url.includes('/api/') || e.request.url.includes('tile.openstreetmap') || e.request.url.includes('unpkg.com')) {
+  if (e.request.url.includes('/api/') || e.request.url.includes('unpkg.com')) {
     return;
   }
   
   e.respondWith(
     caches.match(e.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch in background to update cache (stale-while-revalidate)
         fetch(e.request).then((networkResponse) => {
           if (networkResponse.ok) {
             caches.open(CACHE_NAME).then((cache) => cache.put(e.request, networkResponse));
