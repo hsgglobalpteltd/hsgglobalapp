@@ -1,0 +1,355 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --background: #F8FAFC; /* Premium soft slate-50 background */
+  --foreground: #0F172A; /* Corporate midnight slate */
+  --header-bg: #0F172A; /* Midnight slate blue */
+  --header-text: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --border-color: #E2E8F0; /* Soft slate-200 border */
+  --text-muted: #64748B; /* slate-500 */
+  --text-primary: #0F172A;
+  --text-secondary: #334155; /* slate-700 */
+  --radius-lg: 8px; /* Standardized corner radius ratio */
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Outfit', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  overflow: hidden;
+  height: 100dvh;
+  width: 100%;
+  position: fixed;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   Responsive Switching
+   ========================================================================== */
+
+#desktop-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100vw;
+  padding: 40px 24px;
+  background-color: #F1F5F9; /* slate-100 */
+}
+
+#mobile-view {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  #desktop-view {
+    display: none !important;
+  }
+  #mobile-view {
+    display: flex !important;
+  }
+}
+
+/* ==========================================================================
+   Desktop View Mockup & Elements
+   ========================================================================== */
+
+.desktop-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  padding: 40px 32px;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.desktop-logo {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--header-bg);
+  letter-spacing: -0.03em;
+}
+
+.desktop-logo span {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.qr-container {
+  background-color: #F8FAFC;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  width: 216px;
+  height: 216px;
+  transition: all 0.3s ease;
+}
+
+.qr-container img {
+  width: 184px;
+  height: 184px;
+  display: block;
+}
+
+.desktop-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.desktop-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.desktop-url-box {
+  background-color: #F8FAFC;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+  color: var(--text-secondary);
+  font-weight: 500;
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   Mobile View (Apps Pools Launcher)
+   ========================================================================== */
+
+.mobile-header {
+  height: 44px; /* Slightly taller for modern mobile touch friendliness, matches browser theme header */
+  width: 100%;
+  background-color: var(--header-bg);
+  color: var(--header-text);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  user-select: none;
+}
+
+.mobile-header-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.mobile-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 16px;
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  gap: 20px;
+}
+
+/* Page Intro Label */
+.mobile-intro-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-left: 4px;
+}
+
+/* Apps Grid Layout */
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  width: 100%;
+}
+
+/* App Card Component */
+.app-card {
+  aspect-ratio: 1 / 1;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg); /* Standardized corner radius (8px) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 8px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Dynamic Colors for App Icons & Accent States */
+.app-card.merchandiser {
+  --app-color: #06B6D4; /* Cyan */
+  --app-bg-light: #ECFEFF; /* Cyan 50 */
+  --app-glow: rgba(6, 182, 212, 0.15);
+}
+
+.app-card.picker {
+  --app-color: #F97316; /* Orange */
+  --app-bg-light: #FFF7ED; /* Orange 50 */
+  --app-glow: rgba(249, 115, 22, 0.15);
+}
+
+.app-card.driver {
+  --app-color: #3B82F6; /* Blue */
+  --app-bg-light: #EFF6FF; /* Blue 50 */
+  --app-glow: rgba(59, 130, 246, 0.15);
+}
+
+.app-card.stock-take {
+  --app-color: #8B5CF6; /* Purple */
+  --app-bg-light: #F5F3FF; /* Purple 50 */
+  --app-glow: rgba(139, 92, 246, 0.15);
+}
+
+/* App Icon Container circle */
+.app-icon-container {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full); /* Circular container allowed in AGENTS.md */
+  background-color: var(--app-bg-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+}
+
+.app-icon {
+  width: 24px;
+  height: 24px;
+  stroke: var(--app-color);
+  stroke-width: 2;
+  fill: none;
+  transition: all 0.25s ease;
+}
+
+.app-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  line-height: 1.3;
+  word-break: break-word;
+  transition: all 0.2s ease;
+}
+
+/* Hover & Active Micro-animations */
+.app-card:hover, .app-card:active {
+  border-color: var(--app-color);
+  box-shadow: 0 10px 15px -3px var(--app-glow), 0 4px 6px -4px var(--app-glow);
+  transform: translateY(-3px);
+}
+
+.app-card:hover .app-icon-container {
+  transform: scale(1.06);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.02);
+}
+
+.app-card:hover .app-icon {
+  transform: rotate(5deg);
+}
+
+.app-card:active {
+  transform: translateY(-1px);
+}
+
+/* Mobile Footer */
+.mobile-footer {
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom)) 16px;
+  text-align: center;
+  margin-top: auto;
+  border-top: 1px solid rgba(15, 23, 42, 0.04);
+}
+
+.mobile-footer-text {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.5;
+  letter-spacing: 0.05em;
+}
+
+.mobile-footer-text span {
+  display: block;
+  font-weight: 500;
+  font-size: 8.5px;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+
+/* Coming Soon Toast Notification styles */
+#toast-notification {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background-color: #0F172A; /* Corporate midnight slate */
+  color: #FFFFFF;
+  padding: 10px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  letter-spacing: 0.02em;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#toast-notification.toast-visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}

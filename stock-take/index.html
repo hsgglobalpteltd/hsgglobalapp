@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0F172A">
+  <title>iB - Stock Take</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+  
+  <script>
+    // Redirect desktop visits to the main hub index.html page
+    if (window.innerWidth >= 900 || window.matchMedia("(min-width: 900px)").matches) {
+      window.location.replace("../index.html");
+    }
+
+    // iOS Safari gesture zoom prevention
+    document.addEventListener('gesturestart', function (e) {
+      e.preventDefault();
+    });
+
+    // Mobile multi-touch zoom prevention
+    document.addEventListener('touchstart', function (event) {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+
+    // Desktop Ctrl+Wheel zoom prevention
+    document.addEventListener('wheel', function (e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // Desktop Ctrl+/- zoom prevention
+    document.addEventListener('keydown', function (e) {
+      if (e.ctrlKey && (e.key === '=' || e.key === '-' || e.key === '0' || e.key === '+')) {
+        e.preventDefault();
+      }
+    });
+  </script>
+</head>
+<body class="bg-gray-900 text-gray-100 antialiased selection:bg-purple-500/30">
+
+  <!-- Mobile Only Container -->
+  <div class="mobile-container">
+    
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+      <!-- Default Navigation View -->
+      <div id="defaultHeader" class="header-view active">
+        <div class="header-left">
+          <button id="backBtn" onclick="goBack()" class="icon-btn hidden">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+        </div>
+
+        <h1 class="header-title">
+          iB - Stock Take App
+        </h1>
+
+        <div class="header-right">
+          <button id="headerSearchBtn" onclick="toggleSearch()" class="icon-btn hidden">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Navigation View -->
+      <div id="searchHeader" class="header-view search-view">
+        <button onclick="toggleSearch()" class="icon-btn mr-2">
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <input type="text" id="globalSearchInput" placeholder="Search product or brand..." class="search-input" oninput="handleGlobalSearch()">
+      </div>
+    </header>
+
+    <!-- Page 1: Home Dashboard -->
+    <main id="page1" class="page-view active flex-center">
+      <div class="home-hero">
+        <div class="hero-icon-bg">
+          <i class="fa-solid fa-clipboard-list text-purple-500 hero-icon"></i>
+        </div>
+        <h2 class="hero-title">Stock Take</h2>
+        <p class="hero-desc">HSG Global inventory audit workspace</p>
+      </div>
+
+      <div class="home-actions">
+        <button id="startBtn" onclick="startCount()" class="btn-primary-gradient">
+          <span class="btn-gradient-content">
+            START COUNT
+            <i class="fa-solid fa-arrow-right ml-2"></i>
+          </span>
+          <div id="btnSyncIndicator" class="button-loading-bar"></div>
+        </button>
+
+        <button onclick="showLatestStockTake()" class="btn-quiet">
+          Latest Stock Take
+        </button>
+      </div>
+
+      <div class="version-footer">
+        <a href="../index.html" class="exit-link">Exit</a>
+      </div>
+    </main>
+
+    <!-- Page 2: Product Count Sheet -->
+    <main id="page2" class="page-view hidden">
+      <div id="productsContainer" class="scroll-container pb-safe">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+
+      <!-- Sticky Footer Actions -->
+      <div class="sticky-footer">
+        <button onclick="prepareSummary()" class="btn-primary w-full">
+          <i class="fa-solid fa-list-check mr-2"></i> REVIEW COUNT
+        </button>
+      </div>
+    </main>
+
+    <!-- Page 3: Audit Summary Review -->
+    <main id="page3" class="page-view hidden">
+      <div class="summary-header">
+        <h2 id="summaryTitle" class="summary-title">Inventory Review</h2>
+        <p id="summaryRemark" class="summary-remark"></p>
+      </div>
+
+      <div class="scroll-container pb-safe-large">
+        <div id="summaryListContainer" class="summary-list">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+      </div>
+
+      <!-- Submit Footer -->
+      <div id="submitBtnContainer" class="sticky-footer">
+        <button id="submitBtn" onclick="submitData()" class="btn-success w-full">
+          <i class="fa-solid fa-cloud-arrow-up mr-2"></i> SUBMIT INVENTORY
+        </button>
+      </div>
+
+      <!-- Floating PDF Button -->
+      <button id="headerExportBtn" onclick="handleExportAction('pdf')" class="fab-pdf hidden">
+        <i class="fa-solid fa-file-pdf"></i>
+      </button>
+    </main>
+
+    <!-- Modal Overlays -->
+
+    <!-- 1. Quick Calc Overlay -->
+    <div id="calcModal" class="modal-overlay hidden">
+      <div class="modal-card calc-card">
+        <div class="modal-header">
+          <span class="modal-header-tag"><i class="fa-solid fa-calculator mr-1"></i> Quick Calc</span>
+          <button onclick="closeCalc()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="calc-logs-panel">
+          <div id="calcHistoryLog"></div>
+        </div>
+
+        <div class="calc-display-panel">
+          <div id="calcProductCode" class="calc-sku-tag"></div>
+          <div id="calcHistory" class="calc-formula"></div>
+          <div id="calcDisplay" class="calc-result">0</div>
+        </div>
+
+        <!-- Calculator Keys -->
+        <div class="calc-grid">
+          <!-- Row 1 -->
+          <button class="calc-key op-key" onclick="calcOp('/')"><i class="fa-solid fa-divide"></i></button>
+          <button class="calc-key op-key" onclick="calcOp('*')"><i class="fa-solid fa-xmark"></i></button>
+          <button class="calc-key op-key" onclick="calcOp('+')"><i class="fa-solid fa-plus"></i></button>
+          <button class="calc-key op-key" onclick="calcOp('-')"><i class="fa-solid fa-minus"></i></button>
+
+          <!-- Row 2 -->
+          <button class="calc-key num-key" onclick="calcInput('7')">7</button>
+          <button class="calc-key num-key" onclick="calcInput('8')">8</button>
+          <button class="calc-key num-key" onclick="calcInput('9')">9</button>
+          <button class="calc-key del-key" onclick="calcDel()"><i class="fa-solid fa-backspace"></i></button>
+
+          <!-- Row 3 -->
+          <button class="calc-key num-key" onclick="calcInput('4')">4</button>
+          <button class="calc-key num-key" onclick="calcInput('5')">5</button>
+          <button class="calc-key num-key" onclick="calcInput('6')">6</button>
+          <button class="calc-key clear-key" onclick="calcClear()">C</button>
+
+          <!-- Row 4 -->
+          <button class="calc-key num-key" onclick="calcInput('1')">1</button>
+          <button class="calc-key num-key" onclick="calcInput('2')">2</button>
+          <button class="calc-key num-key" onclick="calcInput('3')">3</button>
+          <button class="calc-key eq-key row-span-2" onclick="calcEq()"><i class="fa-solid fa-equals"></i></button>
+
+          <!-- Row 5 -->
+          <button class="calc-key num-key" onclick="calcInput('(')">(</button>
+          <button class="calc-key num-key" onclick="calcInput('0')">0</button>
+          <button class="calc-key num-key" onclick="calcInput(')')">)</button>
+        </div>
+
+        <button class="btn-success calc-apply-btn" onclick="applyCalc()">
+          <i class="fa-solid fa-check-double mr-2"></i> APPLY TO COUNT
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. Security PIN Modal -->
+    <div id="pinModal" class="modal-overlay hidden" onclick="document.getElementById('hiddenPinInput').focus()">
+      <button onclick="cancelPinModal()" class="close-btn absolute-top-right"><i class="fa-solid fa-xmark"></i></button>
+
+      <div class="pin-modal-content">
+        <div class="pin-lock-icon">
+          <i class="fa-solid fa-user-lock"></i>
+        </div>
+        <h3 class="pin-title">ENTER SECURITY PIN</h3>
+        <p class="pin-subtitle">Required to authorize inventory submission</p>
+
+        <div class="pin-box-wrapper">
+          <!-- Hidden Input for mobile keyboard trigger -->
+          <input type="tel" id="hiddenPinInput" maxlength="4" autocomplete="off" class="hidden-pin-input" oninput="handleHiddenPinInput(this)">
+
+          <div class="pin-box"></div>
+          <div class="pin-box"></div>
+          <div class="pin-box"></div>
+          <div class="pin-box"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Centralized Custom Alert Modal -->
+    <div id="customAlertModal" class="modal-overlay alert-overlay hidden">
+      <div id="customAlertBox" class="modal-card alert-card">
+        <div id="customAlertIcon" class="alert-icon-wrapper">
+          <i class="fa-solid fa-bell"></i>
+        </div>
+        <h3 id="customAlertTitle" class="alert-title">Notice</h3>
+        <p id="customAlertMessage" class="alert-desc"></p>
+        <button id="customAlertBtn" onclick="closeCustomAlert()" class="btn-primary w-full py-3">
+          OK, GOT IT
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. Image Fullscreen View Modal -->
+    <div id="imageModal" class="modal-overlay hidden">
+      <div class="absolute-top-right">
+        <button onclick="closeImageModal()" class="icon-btn bg-slate-800 rounded-full border border-gray-700 shadow-md">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+      
+      <div class="fullscreen-image-wrapper">
+        <img id="imageModalImg" src="" alt="Product Preview" class="preview-img" />
+        <div class="preview-info-card">
+          <h3 id="imageModalCode" class="preview-sku"></h3>
+          <p id="imageModalDesc" class="preview-description"></p>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- End Mobile Only Container -->
+
+
+  <!-- PDF libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0F172A">
+  <title>iB - Picker App</title>
+  <link rel="stylesheet" href="style.css?v=26.0.12">
+  <script>
+    // iOS Safari gesture zoom prevention
+    document.addEventListener('gesturestart', function (e) {
+      e.preventDefault();
+    });
+
+    // Mobile multi-touch zoom prevention
+    document.addEventListener('touchstart', function (event) {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+
+    // Desktop Ctrl+Wheel zoom prevention
+    document.addEventListener('wheel', function (e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // Desktop Ctrl+/- zoom prevention
+    document.addEventListener('keydown', function (e) {
+      if (e.ctrlKey && (e.key === '=' || e.key === '-' || e.key === '0' || e.key === '+')) {
+        e.preventDefault();
+      }
+    });
+  </script>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="mobile-header">
+    <button id="menu-btn" class="header-icon-btn left-icon" aria-label="Open Menu">
+      <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+    
+    <span class="mobile-header-title">iB - Picker App</span>
+    
+    <button id="refresh-btn" class="header-icon-btn right-icon" aria-label="Refresh Data">
+      <svg id="refresh-icon" class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+        <path d="M3 21v-5h5"></path>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Subheader with navigation tabs -->
+  <div class="subheader">
+    <div class="tab-container">
+      <div id="tab-bar" class="tab-bar">
+        <!-- Injected dynamically via JS -->
+      </div>
+    </div>
+    <div id="qty-count-display" class="qty-count-display">Total Orders: 0</div>
+  </div>
+
+  <!-- Side Navigation Drawer -->
+  <div id="drawer-overlay" class="drawer-overlay"></div>
+  <aside id="drawer" class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-logo">iB <span>Picker</span></span>
+    </div>
+    
+    <nav class="drawer-menu">
+      <button class="drawer-item active" data-menu="Pending">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span>Pending</span>
+      </button>
+      
+      <button class="drawer-item" data-menu="Goods Ready">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="3" width="15" height="13"></rect>
+          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+          <circle cx="5.5" cy="18.5" r="2.5"></circle>
+          <circle cx="18.5" cy="18.5" r="2.5"></circle>
+        </svg>
+        <span>Goods Ready</span>
+      </button>
+
+      <button class="drawer-item" data-menu="Complete">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Complete</span>
+      </button>
+    </nav>
+    
+    <div class="drawer-footer">
+      <nav class="footer-menu">
+        <button class="footer-item hidden" id="logout-btn" style="margin-bottom: 8px;">
+          <svg class="footer-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span id="logout-picker-name" style="font-weight: 700;">Picker</span>
+        </button>
+        <button class="footer-item" id="exit-btn">
+          <svg class="footer-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Exit</span>
+        </button>
+      </nav>
+      <div class="footer-divider"></div>
+      <span>internal Bridge Apps</span>
+      <span class="copyright">Copyright &copy; 2026 HSG Global.<br>All rights reserved.</span>
+      <footer class="app-footer" style="margin-top: 4px; font-size: 8.5px;"><span id="app-version"></span></footer>
+    </div>
+  </aside>
+
+  <!-- Content Area -->
+  <main class="mobile-content">
+    <!-- Expandable Search Header Row -->
+    <div class="content-header-row">
+      <div id="active-menu-label" class="active-menu-label">Pending</div>
+      
+      <div class="search-bar-expandable" id="search-bar-container">
+        <button id="search-toggle-btn" class="search-toggle-btn" aria-label="Toggle Search">
+          <svg class="search-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+        <input type="text" id="order-search-input" class="search-input-field" placeholder="Search orders..." autocomplete="off">
+        <button id="search-clear-btn" class="search-clear-btn hidden" aria-label="Clear Search">
+          <svg class="clear-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Orders Cards List -->
+    <div id="orders-list" class="orders-list">
+      <!-- Order cards will be dynamically rendered here -->
+    </div>
+  </main>
+
+
+
+  <!-- Custom Exit Confirmation Modal -->
+  <div id="exit-modal" class="exit-modal-overlay">
+    <div class="exit-modal-card">
+      <div class="exit-modal-title">Exit Application?</div>
+      <div class="exit-modal-desc">Are you sure you want to close the application?</div>
+      <div class="exit-modal-actions">
+        <button id="exit-modal-cancel-btn" class="modal-btn cancel">Cancel</button>
+        <button id="exit-modal-yes-btn" class="modal-btn confirm">Yes, Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Revert Confirmation Modal -->
+  <div id="revert-modal" class="exit-modal-overlay">
+    <div class="exit-modal-card">
+      <div class="exit-modal-title">Revert Order?</div>
+      <div class="exit-modal-desc">Are you sure you want to revert this order back to Picking?</div>
+      <div class="exit-modal-actions">
+        <button id="revert-modal-cancel-btn" class="modal-btn cancel">Cancel</button>
+        <button id="revert-modal-yes-btn" class="modal-btn confirm">Yes, Revert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Picking List detail view -->
+  <div id="picking-page" class="picking-page-overlay">
+    <!-- Header matching Merchandiser App -->
+    <header class="picking-header">
+      <button id="picking-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="mobile-header-title">Picking List</span>
+    </header>
+
+    <!-- Detail Header (Top Side) -->
+    <div class="picking-order-info-card">
+      <div class="picking-mark-box" id="picking-order-mark">-</div>
+      <div class="picking-info-details">
+        <div class="picking-info-row">
+          <span class="info-value" id="picking-order-id">-</span>
+        </div>
+        <div class="picking-info-row">
+          <span class="info-value" id="picking-order-deliver">-</span>
+        </div>
+        <div class="picking-info-row">
+          <span class="info-value" id="picking-order-zone">-</span>
+        </div>
+      </div>
+      <button id="picking-do-paper-btn" style="margin-left: auto; border: none; background: #FEF3C7; color: #D97706; width: 30px; height: 30px; border-radius: 50%; display: none; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; cursor: pointer; flex-shrink: 0; outline: none; -webkit-tap-highlight-color: transparent; box-shadow: 0 2px 4px rgba(217, 119, 6, 0.15);">
+        !
+      </button>
+    </div>
+
+    <!-- Scrollable content wrapper -->
+    <div class="picking-items-scroll">
+      <!-- Items Container -->
+      <div id="picking-items-container">
+        <!-- Injected dynamically via JS, grouped by Brand -->
+      </div>
+
+      <!-- Camera Upload Block (Disabled initially until all items checked) -->
+      <div class="picking-photo-section disabled hidden" id="picking-photo-section">
+        <div class="picking-photo-section-title">Upload Proof Photo</div>
+        <div class="camera-upload-box" id="camera-upload-box">
+          <div class="camera-placeholder" id="camera-placeholder">
+            <svg class="camera-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <span>Tap to Capture Photo</span>
+          </div>
+          <img id="camera-preview-img" class="camera-preview-img hidden" alt="Proof Preview">
+          <input type="file" id="proof-camera-input" accept="image/*" capture="environment" style="display: none;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Action Bar -->
+    <footer class="picking-footer-bar">
+      <button id="picking-action-btn" class="picking-action-btn">Start Pick</button>
+    </footer>
+  </div>
+
+  <!-- Authentication Page view -->
+  <div id="auth-page" class="auth-page-overlay">
+    <header class="auth-header">
+      <button id="auth-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="mobile-header-title">Authentication</span>
+    </header>
+
+    <div class="auth-content">
+      <!-- 4-digit PIN Masked Input -->
+      <div class="pin-entry-container" style="margin-top: 40px;">
+        <label class="pin-entry-label" style="font-size: 13px; color: #94A3B8; margin-bottom: 20px; font-weight: 700;">ENTER 4-DIGIT PIN</label>
+        <div class="pin-digits-row" id="pin-digits-wrapper" style="margin-bottom: 25px;">
+          <div class="pin-digit-display"></div>
+          <div class="pin-digit-display"></div>
+          <div class="pin-digit-display"></div>
+          <div class="pin-digit-display"></div>
+          <input type="text" id="auth-pin-hidden" pattern="[0-9]*" inputmode="numeric" autocomplete="new-password" style="opacity: 0; position: absolute; left: -9999px; width: 1px; height: 1px;">
+        </div>
+        <input type="hidden" id="auth-pin-input">
+      </div>
+    </div>
+  </div>
+
+  <!-- WhatsApp Report Prep Bottom Drawer -->
+  <div id="whatsapp-prep-overlay" class="drawer-overlay" style="z-index: 10400;"></div>
+  <div id="whatsapp-prep-drawer" class="brand-select-drawer" style="z-index: 10500; height: 65dvh; padding-bottom: 24px; background-color: #FFFFFF;">
+    <div class="drawer-drag-handle"></div>
+    <div class="drawer-title-row" style="border-bottom: none; padding-bottom: 4px;">
+      <span class="drawer-title" style="font-size: 16px; font-weight: 700;">Share to WhatsApp</span>
+    </div>
+    
+    <div style="padding: 0 20px; display: flex; flex-direction: column; gap: 12px; flex: 1; overflow-y: auto; justify-content: space-between; height: calc(100% - 40px);">
+      <!-- Info Content Section -->
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Store & Retailer Details -->
+        <div>
+          <div id="whatsapp-prep-store-name" style="font-size: 15px; font-weight: 700; color: var(--text-primary); text-align: left;">DO Number</div>
+          <div id="whatsapp-prep-retailer-name" style="font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-top: 2px; text-align: left;">Deliver To</div>
+        </div>
+        
+        <!-- Image Collection -->
+        <div id="whatsapp-prep-images-section">
+          <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; text-align: left;">Captured Proof Photo</div>
+          <div id="whatsapp-prep-images-list" style="display: flex; gap: 10px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; -ms-overflow-style: none;">
+            <!-- Thumbnails will be dynamically injected here -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- Footer Progress and Action Buttons Section -->
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: auto; padding-top: 12px; border-top: 1px solid #F1F5F9; background: #FFF;">
+        <!-- Status Text -->
+        <div id="whatsapp-prep-status" style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: left;">Preparing report...</div>
+        
+        <!-- Progress Bar Container -->
+        <div style="width: 100%; height: 6px; background-color: #E2E8F0; border-radius: 3px; overflow: hidden;">
+          <div id="whatsapp-prep-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #F97316, #EA580C); transition: width 0.3s ease; border-radius: 3px;"></div>
+        </div>
+        
+        <!-- Action Buttons Row -->
+        <div style="display: flex; gap: 12px; margin-top: 4px;">
+          <button id="whatsapp-prep-cancel-btn" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; color: #475569; background-color: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer; transition: background 0.2s;">Cancel</button>
+          <button id="whatsapp-prep-send-btn" disabled style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; color: white; background-color: var(--app-color); border: none; border-radius: 8px; cursor: not-allowed; opacity: 0.5; transition: all 0.2s; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.25);">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Handover Page View -->
+  <div id="handover-page" class="picking-page-overlay" style="z-index: 510;">
+    <!-- Header -->
+    <header class="picking-header">
+      <button id="handover-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="mobile-header-title">Handover Order</span>
+    </header>
+
+    <!-- Order Info Card -->
+    <div class="picking-order-info-card" style="margin-bottom: 0;">
+      <div class="picking-mark-box" id="handover-order-mark">-</div>
+      <div class="picking-info-details">
+        <div class="picking-info-row">
+          <span class="info-value" id="handover-order-id">-</span>
+        </div>
+        <div class="picking-info-row">
+          <span class="info-value" id="handover-order-deliver">-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scrollable form container -->
+    <div class="picking-items-scroll" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- Input: Name Receiver -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label for="handover-receiver-name" style="font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Name of Receiver *</label>
+        <input type="text" id="handover-receiver-name" placeholder="Enter receiver's name" style="width: 100%; padding: 12px; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--text-primary); outline: none; background-color: #FFF; box-sizing: border-box;" autocomplete="off">
+      </div>
+
+      <!-- Input: Phone Number -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label for="handover-receiver-phone" style="font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Phone Number *</label>
+        <input type="tel" id="handover-receiver-phone" placeholder="Enter phone number" style="width: 100%; padding: 12px; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--text-primary); outline: none; background-color: #FFF; box-sizing: border-box;" autocomplete="off">
+      </div>
+
+      <!-- Capture Photo Section -->
+      <div class="picking-photo-section" style="margin-top: 0; padding: 0;">
+        <div class="picking-photo-section-title" style="margin-bottom: 8px; font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Upload Handover Photo *</div>
+        <div class="camera-upload-box" id="handover-page-camera-box">
+          <div class="camera-placeholder" id="handover-page-placeholder">
+            <svg class="camera-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <span>Tap to Capture Handover Photo</span>
+          </div>
+          <img id="handover-page-preview-img" class="camera-preview-img hidden" alt="Handover Preview" style="width: 100%; height: 100%; object-fit: cover;">
+          <input type="file" id="handover-page-camera-input" accept="image/*" capture="environment" style="display: none;">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer Action Bar -->
+    <footer class="picking-footer-bar">
+      <button id="handover-page-submit-btn" class="picking-action-btn" style="background-color: var(--app-color); opacity: 0.5; cursor: not-allowed;" disabled>Submit Handover</button>
+    </footer>
+  </div>
+
+  <!-- Logs Page View -->
+  <div id="logs-page" class="picking-page-overlay" style="z-index: 600;">
+    <!-- Header -->
+    <header class="picking-header">
+      <button id="logs-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="mobile-header-title" id="logs-page-title">Order Logs</span>
+    </header>
+
+    <!-- Scrollable content wrapper for logs timeline -->
+    <div class="picking-items-scroll" style="padding: 20px 16px;">
+      <div id="logs-timeline-container" style="position: relative; padding-left: 24px; border-left: 2px solid #E2E8F0; display: flex; flex-direction: column; gap: 24px; text-align: left; box-sizing: border-box;">
+        <!-- Injected dynamically via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Fullscreen Image Modal -->
+  <div id="lightbox-modal" class="exit-modal-overlay" style="z-index: 10600; background-color: rgba(15, 23, 42, 0.95); display: none; align-items: center; justify-content: center; padding: 20px;">
+    <button id="lightbox-close-btn" style="position: absolute; top: 20px; right: 20px; border: none; background: rgba(255,255,255,0.25); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">
+      &times;
+    </button>
+    <img id="lightbox-img" style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" alt="DO Paper Lightbox">
+  </div>
+
+  <script src="app.js?v=26.0.12"></script>
+</body>
+</html>

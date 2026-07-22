@@ -1,0 +1,18 @@
+{
+  "name": "iB-Merch",
+  "short_name": "iB-Merch",
+  "description": "iB-Merch App - HSG Global",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

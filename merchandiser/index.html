@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0F172A">
+  <link rel="manifest" href="manifest.json">
+  <title>iB - Merchandiser App</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // iOS Safari gesture zoom prevention
+    document.addEventListener('gesturestart', function (e) {
+      e.preventDefault();
+    });
+
+    // Mobile multi-touch zoom prevention
+    document.addEventListener('touchstart', function (event) {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+
+    // Desktop Ctrl+Wheel zoom prevention
+    document.addEventListener('wheel', function (e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // Desktop Ctrl+/- zoom prevention
+    document.addEventListener('keydown', function (e) {
+      if (e.ctrlKey && (e.key === '=' || e.key === '-' || e.key === '0' || e.key === '+')) {
+        e.preventDefault();
+      }
+    });
+  </script>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="mobile-header">
+    <button id="menu-btn" class="header-icon-btn left-icon" aria-label="Open Menu">
+      <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+      <span id="header-badge" class="red-badge hidden">0</span>
+    </button>
+    
+    <span class="mobile-header-title">iB - Merchandiser App</span>
+    
+    <button id="refresh-btn" class="header-icon-btn right-icon" aria-label="Refresh Data">
+      <svg id="refresh-icon" class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+        <path d="M3 21v-5h5"></path>
+      </svg>
+    </button>
+    <button id="resubmit-btn" class="header-resubmit-btn hidden">Re-Submit</button>
+  </header>
+  <div id="failed-sync-list" class="failed-sync-container hidden"></div>
+
+  <!-- Sub-Header for Daily Task (Zone selection and qty count) -->
+  <div id="daily-task-subheader" class="subheader">
+    <div class="zone-container">
+      <div id="zone-bar" class="zone-bar">
+        <button class="zone-tab active" data-zone="All">All</button>
+      </div>
+    </div>
+    <div id="store-count-display" class="store-count-display">Pending Visit: 0</div>
+  </div>
+
+  <!-- Side Navigation Drawer -->
+  <div id="drawer-overlay" class="drawer-overlay"></div>
+  <aside id="drawer" class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-logo">iB <span>Merch</span></span>
+    </div>
+    
+    <nav class="drawer-menu">
+      <button class="drawer-item active" data-menu="daily-task">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        <span>Daily Task</span>
+      </button>
+      
+      <button class="drawer-item" data-menu="special-task">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+        </svg>
+        <span>Special Task</span>
+        <span id="drawer-badge" class="red-badge hidden">0</span>
+      </button>
+
+      <button class="drawer-item" data-menu="latest-visit">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <span>Latest Visit</span>
+      </button>
+      
+      <button class="drawer-item" data-menu="po-request">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <span>PO Request</span>
+      </button>
+
+      <button class="drawer-item" data-menu="stores-directory">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        <span>Stores Directory</span>
+      </button>
+
+      <button class="drawer-item" data-menu="phonebook">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+        </svg>
+        <span>Phonebook</span>
+      </button>
+
+      <button class="drawer-item" data-menu="my-report">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <span>My Report</span>
+      </button>
+    </nav>
+    
+    <div class="drawer-footer">
+      <nav class="footer-menu">
+        <button class="footer-item" data-menu="install-app">
+          <svg class="footer-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Install App</span>
+        </button>
+        <button class="footer-item" id="exit-btn">
+          <svg class="footer-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Exit</span>
+        </button>
+      </nav>
+      <div class="footer-divider"></div>
+      <span>internal Bridge Apps</span>
+      <span class="copyright">Copyright &copy; 2026 HSG Global.<br>All rights reserved.</span>
+<footer class="app-footer"><span id="app-version"></span></footer>
+    </div>
+  </aside>
+
+  <!-- Content Area -->
+  <main class="mobile-content">
+    <!-- Stores View (Daily Task) -->
+    <div id="stores-view" class="stores-view hidden">
+      <!-- Map Controls & Toggle -->
+      <div class="map-controls">
+        <div class="controls-row-1">
+          <div class="search-container">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="store-search-input" placeholder="Search stores..." autocomplete="off">
+          </div>
+          
+          <button id="toggle-map-btn" class="map-action-btn icon-only" title="Open/Close Maps">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+              <line x1="8" y1="2" x2="8" y2="18"></line>
+              <line x1="16" y1="6" x2="16" y2="22"></line>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Map limit selector, shown only when map is active -->
+        <div id="map-limit-container" class="map-limit-container hidden">
+          <span class="limit-label">Show closest:</span>
+          <div class="limit-selector">
+            <button class="limit-btn active" data-limit="10">10</button>
+            <button class="limit-btn" data-limit="20">20</button>
+            <button class="limit-btn" data-limit="30">30</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Map Container -->
+      <div id="map-container" class="map-container hidden">
+        <div id="map-view"></div>
+      </div>
+      
+      <!-- Stores List -->
+      <div id="stores-list" class="stores-list">
+        <!-- Store cards will be dynamically rendered here -->
+      </div>
+    </div>
+
+    <!-- PO Request View -->
+    <div id="po-request-view" class="stores-view hidden" style="display: flex; flex-direction: column; height: 100%;">
+      <!-- Form Scrollable Container -->
+      <div style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 14px;">
+        
+        <div class="audit-form-group" style="margin-bottom: 0; position: relative; width: 100%;">
+          <label class="form-label">Search Store</label>
+          <input type="text" id="po-store-search" class="form-textarea" style="height: 44px; padding: 10px 12px; background: #FFF; box-sizing: border-box;" placeholder="Type Store Name or ID..." autocomplete="off">
+          <div id="po-store-search-results" style="display: none; position: absolute; top: 72px; left: 0; width: 100%; background: #FFF; border: 1.5px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); z-index: 100; max-height: 250px; overflow-y: auto;">
+            <!-- Autocomplete matches injected dynamically -->
+          </div>
+          <div id="po-selected-store-info" style="font-size: 13px; font-weight: 700; color: var(--app-color); margin-top: 6px; display: none; padding: 2px 4px;">
+            <!-- Retailer & Store Name displayed here -->
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid #E2E8F0; padding-top: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <div class="audit-form-group" style="margin-bottom: 0;">
+            <label class="form-label">Add Products</label>
+            <select id="po-product-select" class="form-textarea" style="height: 44px; padding: 10px 12px; background: #FFF; box-sizing: border-box;">
+              <option value="">Select a Product</option>
+            </select>
+          </div>
+          
+          <div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
+            <div class="audit-form-group" style="flex: 2; margin-bottom: 0; min-width: 0;">
+              <label class="form-label">UOM / Pack</label>
+              <input type="text" id="po-uom-pack-display" class="form-textarea" style="height: 44px; padding: 10px 12px; background: #F1F5F9; color: #475569; border: 1.5px solid #CBD5E1; box-sizing: border-box; font-weight: 600;" value="" disabled readonly>
+            </div>
+            
+            <div style="font-size: 16px; font-weight: 700; color: #64748B; padding-bottom: 12px;">x</div>
+            
+            <div class="audit-form-group" style="flex: 2; margin-bottom: 0; min-width: 0;">
+              <label class="form-label">Quantity</label>
+              <select id="po-qty-select" class="form-textarea" style="height: 44px; padding: 10px 12px; background: #FFF; box-sizing: border-box;">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+                <option value="11">11</option>
+                <option value="12">12</option>
+                <option value="13">13</option>
+                <option value="14">14</option>
+                <option value="15">15</option>
+                <option value="16">16</option>
+                <option value="17">17</option>
+                <option value="18">18</option>
+                <option value="19">19</option>
+                <option value="20">20</option>
+                <option value="21">21</option>
+                <option value="22">22</option>
+                <option value="23">23</option>
+                <option value="24">24</option>
+              </select>
+            </div>
+
+            <!-- Plus add button aligned on the same horizontal row -->
+            <button id="po-add-product-btn" class="primary-btn" style="flex: 1; height: 44px; border-radius: 8px; border: none; background: var(--app-color); color: #FFF; font-weight: 700; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; min-width: 44px;">+</button>
+          </div>
+        </div>
+
+        <!-- Cart items list -->
+        <div style="margin-top: 8px; border-top: 1px solid #E2E8F0; padding-top: 14px;">
+          <div class="form-label" style="margin-bottom: 8px;">Order Items</div>
+          <div style="max-height: 200px; overflow-y: auto; border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+              <tbody id="po-cart-body">
+                <tr>
+                  <td colspan="3" style="text-align: center; padding: 16px; color: #94A3B8; font-weight: 500;">No items added to order yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+      
+      <!-- Footer Sticky Bottom Action Button -->
+      <div style="padding: 12px 15px; background: #FFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -4px 10px rgba(0,0,0,0.03); z-index: 10; display: flex; flex-direction: column; gap: 8px;">
+        <button id="po-generate-btn" class="primary-btn" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: var(--app-color); color: #FFF; font-weight: 700; font-size: 13.5px; cursor: pointer; transition: background-color 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);">
+          <span>Generate Request PO</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stores Directory View -->
+    <div id="stores-directory-view" class="stores-view hidden" style="display: flex; flex-direction: column; height: 100%;">
+      <!-- Controls: Retailers Dropdown and Word-by-Word Search -->
+      <div class="directory-controls" style="padding: 10px; background: #FFF; border-bottom: 1px solid #E2E8F0; display: flex; flex-direction: column; gap: 8px;">
+        <select id="directory-retailer-select" style="font-size: 12px; padding: 6px; border: 1px solid #CBD5E1; border-radius: 4px; width: 100%;">
+          <option value="All">All Retailers</option>
+        </select>
+        <input type="text" id="directory-search-input" placeholder="Search store name, address..." style="font-size: 12px; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 4px; width: 100%;" autocomplete="off">
+      </div>
+      
+      <!-- Table Container (Scrollable) -->
+      <div class="directory-table-container" style="flex: 1; overflow-y: auto; padding: 0 10px;">
+        <table id="directory-table" style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 2px solid #CBD5E1; color: #64748B;">
+              <th style="padding: 8px 4px;">Store Name</th>
+              <th style="padding: 8px 4px; text-align: right; width: 65px;">Info</th>
+            </tr>
+          </thead>
+          <tbody id="directory-table-body">
+            <!-- Table rows injected dynamically -->
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Footer Sticky Bottom -->
+      <div id="directory-footer" style="padding: 8px 10px; background: #F8FAFC; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-weight: 600; text-align: left;">
+        Total Results: 0
+      </div>
+    </div>
+
+    <!-- Phonebook View -->
+    <div id="phonebook-view" class="stores-view hidden" style="display: flex; flex-direction: column; height: 100%;">
+      <!-- Controls: Search Input and Add Contact Button -->
+      <div class="directory-controls" style="padding: 10px; background: #FFF; border-bottom: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <input type="text" id="phonebook-search-input" placeholder="Search contact name, store, phone..." style="flex: 1; font-size: 12px; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 4px;" autocomplete="off">
+        <button id="add-contact-btn" class="primary-btn" style="font-size: 11px; padding: 6px 10px; border-radius: 4px; border: none; background: var(--app-color); color: #FFF; font-weight: 600; cursor: pointer; white-space: nowrap;">Add Contact</button>
+      </div>
+      
+      <!-- Table Container (Scrollable) -->
+      <div class="directory-table-container" style="flex: 1; overflow-y: auto; padding: 0 10px;">
+        <table id="phonebook-table" style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 2px solid #CBD5E1; color: #64748B;">
+              <th style="padding: 8px 4px;">Mr. Name (Position)</th>
+              <th style="padding: 8px 4px; text-align: right;">Contact Number</th>
+            </tr>
+          </thead>
+          <tbody id="phonebook-table-body">
+            <!-- Table rows injected dynamically -->
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Footer Sticky Bottom -->
+      <div id="phonebook-footer" style="padding: 8px 10px; background: #F8FAFC; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-weight: 600; text-align: left;">
+        Total Contacts: 0
+      </div>
+    </div>
+
+    <!-- My Report View -->
+    <div id="my-report-view" class="stores-view hidden" style="display: flex; flex-direction: column; height: 100%; position: relative;">
+      <!-- PIN Prompt Container -->
+      <div id="my-report-pin-container" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center;">
+        <div style="background: #FFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); width: 100%; max-width: 320px;">
+          <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px; color: var(--text-primary);">Enter Merchandiser PIN</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">Please enter your 4-digit PIN to access My Report.</div>
+          <div style="margin-bottom: 20px; display: flex; justify-content: center;">
+            <input type="text" id="my-report-pin-input" class="pin-input-field" maxlength="4" placeholder="••••" inputmode="numeric" pattern="[0-9]*" autocomplete="off" style="width: 130px; font-size: 24px; text-align: center; letter-spacing: 6px; padding: 8px; border: 1.5px solid #CBD5E1; border-radius: 6px; outline: none;">
+          </div>
+          <button id="my-report-pin-submit-btn" class="primary-btn" style="width: 100%; font-size: 12.5px; padding: 10px; border-radius: 6px; border: none; background: var(--app-color); color: #FFF; font-weight: 600; cursor: pointer;">Verify PIN</button>
+        </div>
+      </div>
+
+      <!-- Report Dashboard Container (hidden by default) -->
+      <div id="my-report-dashboard" class="hidden" style="flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+        <!-- Top Stats Cards -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; background: #FFF; border-bottom: 1px solid #E2E8F0;">
+          <div style="background: var(--app-bg-light); border: 1.5px solid rgba(6,182,212,0.1); border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 10.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Visit Today</div>
+            <div id="report-stat-today" style="font-size: 26px; font-weight: 800; color: var(--app-color); margin-top: 2px;">0</div>
+          </div>
+          <div style="background: #EFF6FF; border: 1.5px solid rgba(59,130,246,0.1); border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 10.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Visit This Weeks</div>
+            <div id="report-stat-week" style="font-size: 26px; font-weight: 800; color: #3B82F6; margin-top: 2px;">0</div>
+          </div>
+        </div>
+
+        <!-- Toggle today vs this week -->
+        <div style="padding: 10px 12px; background: #F8FAFC; border-bottom: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: center;">
+          <div style="display: flex; background: #E2E8F0; border-radius: 6px; padding: 2px; width: 100%;">
+            <button id="report-toggle-today-btn" style="flex: 1; border: none; background: #FFF; font-size: 11px; font-weight: 700; padding: 6px; border-radius: 4px; color: var(--text-primary); cursor: pointer; transition: all 0.2s;">Today</button>
+            <button id="report-toggle-week-btn" style="flex: 1; border: none; background: transparent; font-size: 11px; font-weight: 700; padding: 6px; border-radius: 4px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">This Week</button>
+          </div>
+        </div>
+
+        <!-- Table List Section -->
+        <div class="directory-table-container" style="flex: 1; overflow-y: auto; padding: 0 12px; padding-bottom: 76px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 2px solid #CBD5E1; color: #64748B;">
+                <th style="padding: 8px 4px;">Retailer / Store</th>
+                <th style="padding: 8px 4px; text-align: right; width: 110px;">Date & Time</th>
+              </tr>
+            </thead>
+            <tbody id="report-table-body">
+              <!-- Visits dynamically injected here -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Sticky Clock Out Footer -->
+        <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 12px; background: #FFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -4px 10px rgba(0,0,0,0.03); z-index: 10;">
+          <button id="report-clockout-btn" class="primary-btn" style="width: 100%; padding: 12px; border-radius: 6px; border: none; background: #EF4444; color: #FFF; font-weight: 700; font-size: 13px; cursor: pointer; transition: background-color 0.2s;">Clock Out</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- General Message/Blank View (For other menus) -->
+    <div id="general-view" class="content-container">
+      <div id="active-menu-label" class="active-menu-label">Daily Task</div>
+      
+      <!-- Option details (blank by default, can include subtle content like install options for Install App) -->
+      <div id="active-menu-detail" class="active-menu-detail hidden">
+        <!-- Install App Options -->
+        <div id="install-options" class="install-options hidden"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Store Preview Page (Full height slide-in view) -->
+  <div id="store-preview-page" class="store-preview-page">
+    <header class="preview-header">
+      <button id="preview-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="preview-header-title">Store Overview</span>
+      <div style="width: 60px;"></div> <!-- Spacer for centering title -->
+    </header>
+    
+    <div class="preview-content">
+      <div class="preview-store-info">
+        <div id="preview-retailer" class="preview-retailer">RETAILER NAME</div>
+        <div id="preview-store-name" class="preview-store-name">Store Name</div>
+        <div id="preview-address" class="preview-address">Store Address</div>
+        
+        <div id="preview-badges" class="preview-badges">
+          <!-- Badges injected dynamically -->
+        </div>
+
+        <button id="preview-toggle-view-btn" class="preview-toggle-btn-card" aria-label="Toggle View">
+          <!-- Contact Book Icon -->
+          <svg id="preview-toggle-icon-contact" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="toggle-icon">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            <circle cx="12" cy="8" r="2"></circle>
+            <path d="M15 13a3 3 0 0 0-6 0"></path>
+          </svg>
+          <!-- Timeline Icon (hidden by default) -->
+          <svg id="preview-toggle-icon-timeline" class="toggle-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+            <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="preview-timeline-section">
+        <div id="preview-timeline-title" class="timeline-title">Timeline</div>
+        <div id="preview-timeline-log" class="preview-timeline-log">
+          <!-- Timeline entries injected dynamically -->
+        </div>
+        <div id="preview-contacts-list" class="preview-contacts-list hidden">
+          <!-- Contacts injected dynamically -->
+        </div>
+      </div>
+
+      <div class="preview-actions">
+        <button id="new-audit-btn" class="audit-action-btn primary-btn">Check Latest Audit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Audit - Products Listing Page (Full height slide-in) -->
+  <div id="audit-page" class="store-preview-page">
+    <header class="preview-header">
+      <button id="audit-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="preview-header-title">New Audit</span>
+      <div style="width: 60px;"></div>
+    </header>
+    
+    <div class="preview-content">
+      <div class="audit-meta-card">
+        <div class="audit-store-label">Store Overview</div>
+        <div id="audit-store-name" class="audit-store-name">Store Name</div>
+        <div id="audit-store-retailer" class="audit-store-retailer">Retailer</div>
+      </div>
+
+      <!-- Scrollable Brands/Products Area -->
+      <div id="audit-brands-list" class="audit-brands-list">
+        <!-- Brand Cards will be dynamically injected here -->
+      </div>
+      
+      <!-- Bottom Controls -->
+      <div class="audit-empty-state" id="audit-empty-state">
+        <p>No products added yet. Click "Add Product" below to start.</p>
+        
+        <div class="not-carry-checkbox-container">
+          <label class="not-carry-label">
+            <input type="checkbox" id="not-carry-checkbox">
+            <span>This store not carry our products.</span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="preview-actions">
+        <button id="add-product-btn" class="audit-action-btn secondary-btn">Add Product</button>
+        <button id="audit-next-btn" class="audit-action-btn primary-btn">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Audit - Remark & PIN Submission Page (Full height slide-in) -->
+  <div id="remark-page" class="store-preview-page">
+    <header class="preview-header">
+      <button id="remark-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="preview-header-title">Authentication</span>
+      <div style="width: 60px;"></div>
+    </header>
+    
+    <div class="preview-content">
+      <div id="audit-remark-group" class="audit-form-group">
+        <label for="audit-remark-input" class="form-label">Remark (Mandatory)</label>
+        <textarea id="audit-remark-input" class="form-textarea" placeholder="Enter audit remark here..." rows="4" required></textarea>
+      </div>
+
+      <div class="audit-form-group pin-group">
+        <label class="form-label" style="margin-bottom: 12px;">Enter 4-Digit PIN</label>
+        <div class="pin-digit-container" style="display: flex; gap: 14px; justify-content: center; width: 100%; box-sizing: border-box; padding: 0 10px; flex-wrap: nowrap;">
+          <input type="text" class="pin-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+          <input type="text" class="pin-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+          <input type="text" class="pin-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+          <input type="text" class="pin-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+        </div>
+        <input type="hidden" id="audit-pin-input">
+      </div>
+      
+      <div class="preview-actions">
+        <button id="audit-submit-btn" class="audit-action-btn primary-btn">Submit Audit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Latest Audit Page (Full height slide-in) -->
+  <div id="latest-audit-page" class="store-preview-page">
+    <header class="preview-header">
+      <button id="latest-audit-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="preview-header-title">Latest Audit</span>
+      <div style="width: 60px;"></div>
+    </header>
+    
+    <div class="preview-content">
+      <div class="audit-meta-card">
+        <div class="audit-store-label">Latest Audit Details</div>
+        <div id="latest-audit-store-name" class="audit-store-name">Store Name</div>
+        <div id="latest-audit-store-retailer" class="audit-store-retailer">Retailer</div>
+      </div>
+
+      <!-- Scrollable Brands/Products Area (Read-only) -->
+      <div id="latest-audit-brands-list" class="audit-brands-list">
+        <!-- Brand Cards will be dynamically injected here in read-only mode -->
+      </div>
+      
+      <!-- Bottom Controls -->
+      <div class="preview-actions">
+        <button id="submit-new-audit-btn" class="audit-action-btn primary-btn">Submit New Audit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Contact Page (Full height slide-in) -->
+  <div id="add-contact-page" class="store-preview-page">
+    <header class="preview-header">
+      <button id="add-contact-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="preview-header-title">Add Contact</span>
+      <div style="width: 60px;"></div>
+    </header>
+    
+    <div class="preview-content">
+      <form id="add-contact-form" style="display: flex; flex-direction: column; gap: 15px; padding: 15px 0;">
+        <div class="audit-form-group">
+          <label class="form-label" style="font-weight: 600; color: var(--text-color);">Store (Select by Store ID)</label>
+          <div style="position: relative;">
+            <input type="text" id="contact-store-search" placeholder="Type Store ID or Name..." style="font-size: 12px; padding: 8px; border: 1px solid #CBD5E1; border-radius: 4px; width: 100%; box-sizing: border-box;" autocomplete="off" required>
+            <select id="contact-store-select" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; z-index: 100; max-height: 150px; overflow-y: auto; font-size: 12px; border: 1px solid #CBD5E1; background: white; border-radius: 4px;" size="5">
+              <!-- Options injected dynamically -->
+            </select>
+          </div>
+        </div>
+        
+        <div class="audit-form-group">
+          <label for="contact-name" class="form-label" style="font-weight: 600; color: var(--text-color);">Name</label>
+          <input type="text" id="contact-name" class="form-textarea" style="height: 36px; padding: 8px; box-sizing: border-box;" placeholder="Input Name" required>
+        </div>
+        
+        <div class="audit-form-group">
+          <label for="contact-position" class="form-label" style="font-weight: 600; color: var(--text-color);">Position</label>
+          <input type="text" id="contact-position" class="form-textarea" style="height: 36px; padding: 8px; box-sizing: border-box;" placeholder="Input Position" required>
+        </div>
+        
+        <div class="audit-form-group">
+          <label for="contact-phone" class="form-label" style="font-weight: 600; color: var(--text-color);">Phone Number</label>
+          <input type="tel" id="contact-phone" class="form-textarea" style="height: 36px; padding: 8px; box-sizing: border-box;" placeholder="Input Phone Number" required>
+        </div>
+        
+        <div class="audit-form-group">
+          <label for="contact-gender" class="form-label" style="font-weight: 600; color: var(--text-color);">Gender</label>
+          <select id="contact-gender" style="font-size: 12px; padding: 8px; border: 1px solid #CBD5E1; border-radius: 4px; width: 100%; box-sizing: border-box;" required>
+            <option value="" disabled selected>Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+        </div>
+        
+        <div class="audit-form-group">
+          <label for="contact-email" class="form-label" style="font-weight: 600; color: var(--text-color);">Email (Optional)</label>
+          <input type="email" id="contact-email" class="form-textarea" style="height: 36px; padding: 8px; box-sizing: border-box;" placeholder="Input Email (optional)">
+        </div>
+        
+        <div class="preview-actions" style="margin-top: 15px;">
+          <button type="submit" id="submit-contact-btn" class="audit-action-btn primary-btn">Save Contact</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Brand and Product Selector Bottom Drawer -->
+  <div id="brand-select-overlay" class="drawer-overlay" style="z-index: 290;"></div>
+  <div id="brand-select-drawer" class="brand-select-drawer">
+    <div class="drawer-drag-handle"></div>
+    <div class="drawer-title-row">
+      <span class="drawer-title">Add Brand & Products</span>
+      <button id="drawer-close-btn" class="drawer-close-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="close-icon">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    
+    <div class="drawer-content-scroll">
+      <!-- Step 1: Select Brand -->
+      <div id="drawer-step-brand" class="drawer-step">
+        <div class="step-instruction">Select a Brand</div>
+        <div id="brand-selection-grid" class="brand-selection-grid">
+          <!-- Brands injected dynamically -->
+        </div>
+      </div>
+      
+      <!-- Step 2: Select Products -->
+      <div id="drawer-step-products" class="drawer-step hidden">
+        <div class="drawer-step-header">
+          <button id="drawer-step-back-btn" class="drawer-step-back-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="back-chevron">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span>Brands</span>
+          </button>
+          <span id="selected-brand-label" class="selected-brand-label">Brand Name</span>
+        </div>
+        <div class="step-instruction">Select Products to Insert</div>
+        <div id="product-selection-list" class="product-selection-list">
+          <!-- Products injected dynamically -->
+        </div>
+        
+        <div class="drawer-action-row">
+          <button id="insert-products-btn" class="audit-action-btn primary-btn">Insert Products</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WhatsApp Report Prep Bottom Drawer -->
+  <div id="whatsapp-prep-overlay" class="drawer-overlay" style="z-index: 350;"></div>
+  <div id="whatsapp-prep-drawer" class="brand-select-drawer" style="z-index: 360; height: 65dvh; padding-bottom: 24px; background-color: #FFFFFF;">
+    <div class="drawer-drag-handle"></div>
+    <div class="drawer-title-row" style="border-bottom: none; padding-bottom: 4px;">
+      <span class="drawer-title" style="font-size: 16px; font-weight: 700;">WhatsApp Share Report</span>
+    </div>
+    
+    <div style="padding: 0 20px; display: flex; flex-direction: column; gap: 12px; flex: 1; overflow-y: auto; justify-content: space-between; height: calc(100% - 40px);">
+      <!-- Info Content Section -->
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Store & Retailer Details -->
+        <div>
+          <div id="whatsapp-prep-store-name" style="font-size: 15px; font-weight: 700; color: var(--text-color);">Store Name</div>
+          <div id="whatsapp-prep-retailer-name" style="font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-top: 2px;">Retailer Name</div>
+        </div>
+        
+        <!-- Remark -->
+        <div>
+          <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Remark</div>
+          <div id="whatsapp-prep-remark" style="font-size: 12px; font-weight: 500; color: var(--text-color); margin-top: 4px; padding: 6px 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; line-height: 1.4; word-break: break-word; max-height: 60px; overflow-y: auto;">Remark text...</div>
+        </div>
+        
+        <!-- Image Collection -->
+        <div id="whatsapp-prep-images-section">
+          <div style="font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Captured Shelf Photos</div>
+          <div id="whatsapp-prep-images-list" style="display: flex; gap: 10px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; -ms-overflow-style: none;">
+            <!-- Thumbnails with 4:5 aspect ratio will be dynamically injected here -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- Footer Progress and Action Buttons Section -->
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: auto; padding-top: 12px; border-top: 1px solid #F1F5F9; background: #FFF;">
+        <!-- Status Text -->
+        <div id="whatsapp-prep-status" style="font-size: 12px; font-weight: 600; color: var(--text-color);">Preparing report...</div>
+        
+        <!-- Progress Bar Container -->
+        <div style="width: 100%; height: 6px; background-color: #E2E8F0; border-radius: 3px; overflow: hidden;">
+          <div id="whatsapp-prep-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #6366F1, #4F46E5); transition: width 0.3s ease; border-radius: 3px;"></div>
+        </div>
+        
+        <!-- Action Buttons Row -->
+        <div style="display: flex; gap: 12px; margin-top: 4px;">
+          <button id="whatsapp-prep-cancel-btn" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; color: #475569; background-color: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer; transition: background 0.2s;">Cancel</button>
+          <button id="whatsapp-prep-send-btn" disabled style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; color: white; background-color: var(--app-color); border: none; border-radius: 8px; cursor: not-allowed; opacity: 0.5; transition: all 0.2s; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom PO Request Auth Page (Full height slide-in) -->
+  <div id="po-auth-page" class="store-preview-page">
+    <header class="preview-header">
+      <button id="po-auth-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="preview-header-title">Authentication</span>
+      <div style="width: 60px;"></div>
+    </header>
+    
+    <div class="preview-content" style="display: flex; flex-direction: column; justify-content: space-between; height: calc(100% - 56px); box-sizing: border-box; padding: 24px 20px;">
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; margin-top: -40px;">
+        <span style="font-size: 11px; font-weight: 700; color: #64748B; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 24px; text-align: center;">Enter 4-Digit PIN</span>
+        
+        <div class="po-pin-digit-container" style="display: flex; gap: 14px; justify-content: center; width: 100%; box-sizing: border-box; padding: 0 10px; flex-wrap: nowrap; margin-bottom: 24px;">
+          <input type="text" class="po-pin-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+          <input type="text" class="po-pin-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+          <input type="text" class="po-pin-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+          <input type="text" class="po-pin-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+        </div>
+        <input type="hidden" id="po-auth-pin-input">
+      </div>
+      
+      <div class="preview-actions" style="margin-top: auto; padding-top: 16px; border-top: none; width: 100%;">
+        <button id="po-auth-submit-btn" class="audit-action-btn primary-btn" style="width: 100%; height: 48px; border-radius: 8px;">Generate PO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Exit Confirmation Modal -->
+  <div id="exit-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(15, 23, 42, 0.55); backdrop-filter: blur(2px); z-index: 1000; display: none; align-items: center; justify-content: center;">
+    <div style="background: #FFFFFF; border-radius: 12px; padding: 24px; width: 85%; max-width: 300px; text-align: center; box-sizing: border-box; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.15);">
+      <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px; color: var(--text-primary);">Exit Application?</div>
+      <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.45;">Are you sure you want to close the application?</div>
+      <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
+        <button id="exit-modal-cancel-btn" style="width: 100%; max-width: 220px; padding: 10px; font-size: 12.5px; font-weight: 600; color: #475569; background-color: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer; text-align: center;">Cancel</button>
+        <button id="exit-modal-yes-btn" style="width: 100%; max-width: 220px; padding: 10px; font-size: 12.5px; font-weight: 600; color: white; background-color: #EF4444; border: none; border-radius: 8px; cursor: pointer; text-align: center;">Yes, Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

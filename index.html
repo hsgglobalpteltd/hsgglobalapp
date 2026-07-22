@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0F172A">
+  <title>iB - HSG Global Apps</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // iOS Safari gesture zoom prevention
+    document.addEventListener('gesturestart', function (e) {
+      e.preventDefault();
+    });
+
+    // Mobile multi-touch zoom prevention
+    document.addEventListener('touchstart', function (event) {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+
+    // Desktop Ctrl+Wheel zoom prevention
+    document.addEventListener('wheel', function (e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // Desktop Ctrl+/- zoom prevention
+    document.addEventListener('keydown', function (e) {
+      if (e.ctrlKey && (e.key === '=' || e.key === '-' || e.key === '0' || e.key === '+')) {
+        e.preventDefault();
+      }
+    });
+  </script>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       Desktop View (Fallback QR Code scanner)
+       ========================================================================== -->
+  <div id="desktop-view">
+    <div class="desktop-card">
+      <div class="desktop-logo">iB <span> - HSG Global Apps</span></div>
+      <h2 class="desktop-title">Mobile Access Only</h2>
+      <p class="desktop-desc">This application is optimized for mobile devices. Please scan the QR code below using your smartphone camera to access the apps pool.</p>
+      
+      <div class="qr-container">
+        <!-- Dynamically populated via JS -->
+        <img id="qr-code-img" src="" alt="Scan to open on mobile">
+      </div>
+      
+      <p class="desktop-desc" style="font-size: 12px; margin-top: 8px;">
+        Or copy this URL to your phone:<br>
+        <span class="desktop-url-box" id="current-url-display"></span>
+      </p>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Mobile View (Apps Pools Interface)
+       ========================================================================== -->
+  <div id="mobile-view">
+    <!-- Header: Title only, no other elements -->
+    <header class="mobile-header">
+      <span class="mobile-header-title">iB - HSG Global Apps</span>
+    </header>
+
+    <!-- Content Area -->
+    <main class="mobile-content">
+      <div class="apps-grid">
+        <!-- App 1: Merchandiser -->
+        <a href="merchandiser/index.html" class="app-card merchandiser">
+          <div class="app-icon-container">
+            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <path d="M16 10a4 4 0 0 1-8 0"></path>
+            </svg>
+          </div>
+          <span class="app-label">Merchandiser</span>
+        </a>
+
+        <!-- App 2: Picker -->
+        <a href="picker/index.html" class="app-card picker">
+          <div class="app-icon-container">
+            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <span class="app-label">Picker</span>
+        </a>
+
+        <!-- App 3: Driver -->
+        <a href="driver/index.html" class="app-card driver">
+          <div class="app-icon-container">
+            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="3" width="15" height="13"></rect>
+              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+              <circle cx="5.5" cy="18.5" r="2.5"></circle>
+              <circle cx="18.5" cy="18.5" r="2.5"></circle>
+            </svg>
+          </div>
+          <span class="app-label">Driver</span>
+        </a>
+
+        <!-- App 4: Stock Take -->
+        <a href="stock-take/index.html" class="app-card stock-take">
+          <div class="app-icon-container">
+            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              <line x1="9" y1="14" x2="15" y2="14"></line>
+              <line x1="9" y1="18" x2="15" y2="18"></line>
+              <line x1="9" y1="10" x2="15" y2="10"></line>
+            </svg>
+          </div>
+          <span class="app-label">Stock Take</span>
+        </a>
+      </div>
+    </main>
+
+    <!-- Footer: small text centered -->
+    <footer class="mobile-footer">
+      <div class="mobile-footer-text">
+        internal Bridge Apps
+        <span>Copyright &copy; 2026 HSG Global. All rights reserved.</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-notification">App Coming Soon</div>
+
+  <script src="app.js"></script>
+  <script>
+    let toastTimeout = null;
+    function showComingSoon(appName) {
+      const toast = document.getElementById('toast-notification');
+      if (!toast) return;
+      
+      if (toastTimeout) {
+        clearTimeout(toastTimeout);
+      }
+      
+      toast.textContent = `${appName} App - Coming Soon`;
+      toast.classList.add('toast-visible');
+      
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('toast-visible');
+      }, 2000);
+    }
+  </script>
+</body>
+</html>

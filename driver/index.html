@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0F172A">
+  <title>iB - Driver App</title>
+  <!-- Google Fonts Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+  <link rel="stylesheet" href="style.css?v=26.0.37">
+  <script>
+    // Redirect trailing slash to resolve relative files correctly
+    if (!window.location.pathname.endsWith('/') && !window.location.pathname.endsWith('.html')) {
+      window.location.replace(window.location.pathname + '/');
+    }
+    // Desktop Redirect: if screen width is desktop, redirect to Pools App
+    else if (window.innerWidth > 600) {
+      window.location.replace('../index.html');
+    }
+    // Direct Access Redirect: if not accessed via Pools App, redirect to Pools App
+    else if (sessionStorage.getItem('from_pools') !== 'true' && !document.referrer.includes('index.html')) {
+      window.location.replace('../index.html');
+    }
+
+    // iOS Safari gesture zoom prevention
+    document.addEventListener('gesturestart', function (e) {
+      e.preventDefault();
+    });
+
+    // Mobile multi-touch zoom prevention
+    document.addEventListener('touchstart', function (event) {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+  </script>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="mobile-header">
+    <button id="menu-btn" class="header-icon-btn left-icon" aria-label="Open Menu">
+      <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+    
+    <span class="mobile-header-title">iB - Driver App</span>
+    
+    <button id="refresh-btn" class="header-icon-btn right-icon hidden" aria-label="Refresh Data" style="display: none;">
+      <svg id="refresh-icon" class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+        <path d="M3 21v-5h5"></path>
+      </svg>
+    </button>
+
+    <!-- On Off Toggle Switch -->
+    <div class="header-icon-btn right-icon" style="right: 8px; display: flex; align-items: center; justify-content: center;">
+      <label class="toggle-switch">
+        <input type="checkbox" id="job-toggle-input">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </header>
+
+
+
+  <!-- Side Navigation Drawer -->
+  <div id="drawer-overlay" class="drawer-overlay"></div>
+  <aside id="drawer" class="drawer">
+    <div class="drawer-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; padding: 20px 24px;">
+      <span class="drawer-logo">iB <span>Driver</span></span>
+      <button id="drawer-refresh-btn" aria-label="Refresh Data" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; outline: none; padding: 4px; transition: opacity 0.2s;">
+        <svg id="drawer-refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+          <path d="M21 3v5h-5"></path>
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+          <path d="M3 21v-5h5"></path>
+        </svg>
+      </button>
+    </div>
+    
+    <nav class="drawer-menu">
+      <button class="drawer-item active" data-menu="Route Map">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+          <line x1="8" y1="2" x2="8" y2="18"></line>
+          <line x1="16" y1="6" x2="16" y2="22"></line>
+        </svg>
+        <span>Route Map</span>
+      </button>
+      
+      <button class="drawer-item" data-menu="Delivery Order">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="3" width="15" height="13"></rect>
+          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+          <circle cx="5.5" cy="18.5" r="2.5"></circle>
+          <circle cx="18.5" cy="18.5" r="2.5"></circle>
+        </svg>
+        <span>Delivery Order</span>
+      </button>
+
+      <button class="drawer-item" data-menu="Return Order">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"></polyline>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+        </svg>
+        <span>Return Order</span>
+      </button>
+
+      <button class="drawer-item" data-menu="Complete">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Complete</span>
+      </button>
+    </nav>
+    
+    <div class="drawer-footer">
+      <nav class="footer-menu">
+        <button class="footer-item hidden" id="logout-btn" style="margin-bottom: 8px;">
+          <svg class="footer-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span id="logout-driver-name" style="font-weight: 700;">Driver</span>
+        </button>
+        <button class="footer-item" id="exit-btn">
+          <svg class="footer-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Exit</span>
+        </button>
+      </nav>
+      <div class="footer-divider"></div>
+      <span>internal Bridge Apps</span>
+      <span class="copyright">Copyright &copy; 2026 HSG Global.<br>All rights reserved.</span>
+      <footer class="app-footer" style="margin-top: 4px; font-size: 8.5px;"><span id="app-version"></span></footer>
+    </div>
+  </aside>
+
+  <!-- Content Area -->
+  <main class="mobile-content">
+    <!-- Active Tab label header row -->
+    <div class="content-header-row hidden" id="content-header-row" style="margin-bottom: 8px;">
+      <div id="active-menu-label" class="active-menu-label">Route Map</div>
+      
+      <!-- Expandable Search Bar (For complete page) -->
+      <div class="search-bar-expandable hidden" id="search-bar-container">
+        <button id="search-toggle-btn" class="search-toggle-btn" aria-label="Toggle Search">
+          <svg class="search-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+        <input type="text" id="order-search-input" class="search-input-field" placeholder="Search orders..." autocomplete="off">
+        <button id="search-clear-btn" class="search-clear-btn hidden" aria-label="Clear Search">
+          <svg class="clear-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Centered blank page view -->
+    <div id="blank-page-view" class="blank-page-view hidden">
+      Route Map
+    </div>
+
+    <!-- Map page view -->
+    <div id="map-page-container" class="map-page-container">
+      <div id="map-wrapper" class="map-wrapper">
+        <div id="leaflet-map" style="width: 100%; height: 100%;"></div>
+        <button id="map-fullscreen-btn" class="map-fullscreen-btn" aria-label="Toggle Fullscreen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="fullscreen-icon">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+          </svg>
+        </button>
+      </div>
+      <div id="map-details-container" class="map-details-container" style="padding-bottom: 80px;">
+        <div class="map-placeholder-text">Click the pin location mark in maps to see details order.</div>
+      </div>
+      <div id="on-mode-list-container" class="map-details-container hidden" style="padding-bottom: 80px;">
+        <!-- Card_Order_Out_for_Delivery cards will be dynamically rendered here -->
+      </div>
+    </div>
+
+    <!-- Orders Cards List (For Complete page) -->
+    <div id="orders-list" class="orders-list hidden">
+      <!-- Order cards will be dynamically rendered here -->
+    </div>
+
+    <!-- Delivery Order Page view -->
+    <div id="deliver-order-page-view" class="orders-list hidden">
+      <!-- Tabs segment group -->
+      <div class="tabs-segment-group" style="display: flex; background-color: #F1F5F9; border-radius: 20px; padding: 4px; margin-bottom: 8px; width: 100%; box-sizing: border-box; border: 1.5px solid var(--border-color); height: 40px; align-items: center; flex-shrink: 0; user-select: none;">
+        <button id="deliver-tab-inprogress" onclick="setDeliverOrderTab('inprogress')" style="flex: 1; height: 100%; border: none; border-radius: 16px; font-size: 13px; font-weight: 750; cursor: pointer; background-color: var(--app-color); color: #FFFFFF; transition: all 0.2s ease; outline: none; -webkit-tap-highlight-color: transparent;">In-progress</button>
+        <button id="deliver-tab-pending" onclick="setDeliverOrderTab('pending')" style="flex: 1; height: 100%; border: none; border-radius: 16px; font-size: 13px; font-weight: 750; cursor: pointer; background-color: transparent; color: var(--text-secondary); transition: all 0.2s ease; outline: none; -webkit-tap-highlight-color: transparent;">Pending</button>
+      </div>
+      <div id="deliver-order-count" style="font-size: 11px; font-weight: 700; color: #64748B; text-align: center; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em;">Total Orders: 0</div>
+      
+      <!-- List container -->
+      <div id="deliver-order-list-cards" style="display: flex; flex-direction: column; gap: 14px;"></div>
+    </div>
+
+    <!-- Return Order Page view -->
+    <div id="return-order-page-view" class="orders-list hidden">
+      <!-- Tabs segment group -->
+      <div class="tabs-segment-group" style="display: flex; background-color: #F1F5F9; border-radius: 20px; padding: 4px; margin-bottom: 8px; width: 100%; box-sizing: border-box; border: 1.5px solid var(--border-color); height: 40px; align-items: center; flex-shrink: 0; user-select: none;">
+        <button id="return-tab-inprogress" onclick="setReturnOrderTab('inprogress')" style="flex: 1; height: 100%; border: none; border-radius: 16px; font-size: 13px; font-weight: 750; cursor: pointer; background-color: var(--app-color); color: #FFFFFF; transition: all 0.2s ease; outline: none; -webkit-tap-highlight-color: transparent;">In-progress</button>
+        <button id="return-tab-pending" onclick="setReturnOrderTab('pending')" style="flex: 1; height: 100%; border: none; border-radius: 16px; font-size: 13px; font-weight: 750; cursor: pointer; background-color: transparent; color: var(--text-secondary); transition: all 0.2s ease; outline: none; -webkit-tap-highlight-color: transparent;">Pending</button>
+      </div>
+      <div id="return-order-count" style="font-size: 11px; font-weight: 700; color: #64748B; text-align: center; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em;">Total Orders: 0</div>
+      
+      <!-- List container -->
+      <div id="return-order-list-cards" style="display: flex; flex-direction: column; gap: 14px;"></div>
+    </div>
+  </main>
+
+  <!-- Custom Exit Confirmation Modal -->
+  <div id="exit-modal" class="exit-modal-overlay">
+    <div class="exit-modal-card">
+      <div class="exit-modal-title">Exit Application?</div>
+      <div class="exit-modal-desc">Are you sure you want to close the application?</div>
+      <div class="exit-modal-actions">
+        <button id="exit-modal-cancel-btn" class="modal-btn cancel">Cancel</button>
+        <button id="exit-modal-yes-btn" class="modal-btn confirm">Yes, Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Job Confirmation Modal -->
+  <div id="job-confirm-modal" class="exit-modal-overlay" style="z-index: 10700;">
+    <div class="exit-modal-card">
+      <div class="exit-modal-title" id="job-modal-title">Start Delivery?</div>
+      <div class="exit-modal-desc" id="job-modal-desc">Confirm all things load and start Delivery?</div>
+      <div class="exit-modal-actions">
+        <button id="job-modal-confirm-btn" class="modal-btn confirm" style="background-color: #10B981; border: none; color: white;">Start Delivery</button>
+        <button id="job-modal-cancel-btn" class="modal-btn cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Authentication Page view -->
+  <div id="auth-page" class="auth-page-overlay">
+    <header class="auth-header">
+      <button id="auth-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="mobile-header-title">Authentication</span>
+    </header>
+
+    <div class="auth-content">
+      <!-- 4-digit PIN Masked Input -->
+      <div class="pin-entry-container" style="margin-top: 40px;">
+        <label class="pin-entry-label" style="font-size: 13px; color: #94A3B8; margin-bottom: 20px; font-weight: 700;">ENTER 4-DIGIT PIN</label>
+        <div class="pin-digits-row" id="pin-digits-wrapper" style="position: relative; cursor: pointer;">
+          <input type="tel" id="auth-pin-hidden" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;">
+          <div class="pin-digit-display" data-index="0"></div>
+          <div class="pin-digit-display" data-index="1"></div>
+          <div class="pin-digit-display" data-index="2"></div>
+          <div class="pin-digit-display" data-index="3"></div>
+        </div>
+        <input type="hidden" id="auth-pin-input">
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs Page View -->
+  <div id="logs-page" class="picking-page-overlay" style="z-index: 10000 !important;">
+    <!-- Header -->
+    <header class="picking-header">
+      <button id="logs-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="mobile-header-title" id="logs-page-title">Order Logs</span>
+    </header>
+
+    <!-- Scrollable content wrapper for logs timeline -->
+    <div class="picking-items-scroll" style="padding: 20px 16px;">
+      <div id="logs-timeline-container" style="position: relative; padding-left: 24px; border-left: 2px solid #E2E8F0; display: flex; flex-direction: column; gap: 24px; text-align: left; box-sizing: border-box;">
+        <!-- Injected dynamically via JS -->
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Sticky Action Bar for Map Details -->
+  <div id="map-action-bar" class="picking-footer-bar hidden" style="position: absolute; bottom: 0; left: 0; right: 0; z-index: 9999 !important;">
+    <button id="map-action-btn" class="picking-action-btn">Load Goods</button>
+  </div>
+
+  <!-- Reusable Unload Goods & Return Proof Modal -->
+  <div id="unload-proof-modal" class="proof-modal-overlay" style="z-index: 10800;">
+    <div class="proof-modal-card">
+      <div class="proof-modal-header">
+        <div class="proof-modal-title" id="unload-proof-title">Unload Goods Proof</div>
+        <button id="unload-proof-close-btn" class="proof-close-btn" aria-label="Close modal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px;">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="proof-modal-content">
+        <!-- Photo Upload Box -->
+        <div class="camera-upload-box" id="unload-camera-box">
+          <div class="camera-placeholder" id="unload-camera-placeholder">
+            <svg class="camera-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <span id="unload-camera-desc">Tap to Capture Photo</span>
+          </div>
+          <img id="unload-camera-preview" class="camera-preview-img hidden" alt="Proof Preview" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+          <input type="file" id="unload-camera-input" accept="image/*" capture="environment" style="display: none;">
+        </div>
+
+        <!-- 4-digit PIN Entry -->
+        <div class="pin-entry-container" style="margin-top: 15px;">
+          <label class="pin-entry-label" id="unload-pin-label" style="font-size: 11px; color: #94A3B8; margin-bottom: 8px; font-weight: 700;">ENTER PIN TO RECONFIRM</label>
+          <div class="pin-digits-row" id="unload-pin-digits-wrapper" style="position: relative; cursor: pointer;">
+            <input type="tel" id="unload-pin-hidden" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;">
+            <div class="pin-digit-display" data-index="0"></div>
+            <div class="pin-digit-display" data-index="1"></div>
+            <div class="pin-digit-display" data-index="2"></div>
+            <div class="pin-digit-display" data-index="3"></div>
+          </div>
+          <input type="hidden" id="unload-pin-input">
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="exit-modal-actions" style="margin-top: 20px;">
+          <button id="unload-modal-confirm-btn" class="modal-btn confirm disabled-mode" style="background-color: #10B981; border: none; color: white;">Confirm</button>
+          <button id="unload-modal-cancel-btn" class="modal-btn cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deliver Page View -->
+  <div id="deliver-page" class="picking-page-overlay" style="z-index: 10000 !important;">
+    <!-- Header -->
+    <header class="picking-header">
+      <button id="deliver-back-btn" class="preview-back-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Back</span>
+      </button>
+      <span class="mobile-header-title">Deliver List</span>
+    </header>
+
+    <!-- Top Order Card (DO info) - Fixed at the top -->
+    <div id="deliver-order-info-card" class="picking-order-info-card" style="margin-bottom: 0;">
+      <div class="picking-mark-box" id="deliver-order-mark">-</div>
+      <div class="picking-info-details">
+        <div class="picking-info-row">
+          <span class="info-value" id="deliver-order-id">-</span>
+        </div>
+        <div class="picking-info-row">
+          <span class="info-value" id="deliver-order-deliver">-</span>
+        </div>
+        <div class="picking-info-row">
+          <span class="info-value" id="deliver-order-zone">-</span>
+        </div>
+      </div>
+      <button id="deliver-do-paper-btn" style="margin-left: auto; border: none; background: #EFF6FF; color: #3B82F6; width: 30px; height: 30px; border-radius: 50%; display: none; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; cursor: pointer; flex-shrink: 0; outline: none; -webkit-tap-highlight-color: transparent; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.15);">
+        !
+      </button>
+    </div>
+
+    <!-- Scrollable content area for items and proof uploads -->
+    <div class="picking-items-scroll" style="flex: 1; overflow-y: auto; padding: 12px 16px 20px 16px; display: flex; flex-direction: column; gap: 16px; width: 100%; box-sizing: border-box;">
+
+      <!-- Collapsible checklist container -->
+      <div id="deliver-items-accordion" class="picking-accordion" style="display: flex; flex-direction: column; width: 100%; box-sizing: border-box;">
+        <div id="deliver-accordion-header" style="padding: 10px 0; border-bottom: 1.5px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; margin-bottom: 12px;">
+          <span style="font-size: 13px; font-weight: 800; color: #475569; letter-spacing: 0.03em; text-transform: uppercase;">Items List</span>
+          <button id="deliver-accordion-toggle-btn" style="border: none; background: transparent; display: flex; align-items: center; justify-content: center; padding: 0;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px; color: #64748B; transition: transform 0.3s ease;" class="arrow-svg">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Checklist body -->
+        <div id="deliver-accordion-body" style="display: block; overflow: hidden; width: 100%;">
+          <div id="deliver-items-list-container" style="padding: 0;">
+            <!-- Dynamically populated items by brand -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Proof of Delivery uploads -->
+      <div id="deliver-proof-uploads-container" style="display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; width: 100%;">
+        <span id="deliver-proof-title" style="font-size: 11px; font-weight: 800; color: #64748B; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: -4px; text-align: left;">Proof of Delivery</span>
+        
+        <!-- Signed DO Paper / GRN (Mandatory) -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span id="deliver-signed-title" style="font-size: 12px; font-weight: 700; color: #334155; text-align: left;">Signed DO / GRN Photo (Mandatory)</span>
+          <div class="camera-upload-box" id="deliver-signed-camera-box" style="width: 100%; aspect-ratio: 4/3; border: 2.5px dashed var(--border-color); border-radius: 12px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background-color: #FFFFFF; cursor: pointer; box-sizing: border-box;">
+            <div class="camera-placeholder" id="deliver-signed-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-muted);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 32px; height: 32px;">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <span style="font-size: 11px; font-weight: 700;">TAP TO CAPTURE SIGNED DO / GRN</span>
+            </div>
+            <img id="deliver-signed-preview" class="camera-preview-img hidden" alt="Signed DO Preview" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+            <input type="file" id="deliver-signed-input" accept="image/*" capture="environment" style="display: none;">
+          </div>
+        </div>
+
+        <!-- Supporting Photos (Min 1, Max 5) -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 12px; font-weight: 700; color: #334155; text-align: left;">Supporting Photos (Min 1, Max 5)</span>
+          <div id="deliver-supporting-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%;">
+            <!-- Dynamic supporting photo slots -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Actions sticky -->
+    <div style="padding: 16px; background-color: #FFFFFF; border-top: 1.5px solid #E2E8F0; display: flex; gap: 12px; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 10; width: 100%; box-sizing: border-box;">
+      <button id="deliver-cancel-btn" style="flex: 1; height: 50px; background-color: #EFF6FF; border: none; border-radius: 12px; color: #1e3a8a; font-size: 14px; font-weight: 800; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">Cancel</button>
+      <button id="deliver-submit-btn" class="picking-action-btn disabled-mode" style="flex: 2; height: 50px; border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer; margin: 0; padding: 0;">Deliver Goods</button>
+    </div>
+  </div>
+  <!-- WhatsApp Share Drawer overlay -->
+  <div id="whatsapp-share-drawer" class="exit-modal-overlay" style="z-index: 10800; background-color: rgba(15, 23, 42, 0.6); display: none; align-items: flex-end; justify-content: center; padding: 0;">
+    <div style="width: 100%; max-width: 500px; background-color: #FFFFFF; border-top-left-radius: 20px; border-top-right-radius: 20px; box-shadow: 0 -8px 24px rgba(0,0,0,0.15); display: flex; flex-direction: column; max-height: 80vh; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-sizing: border-box; padding: 24px 24px 32px 24px;" id="whatsapp-share-drawer-card">
+      
+      <!-- Top Drag Handle Pill -->
+      <div style="width: 36px; height: 4px; border-radius: 2px; background-color: #E2E8F0; margin: 0 auto 20px auto; flex-shrink: 0;"></div>
+
+      <!-- Title Block -->
+      <div style="text-align: left; margin-bottom: 20px; flex-shrink: 0;">
+        <div style="font-size: 18px; font-weight: 850; color: var(--text-primary); line-height: 1.2;">Share to WhatsApp</div>
+        <div id="whatsapp-order-id" style="font-size: 14px; font-weight: 800; color: var(--text-primary); margin-top: 6px; line-height: 1.2;">-</div>
+        <div id="whatsapp-order-deliver" style="font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-top: 4px; line-height: 1.2;">-</div>
+      </div>
+
+      <!-- Captured Proof Photo section -->
+      <div style="text-align: left; margin-bottom: 24px; flex-shrink: 0; width: 100%;">
+        <div style="font-size: 11px; font-weight: 800; color: #64748B; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;">Captured Proof Photo</div>
+        <div id="whatsapp-proof-thumbnails-container" style="display: flex; flex-wrap: wrap; gap: 8px; width: 100%;">
+          <!-- Dynamic thumbnails will be injected here -->
+        </div>
+      </div>
+
+      <!-- Completion Indicator -->
+      <div style="text-align: left; margin-bottom: 28px; flex-shrink: 0;">
+        <div style="font-size: 13px; font-weight: 800; color: var(--text-primary); margin-bottom: 8px;">Complete</div>
+        <div style="width: 100%; height: 6px; border-radius: 3px; background-color: var(--app-color);"></div>
+      </div>
+
+      <!-- Hidden Text Area for WhatsApp API Compatibility -->
+      <textarea id="whatsapp-text-area" readonly style="display: none;"></textarea>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; gap: 12px; width: 100%; flex-shrink: 0; box-sizing: border-box;">
+        <button id="whatsapp-close-btn" style="flex: 1; height: 50px; background-color: #EFF6FF; border: none; border-radius: 12px; color: #1E3A8A; font-size: 14px; font-weight: 800; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">Cancel</button>
+        <button id="whatsapp-send-btn" style="flex: 1.5; height: 50px; background-color: var(--app-color); border: none; border-radius: 12px; color: white; font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; outline: none; -webkit-tap-highlight-color: transparent;">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Fullscreen Image Modal -->
+  <div id="lightbox-modal" class="exit-modal-overlay" style="z-index: 10900; background-color: rgba(15, 23, 42, 0.95); display: none; align-items: center; justify-content: center; padding: 20px;">
+    <button id="lightbox-close-btn" style="position: absolute; top: 20px; right: 20px; border: none; background: rgba(255,255,255,0.25); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">
+      &times;
+    </button>
+    <img id="lightbox-img" style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" alt="DO Paper Lightbox">
+  </div>
+
+  <script src="app.js?v=26.0.37" defer></script>
+</body>
+</html>
