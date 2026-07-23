@@ -1772,7 +1772,12 @@ async function proceedToSubmitProof(pickerName) {
   showToast("Submitting proof and updating status...", "info");
   
   try {
-    const compressedFile = await compressImageToMax250kb(capturedPhotoFile);
+    let uploadFile = capturedPhotoFile;
+    try {
+      uploadFile = await compressImageToMax250kb(capturedPhotoFile);
+    } catch (compressErr) {
+      console.warn("Image compression failed, using original file:", compressErr);
+    }
     
     const doNumber = currentOrder.DO_Number || currentOrder.do_number || 'UNKNOWN';
     const fileName = `Track_Orders/Picker_Proof/${doNumber}_${Date.now()}.jpg`;
@@ -1781,7 +1786,7 @@ async function proceedToSubmitProof(pickerName) {
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'image/jpeg' },
-      body: compressedFile
+      body: uploadFile
     });
     
     let photoUrl = '';
@@ -2302,7 +2307,12 @@ async function proceedToSubmitHandover(pickerName) {
   showToast("Submitting handover and updating status...", "info");
   
   try {
-    const compressedFile = await compressImageToMax250kb(handoverPhotoFile);
+    let uploadFile = handoverPhotoFile;
+    try {
+      uploadFile = await compressImageToMax250kb(handoverPhotoFile);
+    } catch (compressErr) {
+      console.warn("Image compression failed, using original file:", compressErr);
+    }
     
     const doNumber = currentOrder.DO_Number || currentOrder.do_number || 'UNKNOWN';
     const fileName = `Track_Orders/Handover_Proof/${doNumber}_${Date.now()}.jpg`;
@@ -2311,7 +2321,7 @@ async function proceedToSubmitHandover(pickerName) {
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'image/jpeg' },
-      body: compressedFile
+      body: uploadFile
     });
     
     let photoUrl = '';
