@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ib-apps-v1';
+const CACHE_NAME = 'ib-apps-v7';
 const ASSETS = [
   './index.html',
   './style.css',

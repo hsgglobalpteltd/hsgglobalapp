@@ -22,6 +22,7 @@ let allProducts = [];
 let allRetailersSku = [];
 let poCart = [];
 let selectedPoStoreId = null;
+let currentPoFilteredProducts = [];
 let allUsers = [];
 let retailerMap = {};
 let merchUserMap = {};
@@ -126,9 +127,9 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Setup refresh button (silently fetches in background)
+  // Setup refresh button (with toast feedback)
   refreshBtn.addEventListener('click', () => {
-    fetchDataSilently();
+    fetchDataSilently(true);
   });
 
   // Setup menu selection
@@ -387,6 +388,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   setupSearchableDropdown();
+  setupPoProductSearch();
 
   const addContactForm = document.getElementById('add-contact-form');
   if (addContactForm) {
@@ -531,11 +533,16 @@ window.addEventListener('DOMContentLoaded', () => {
             poSelectedStoreInfo.textContent = `${retailerName} - ${storeName}`;
             poSelectedStoreInfo.style.display = 'block';
           }
+
+          // Clear product search text
+          const pSearch = document.getElementById('po-product-search');
+          if (pSearch) pSearch.value = '';
           
           // Populate product dropdown
           const pSelect = document.getElementById('po-product-select');
           if (pSelect) {
             pSelect.innerHTML = '<option value="">Select a Product</option>';
+            pSelect.style.display = 'none';
             const filteredProducts = allRetailersSku.filter(p => {
               const pRetId = (p["Retailer ID"] || p.retailer_id || p.Retailer_ID || p["Retailers ID"] || "").toString().trim();
               return pRetId === retailerId.toString().trim();
@@ -546,7 +553,7 @@ window.addEventListener('DOMContentLoaded', () => {
               if (sku) {
                 const opt = document.createElement('option');
                 opt.value = sku;
-                opt.textContent = name ? `${sku} - ${name}` : sku;
+                opt.textContent = name || sku; // Hide SKU number, show display name only
                 pSelect.appendChild(opt);
               }
             });
@@ -612,7 +619,8 @@ window.addEventListener('DOMContentLoaded', () => {
       if (!pSelect || !qtySelect) return;
       
       const sku = pSelect.value;
-      const name = pSelect.options[pSelect.selectedIndex]?.text || '';
+      const pSearch = document.getElementById('po-product-search');
+      const name = pSearch ? pSearch.value : '';
       const qty = parseInt(qtySelect.value) || 10;
       
       if (!sku) {
@@ -644,8 +652,10 @@ window.addEventListener('DOMContentLoaded', () => {
         });
       }
       
-      // Reset product select, and rebuild default qty selector (EA range: 10 to 30)
+      // Reset product select, search input, and rebuild default qty selector (EA range: 10 to 30)
       pSelect.value = '';
+      if (pSearch) pSearch.value = '';
+      
       const uomPackDisplay = document.getElementById('po-uom-pack-display');
       if (uomPackDisplay) uomPackDisplay.value = '';
       
@@ -1298,9 +1308,13 @@ function loadCachedData() {
   mergeFailedSyncs();
 }
 
-async function fetchDataSilently() {
-  if (isFetchingData) return;
+async function fetchDataSilently(showToastOnSuccess = false) {
+  if (isFetchingData) {
+    if (showToastOnSuccess) showToast("Synchronization already in progress.", "info");
+    return;
+  }
   isFetchingData = true;
+  if (showToastOnSuccess) showToast("Syncing data from system...", "info");
   
   const refreshIcon = document.getElementById('refresh-icon');
   if (refreshIcon) {
@@ -1433,8 +1447,10 @@ async function fetchDataSilently() {
     }
 
     lastRefreshTime = Date.now();
+    if (showToastOnSuccess) showToast("Database synchronized successfully!", "success");
   } catch (err) {
     console.error('Silent background fetch failed:', err);
+    if (showToastOnSuccess) showToast("Sync failed: " + err.message, "error");
   } finally {
     isFetchingData = false;
     updateSyncUI();
@@ -1745,6 +1761,11 @@ function processStoresData(stores) {
   }
 }
 
+function toTitleCase(str) {
+  if (!str) return "";
+  return str.trim().split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+}
+
 function renderZoneTabs() {
   const zoneBar = document.getElementById('zone-bar');
   if (!zoneBar) return;
@@ -1753,15 +1774,15 @@ function renderZoneTabs() {
   allStores.forEach(store => {
     const zone = store.Zones || store.zones;
     if (zone && zone.trim()) {
-      zones.add(zone.trim());
+      zones.add(toTitleCase(zone));
     }
   });
 
   const sortedZones = Array.from(zones).sort();
 
-  let html = `<button class="zone-tab ${activeZone === 'All' ? 'active' : ''}" data-zone="All">All</button>`;
+  let html = `<button class="zone-tab ${(activeZone || 'All').toLowerCase() === 'all' ? 'active' : ''}" data-zone="All">All</button>`;
   sortedZones.forEach(zone => {
-    html += `<button class="zone-tab ${activeZone === zone ? 'active' : ''}" data-zone="${zone}">${zone}</button>`;
+    html += `<button class="zone-tab ${(activeZone || '').toLowerCase() === zone.toLowerCase() ? 'active' : ''}" data-zone="${zone}">${zone}</button>`;
   });
   zoneBar.innerHTML = html;
   const tabs = zoneBar.querySelectorAll('.zone-tab');
@@ -4269,6 +4290,7 @@ function initPoRequest() {
   const poStoreSearch = document.getElementById('po-store-search');
   const poSelectedStoreInfo = document.getElementById('po-selected-store-info');
   const pSelect = document.getElementById('po-product-select');
+  const pSearch = document.getElementById('po-product-search');
   
   if (!poStoreSearch) return;
   
@@ -4280,6 +4302,10 @@ function initPoRequest() {
     }
     if (pSelect) {
       pSelect.innerHTML = '<option value="">Select a Product</option>';
+      pSelect.style.display = 'none';
+    }
+    if (pSearch) {
+      pSearch.value = '';
     }
     const uomPackDisplay = document.getElementById('po-uom-pack-display');
     if (uomPackDisplay) uomPackDisplay.value = '';
@@ -4312,6 +4338,7 @@ function initPoRequest() {
       if (pSelect) {
         const currentVal = pSelect.value;
         pSelect.innerHTML = '<option value="">Select a Product</option>';
+        pSelect.style.display = 'none';
         const filteredProducts = allRetailersSku.filter(p => {
           const pRetId = (p["Retailer ID"] || p.retailer_id || p.Retailer_ID || p["Retailers ID"] || "").toString().trim();
           return pRetId === retailerId.toString().trim();
@@ -4322,10 +4349,19 @@ function initPoRequest() {
           if (sku) {
             const opt = document.createElement('option');
             opt.value = sku;
-            opt.textContent = name ? `${sku} - ${name}` : sku;
+            opt.textContent = name || sku; // Hide SKU number, show display name only
             pSelect.appendChild(opt);
           }
         });
+        
+        if (pSearch) {
+          if (currentVal) {
+            const matchedProd = filteredProducts.find(p => (p["SKU Number"] || p.SKU || p.sku || "").toString() === currentVal);
+            pSearch.value = matchedProd ? (matchedProd["SKU Name"] || matchedProd["Display Name"] || matchedProd.name || currentVal) : "";
+          } else {
+            pSearch.value = "";
+          }
+        }
         
         const qtySelect = document.getElementById('po-qty-select');
         if (currentVal && Array.from(pSelect.options).some(o => o.value === currentVal)) {
@@ -4872,6 +4908,111 @@ function renderPhonebook() {
   if (footer) {
     footer.textContent = `Total Contacts: ${filtered.length}`;
   }
+}
+
+function setupPoProductSearch() {
+  const searchInput = document.getElementById('po-product-search');
+  const select = document.getElementById('po-product-select');
+  if (!searchInput || !select) return;
+
+  function filterOptions() {
+    const val = searchInput.value.toLowerCase().trim();
+    select.innerHTML = '';
+    
+    if (!selectedPoStoreId) {
+      select.style.display = 'none';
+      return;
+    }
+
+    const store = allStores.find(s => (s.ID || s.id || "").toString() === selectedPoStoreId.toString());
+    if (!store) {
+      select.style.display = 'none';
+      return;
+    }
+
+    const retailerId = store["Retailers ID"] || store.retailer_id || "";
+    const filteredProducts = allRetailersSku.filter(p => {
+      const pRetId = (p["Retailer ID"] || p.retailer_id || p.Retailer_ID || p["Retailers ID"] || "").toString().trim();
+      return pRetId === retailerId.toString().trim();
+    });
+
+    const queryWords = val.split(/\s+/).filter(Boolean);
+    const matches = filteredProducts.filter(p => {
+      const name = (p["SKU Name"] || p["Display Name"] || p.name || "").toLowerCase();
+      return queryWords.every(word => name.includes(word));
+    });
+
+    if (matches.length === 0) {
+      select.style.display = 'none';
+      return;
+    }
+
+    matches.forEach(p => {
+      const sku = p["SKU Number"] || p.SKU || p.sku || "";
+      const name = p["SKU Name"] || p["Display Name"] || p.name || "";
+      if (sku) {
+        const itemDiv = document.createElement('div');
+        itemDiv.style.padding = '14px 16px';
+        itemDiv.style.borderBottom = '1px solid #F1F5F9';
+        itemDiv.style.cursor = 'pointer';
+        itemDiv.style.fontSize = '13.5px';
+        itemDiv.style.fontWeight = '600';
+        itemDiv.style.color = '#1E293B';
+        itemDiv.textContent = name || sku; // Hide SKU number, show display name only
+
+        itemDiv.addEventListener('click', () => {
+          searchInput.value = name || sku; // Set input value to display name
+          select.value = sku; // Store selected sku
+          select.style.display = 'none';
+
+          // Trigger change logic
+          const product = allRetailersSku.find(prod => (prod["SKU Number"] || prod.SKU || prod.sku || "").toString() === sku);
+          const uom = product ? (product.UOM || product.uom || "EA") : "EA";
+          const pack = product ? (product.PACK || product.pack || product.Pack || "1") : "";
+          const uomPackDisplay = document.getElementById('po-uom-pack-display');
+          if (uomPackDisplay) {
+            uomPackDisplay.value = uom || pack ? `${uom} ${pack}`.trim() : "";
+          }
+
+          // Rebuild Quantity options based on UOM
+          const qtySelect = document.getElementById('po-qty-select');
+          if (qtySelect) {
+            qtySelect.innerHTML = '';
+            if (uom === 'CT') {
+              for (let i = 1; i <= 5; i++) {
+                const optQty = document.createElement('option');
+                optQty.value = i.toString();
+                optQty.textContent = i.toString();
+                qtySelect.appendChild(optQty);
+              }
+              qtySelect.value = '1';
+            } else {
+              for (let i = 10; i <= 30; i++) {
+                const optQty = document.createElement('option');
+                optQty.value = i.toString();
+                optQty.textContent = i.toString();
+                qtySelect.appendChild(optQty);
+              }
+              qtySelect.value = '10';
+            }
+          }
+        });
+
+        select.appendChild(itemDiv);
+      }
+    });
+
+    select.style.display = 'block';
+  }
+
+  searchInput.addEventListener('input', filterOptions);
+  searchInput.addEventListener('focus', filterOptions);
+
+  document.addEventListener('click', (e) => {
+    if (e.target !== searchInput && e.target !== select) {
+      select.style.display = 'none';
+    }
+  });
 }
 
 function setupSearchableDropdown() {

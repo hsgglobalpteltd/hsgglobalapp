@@ -239,11 +239,11 @@
         </div>
 
         <div style="border-top: 1px solid #E2E8F0; padding-top: 14px; display: flex; flex-direction: column; gap: 12px;">
-          <div class="audit-form-group" style="margin-bottom: 0;">
+          <div class="audit-form-group" style="margin-bottom: 0; position: relative;">
             <label class="form-label">Add Products</label>
-            <select id="po-product-select" class="form-textarea" style="height: 44px; padding: 10px 12px; background: #FFF; box-sizing: border-box;">
-              <option value="">Select a Product</option>
-            </select>
+            <input type="text" id="po-product-search" class="form-textarea" style="height: 44px; padding: 10px 12px; background: #FFF; box-sizing: border-box;" placeholder="Type Product Name..." autocomplete="off">
+            <div id="po-product-select" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; z-index: 100; max-height: 200px; overflow-y: auto; border: 1.5px solid var(--border-color); background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); box-sizing: border-box;">
+            </div>
           </div>
           
           <div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
