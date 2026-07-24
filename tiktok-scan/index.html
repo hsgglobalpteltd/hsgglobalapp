@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F172A">
+  <title>iB - TikTok Scan</title>
+  <link rel="stylesheet" href="style.css?v=1.0.0">
+  <!-- Load ZXing Barcode Library from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <script>
+    // iOS Safari gesture zoom prevention
+    document.addEventListener('gesturestart', function (e) {
+      e.preventDefault();
+    });
+
+    // Mobile multi-touch zoom prevention
+    document.addEventListener('touchstart', function (event) {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+  </script>
+</head>
+<body>
+
+  <!-- ==============================================
+       Authentication Page Overlay (Masked PIN Entry)
+       ============================================== -->
+  <div id="auth-page" class="auth-page-overlay active">
+    <header class="auth-header">
+      <button id="auth-exit-btn" class="preview-back-btn" aria-label="Exit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Exit</span>
+      </button>
+      <span class="mobile-header-title">TikTok Scan Auth</span>
+    </header>
+
+    <div class="auth-content">
+      <div class="pin-entry-container">
+        <div class="auth-logo">iB <span>Tiktok Scan</span></div>
+        <label class="pin-entry-label">ENTER 4-DIGIT PIN</label>
+        <div class="pin-digits-row" id="pin-digits-wrapper">
+          <div class="pin-digit-display"></div>
+          <div class="pin-digit-display"></div>
+          <div class="pin-digit-display"></div>
+          <div class="pin-digit-display"></div>
+          <!-- Hidden numeric input focused automatically -->
+          <input type="text" id="auth-pin-hidden" pattern="[0-9]*" inputmode="numeric" autocomplete="new-password">
+        </div>
+        <input type="hidden" id="auth-pin-input">
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       Main Scanner Viewport (Active after Auth)
+       ============================================== -->
+  <div id="scanner-view" class="scanner-view-container">
+    <header class="scanner-header">
+      <span class="scanner-logo">iB <span>Tiktok Scan</span></span>
+      <div class="operator-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="user-icon">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span id="operator-name">Operator</span>
+      </div>
+      <button id="logout-btn" class="logout-icon-btn" aria-label="Logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="logout-icon">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Camera stream area -->
+    <div class="video-wrapper">
+      <video id="preview-video" autoplay playsinline muted></video>
+      
+      <!-- Target alignment boundary overlay box -->
+      <div class="scanner-target-square">
+        <div class="corner top-left"></div>
+        <div class="corner top-right"></div>
+        <div class="corner bottom-left"></div>
+        <div class="corner bottom-right"></div>
+        <span class="targeting-label">Align Barcode Inside Box</span>
+      </div>
+      
+      <!-- Offscreen canvas for frame capture/R2 proof extraction -->
+      <canvas id="capture-canvas" style="display: none;"></canvas>
+    </div>
+
+    <!-- Interactive Overlay Cards (Success/Reject/Loading) -->
+    <div id="scan-overlay" class="scan-feedback-overlay hidden">
+      <div class="feedback-card">
+        <div class="feedback-icon" id="feedback-icon-container">
+          <!-- SVG dynamically loaded -->
+        </div>
+        <div class="feedback-title" id="feedback-title">-</div>
+        <div class="feedback-desc" id="feedback-desc">-</div>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="scan-status-bar">
+      Ready to scan TikTok labels
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-notification" class="toast-notification"></div>
+
+  <script src="app.js?v=1.0.0"></script>
+</body>
+</html>
