@@ -822,7 +822,6 @@
     let currentStep = 1;
     let snappedPhotoData = null;
     let isProcessing = false;
-    let autoScanInterval = null;
 
     const shutterBtn = document.getElementById('shutter-btn');
     const shutterIconSvg = document.getElementById('shutter-icon-svg');
@@ -842,14 +841,12 @@
         
         instructionTextUi.textContent = "Snap Goods";
         shutterIconSvg.innerHTML = '<path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>';
-        stopAutoScan();
       } else {
         photoPreviewOverlay.style.display = "flex";
         reticleUi.style.display = "flex";
         
         instructionTextUi.textContent = "Scan Barcode";
-        shutterIconSvg.innerHTML = '<path d="M4 6h16V4H4v2zm0 14h16v-2H4v2zm0-7h16v-2H4v2z"/>';
-        startAutoScan();
+        shutterIconSvg.innerHTML = '<path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>';
       }
     }
 
@@ -875,26 +872,18 @@
           isProcessing = false;
         }
       } else {
-        // Step 2 is fully automatic. Clicking the shutter button is ignored to prevent "no barcode in frame" warnings.
-      }
-    });
-
-    // Local Auto-scan loop runs continuously in Step 2 (Scan barcode)
-    function startAutoScan() {
-      if (autoScanInterval) clearInterval(autoScanInterval);
-
-      autoScanInterval = setInterval(async () => {
-        if (isProcessing || currentStep !== 2 || !localStream) return;
+        // Step 2: Manual scanning via camera button click!
         try {
+          isProcessing = true;
           let barcode = "";
-
+          
           if (barcodeDetector) {
             const barcodes = await barcodeDetector.detect(videoFeed);
             if (barcodes.length > 0) {
               barcode = barcodes[0].rawValue.trim();
             }
           }
-
+          
           if (!barcode && zxingReader) {
             try {
               const canvas = document.createElement('canvas');
@@ -909,23 +898,19 @@
 
           if (barcode) {
             await processDecodedBarcode(barcode);
+          } else {
+            playErrorBeep();
+            throw new Error("No barcode detected in frame.");
           }
-        } catch (_) {}
-      }, 250); // Fast 250ms local scan cycle
-    }
-
-    function stopAutoScan() {
-      if (autoScanInterval) {
-        clearInterval(autoScanInterval);
-        autoScanInterval = null;
+        } catch (err) {
+          showToast(err.message || "Decoding error.");
+          isProcessing = false;
+        }
       }
-    }
+    });
 
     // Process scanned barcode against pre-downloaded offline list
     async function processDecodedBarcode(barcode) {
-      isProcessing = true;
-      stopAutoScan();
-
       const loader = document.getElementById('loader');
       const successFlash = document.getElementById('success-flash');
 
@@ -1000,10 +985,6 @@
         showToast(err.message || "Operation failed.");
         loader.classList.remove('visible');
         isProcessing = false;
-        
-        if (currentStep === 2) {
-          startAutoScan();
-        }
       }
     }
   </script>
