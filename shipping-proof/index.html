@@ -743,6 +743,27 @@
       setWorkflowStep(1);
     }
 
+    // Camera Stream Management
+    const videoFeed = document.getElementById('video-feed');
+    let localStream = null;
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+        localStream = stream;
+        videoFeed.srcObject = stream;
+      } catch (err) {
+        console.error(err);
+        showToast("Camera access denied or busy. Check permissions.");
+      }
+    }
+
     function exitApp() {
       if (localStream) {
         localStream.getTracks().forEach(track => {
@@ -763,27 +784,6 @@
       toastTimeout = setTimeout(() => {
         banner.classList.remove('visible');
       }, 3500);
-    }
-
-    // Camera Stream Management
-    const videoFeed = document.getElementById('video-feed');
-    let localStream = null;
-
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-        localStream = stream;
-        videoFeed.srcObject = stream;
-      } catch (err) {
-        console.error(err);
-        showToast("Camera access denied or busy. Check permissions.");
-      }
     }
 
     // Canvas Frame grab resizing and compression (Under 200KB)
@@ -872,38 +872,58 @@
           isProcessing = false;
         }
       } else {
-        // Step 2: Manual scanning via camera button click!
+        // Step 2: Manual scanning with a 1.5-second multi-frame scan window
         try {
           isProcessing = true;
-          let barcode = "";
           
-          if (barcodeDetector) {
-            const barcodes = await barcodeDetector.detect(videoFeed);
-            if (barcodes.length > 0) {
-              barcode = barcodes[0].rawValue.trim();
-            }
-          }
-          
-          if (!barcode && zxingReader) {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = videoFeed.videoWidth || 640;
-              canvas.height = videoFeed.videoHeight || 480;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
-              const result = await zxingReader.decodeFromCanvas(canvas);
-              if (result) barcode = result.getText().trim();
-            } catch (_) {}
-          }
+          // Show loader spinner
+          const loader = document.getElementById('loader');
+          loader.classList.add('visible');
+          document.getElementById('loader-text').textContent = "Scanning Barcode...";
 
-          if (barcode) {
-            await processDecodedBarcode(barcode);
-          } else {
-            playErrorBeep();
-            throw new Error("No barcode detected in frame.");
-          }
+          let attempts = 0;
+          let maxAttempts = 10; // Try 10 times (1.5 seconds total)
+          let detectedBarcode = "";
+
+          const scanInterval = setInterval(async () => {
+            attempts++;
+            let barcode = "";
+
+            try {
+              if (barcodeDetector) {
+                const barcodes = await barcodeDetector.detect(videoFeed);
+                if (barcodes.length > 0) {
+                  barcode = barcodes[0].rawValue.trim();
+                }
+              }
+
+              if (!barcode && zxingReader) {
+                const canvas = document.createElement('canvas');
+                canvas.width = videoFeed.videoWidth || 640;
+                canvas.height = videoFeed.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
+                const result = await zxingReader.decodeFromCanvas(canvas);
+                if (result) barcode = result.getText().trim();
+              }
+            } catch (_) {}
+
+            if (barcode) {
+              clearInterval(scanInterval);
+              detectedBarcode = barcode;
+              await processDecodedBarcode(barcode);
+            } else if (attempts >= maxAttempts) {
+              clearInterval(scanInterval);
+              loader.classList.remove('visible');
+              playErrorBeep();
+              showToast("No barcode detected in frame.");
+              isProcessing = false;
+            }
+          }, 150); // Scan once every 150ms
+
         } catch (err) {
-          showToast(err.message || "Decoding error.");
+          document.getElementById('loader').classList.remove('visible');
+          showToast(err.message || "Scanning error.");
           isProcessing = false;
         }
       }
