@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F172A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>iB - Tiktok Packing</title>
+  
+  <!-- ZXing library for local 1D/2D barcode scanning fallback on PC and other browsers -->
+  <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #0F172A;
+      --card-bg: #1E293B;
+      --text-primary: #F8FAFC;
+      --text-secondary: #94A3B8;
+      --accent-color: #0D9488;
+      --danger-color: #EF4444;
+      --success-color: #10B981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body, html {
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      position: fixed;
+    }
+
+    body {
+      touch-action: none;
+    }
+
+    /* Keypad Entry Overlay */
+    #pin-overlay {
+      position: fixed;
+      inset: 0;
+      background-color: var(--bg-color);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #pin-overlay.hidden {
+      transform: translateY(-100%);
+      pointer-events: none;
+    }
+
+    .pin-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .pin-title {
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .pin-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .pin-indicators {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .pin-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .pin-dot.active {
+      background-color: var(--accent-color);
+      border-color: var(--accent-color);
+      box-shadow: 0 0 10px var(--accent-color);
+    }
+
+    .pin-dot.error {
+      background-color: var(--danger-color);
+      border-color: var(--danger-color);
+      box-shadow: 0 0 10px var(--danger-color);
+    }
+
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      max-width: 280px;
+      width: 100%;
+    }
+
+    .key {
+      aspect-ratio: 1;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background-color: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      font-size: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.15s ease, transform 0.1s ease;
+    }
+
+    .key:active {
+      background-color: rgba(255, 255, 255, 0.15);
+      transform: scale(0.92);
+    }
+
+    .key.special {
+      background-color: transparent;
+      border: none;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    /* Main Scanner Layout */
+    #app-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-header {
+      height: 60px;
+      background-color: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 10;
+    }
+
+    .app-title-box {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-main-title {
+      font-size: 14px;
+      font-weight: bold;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+    }
+
+    .batch-id-tag {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--accent-color);
+      font-family: monospace;
+    }
+
+    .operator-badge {
+      background-color: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    /* Viewport feed */
+    .viewport-container {
+      flex: 1;
+      position: relative;
+      background-color: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #video-feed {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #photo-preview-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+      z-index: 20;
+    }
+
+    #photo-preview-img {
+      width: 80px;
+      height: 80px;
+      border: 2px solid var(--accent-color);
+      border-radius: 8px;
+      object-fit: cover;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Center Middle Instruction Overlay */
+    .center-instruction-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: transparent;
+      border: none;
+      z-index: 18;
+      pointer-events: none;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .instruction-text {
+      font-size: 24px;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.5);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .retake-btn {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background-color: rgba(220, 38, 38, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #FFF;
+      z-index: 20;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: none;
+    }
+
+    /* Reticle */
+    .reticle-container {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    .reticle {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .reticle-ring {
+      position: absolute;
+      inset: 0;
+      border: 1px dashed rgba(13, 148, 136, 0.4);
+      border-radius: 50%;
+      animation: rotateRing 20s linear infinite;
+    }
+
+    @keyframes rotateRing {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .bracket {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: var(--accent-color);
+      border-width: 3px;
+      border-style: solid;
+    }
+
+    .top-left { top: 0; left: 0; border-right: none; border-bottom: none; border-top-left-radius: 6px; }
+    .top-right { top: 0; right: 0; border-left: none; border-bottom: none; border-top-right-radius: 6px; }
+    .bottom-left { bottom: 0; left: 0; border-right: none; border-top: none; border-bottom-left-radius: 6px; }
+    .bottom-right { bottom: 0; right: 0; border-left: none; border-top: none; border-bottom-right-radius: 6px; }
+
+    .center-dot {
+      width: 6px;
+      height: 6px;
+      background-color: var(--accent-color);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-color);
+    }
+
+    /* Controls bar */
+    .controls-bar {
+      height: 110px;
+      background-color: rgba(15, 23, 42, 0.95);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      position: relative;
+      z-index: 10;
+      padding-top: 12px;
+      padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
+    }
+
+    .shutter-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background-color: var(--text-primary);
+      border: 4px solid var(--accent-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    .shutter-btn:active {
+      transform: scale(0.92);
+      background-color: var(--text-secondary);
+    }
+
+    .shutter-icon {
+      width: 28px;
+      height: 28px;
+      fill: var(--bg-color);
+    }
+
+    /* Alert Banner */
+    .alert-banner {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      background-color: rgba(239, 68, 68, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 30;
+      transform: translateY(-80px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .alert-banner.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .alert-text {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .success-flash {
+      position: absolute;
+      inset: 0;
+      background-color: var(--success-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .success-flash.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .success-icon-box {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .success-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .success-subtitle {
+      font-size: 12px;
+      opacity: 0.9;
+      font-family: monospace;
+    }
+
+    /* Loader */
+    #loader {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(15, 23, 42, 0.8);
+      z-index: 35;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    #loader.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top-color: var(--accent-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loader-text {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+
+    .shake {
+      animation: shake 0.3s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Passcode Overlay -->
+  <div id="pin-overlay">
+    <header class="app-header" style="width: 100%; position: absolute; top: 0; left: 0;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button onclick="exitApp()" style="background: transparent; border: none; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; outline: none;" title="Exit App">
+          <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
+        <span class="app-main-title">Tiktok Packing</span>
+      </div>
+    </header>
+
+    <div class="pin-header" style="margin-top: 40px;">
+      <h2 class="pin-title">Operator Passcode</h2>
+      <p class="pin-subtitle">Enter your 4-digit PIN to login</p>
+    </div>
+
+    <div class="pin-indicators" id="pin-indicators">
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+    </div>
+
+    <div class="keypad" id="keypad">
+      <div class="key" data-val="1">1</div>
+      <div class="key" data-val="2">2</div>
+      <div class="key" data-val="3">3</div>
+      <div class="key" data-val="4">4</div>
+      <div class="key" data-val="5">5</div>
+      <div class="key" data-val="6">6</div>
+      <div class="key" data-val="7">7</div>
+      <div class="key" data-val="8">8</div>
+      <div class="key" data-val="9">9</div>
+      <div class="key special" id="key-clear">CLEAR</div>
+      <div class="key" data-val="0">0</div>
+      <div class="key special" id="key-del">DEL</div>
+    </div>
+  </div>
+
+  <!-- 2. Main App Scanner -->
+  <div id="app-container">
+    <header class="app-header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button onclick="exitApp()" style="background: transparent; border: none; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; outline: none;" title="Exit App">
+          <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
+        <div class="app-title-box">
+          <span class="app-main-title">Tiktok Packing</span>
+          <span class="batch-id-tag" id="batch-id-display">Downloading targets...</span>
+        </div>
+      </div>
+      <span class="operator-badge" id="operator-display">Not logged in</span>
+    </header>
+
+    <div class="viewport-container">
+      <video id="video-feed" autoplay playsinline muted></video>
+
+      <!-- Snapped Preview and Retake Button -->
+      <div id="photo-preview-overlay">
+        <img id="photo-preview-img" src="" alt="Snapped Product">
+        <button id="retake-btn-ui" style="background-color: rgba(220, 38, 38, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #FFF; text-transform: uppercase; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); pointer-events: auto;">Retake</button>
+      </div>
+
+      <!-- Centered workflow instruction overlay -->
+      <div class="center-instruction-overlay" id="center-instruction-overlay">
+        <span class="instruction-text" id="instruction-text-ui">Snap Goods</span>
+      </div>
+
+      <!-- Target reticle hunt scope -->
+      <div class="reticle-container" id="reticle-ui">
+        <div class="reticle">
+          <div class="reticle-ring"></div>
+          <div class="bracket top-left"></div>
+          <div class="bracket top-right"></div>
+          <div class="bracket bottom-left"></div>
+          <div class="bracket bottom-right"></div>
+          <div class="center-dot"></div>
+        </div>
+      </div>
+
+      <!-- Warning Toast Alert -->
+      <div class="alert-banner" id="alert-banner">
+        <svg style="width: 20px; height: 20px; flex-shrink: 0; fill: currentColor;" viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+        <span class="alert-text" id="alert-text">Error message here</span>
+      </div>
+
+      <!-- Spinner Loader overlay -->
+      <div id="loader">
+        <div class="spinner"></div>
+        <span class="loader-text" id="loader-text">Uploading proof...</span>
+      </div>
+
+      <!-- Success Flash screen -->
+      <div class="success-flash" id="success-flash">
+        <div class="success-icon-box">
+          <svg style="width: 36px; height: 36px; fill: white;" viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
+        <h2 class="success-title">Scan Registered</h2>
+        <span class="success-subtitle" id="success-scanned-code">SPTTND014011200</span>
+      </div>
+    </div>
+
+    <!-- Bottom Controls with Manual Entry Keyboard button -->
+    <div class="controls-bar" style="gap: 24px;">
+      <button id="keyboard-btn" onclick="openManualInput()" style="width: 48px; height: 48px; border-radius: 50%; background-color: var(--card-bg); border: 1px solid rgba(255, 255, 255, 0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-secondary); transition: transform 0.1s ease; outline: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+        <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24">
+          <path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-3-3h2v2H5V8zm0 3h2v2H5v-2zm3 3h8v2H8v-2zm9-3h2v2h-2v-2zm0-3h2v2h-2V8z"/>
+        </svg>
+      </button>
+
+      <button class="shutter-btn" id="shutter-btn" title="Capture action">
+        <svg class="shutter-icon" viewBox="0 0 24 24" id="shutter-icon-svg">
+          <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+        </svg>
+      </button>
+
+      <!-- Empty spacer helper to visually balance keyboard button -->
+      <div id="keyboard-spacer" style="width: 48px; height: 48px;"></div>
+    </div>
+  </div>
+
+  <!-- 3. Manual Input Overlay (Custom warehouse dialog styled block) -->
+  <div id="manual-input-overlay" style="position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.95); z-index: 45; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(8px);">
+    <div style="background-color: var(--card-bg); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 24px; max-width: 320px; width: 100%; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); text-align: center;">
+      <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 8px; color: var(--text-primary);">Manual Barcode Entry</h3>
+      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 20px;">Type or paste the courier tracking number (AWB) below.</p>
+      
+      <input type="text" id="manual-barcode-input" placeholder="e.g. SPTTND014011200" style="width: 100%; background-color: var(--bg-color); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 14px; font-family: monospace; outline: none; text-align: center; margin-bottom: 20px;">
+      
+      <div style="display: flex; gap: 12px;">
+        <button onclick="closeManualInput()" style="flex: 1; background-color: transparent; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 700; cursor: pointer; outline: none;">Cancel</button>
+        <button onclick="submitManualBarcode()" style="flex: 1; background-color: var(--accent-color); border: none; border-radius: 8px; padding: 10px; color: #FFF; font-size: 13px; font-weight: 700; cursor: pointer; outline: none;">Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // iOS zoom prevent
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+
+    // Web Audio Sound Generators
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSuccessBeep() {
+      try {
+        [0, 0.15].forEach((delay) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1200, audioCtx.currentTime + delay);
+          gain.gain.setValueAtTime(0.12, audioCtx.currentTime + delay);
+          osc.start(audioCtx.currentTime + delay);
+          osc.stop(audioCtx.currentTime + delay + 0.08);
+        });
+      } catch (_) {}
+    }
+
+    function playErrorBeep() {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(155, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.45);
+      } catch (_) {}
+    }
+
+    // Keypad Logic
+    const PIN_MAP = {
+      "1234": "Operator1",
+      "5678": "Operator2"
+    };
+
+    let enteredPin = "";
+    const pinOverlay = document.getElementById('pin-overlay');
+    const pinDots = document.querySelectorAll('.pin-dot');
+    const keypad = document.getElementById('keypad');
+    
+    let loggedOperator = "";
+    let sessionBatchId = "";
+    let scannedBarcodes = new Set();
+    let pendingTrackingIds = new Set();
+
+    // Native BarcodeDetector API Instantiation
+    let barcodeDetector = null;
+    if ('BarcodeDetector' in window) {
+      barcodeDetector = new BarcodeDetector({
+        formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'itf', 'pdf417']
+      });
+    }
+
+    // ZXing multi format reader instantiation with TRY HARDER hints for desktop webcam reading
+    let zxingReader = null;
+    try {
+      const hints = new Map();
+      const formats = [
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.QR_CODE
+      ];
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      zxingReader = new ZXing.BrowserMultiFormatReader(hints);
+    } catch (e) {
+      console.warn("ZXing failed to load", e);
+    }
+
+    keypad.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!target.classList.contains('key')) return;
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      if (target.id === 'key-clear') {
+        enteredPin = "";
+      } else if (target.id === 'key-del') {
+        enteredPin = enteredPin.slice(0, -1);
+      } else if (target.getAttribute('data-val')) {
+        if (enteredPin.length < 4) {
+          enteredPin += target.getAttribute('data-val');
+        }
+      }
+
+      updatePinDots();
+
+      if (enteredPin.length === 4) {
+        validatePin();
+      }
+    });
+
+    function updatePinDots() {
+      pinDots.forEach((dot, idx) => {
+        if (idx < enteredPin.length) {
+          dot.classList.add('active');
+        } else {
+          dot.classList.remove('active');
+        }
+        dot.classList.remove('error');
+      });
+    }
+
+    function validatePin() {
+      const operatorName = PIN_MAP[enteredPin];
+      if (operatorName) {
+        loggedOperator = operatorName;
+        document.getElementById('operator-display').textContent = loggedOperator;
+        pinOverlay.classList.add('hidden');
+        initSession();
+      } else {
+        playErrorBeep();
+        pinDots.forEach(dot => dot.classList.add('error'));
+        document.getElementById('pin-indicators').classList.add('shake');
+        setTimeout(() => {
+          document.getElementById('pin-indicators').classList.remove('shake');
+          enteredPin = "";
+          updatePinDots();
+        }, 400);
+      }
+    }
+
+    // Session Init & Offline Target List Sync
+    async function initSession() {
+      sessionBatchId = "BATCH_" + Date.now();
+      document.getElementById('batch-id-display').textContent = "Downloading targets...";
+
+      try {
+        const res = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.tracking_ids) {
+            pendingTrackingIds = new Set(data.tracking_ids.map(id => String(id).trim()));
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to download pending list:", err);
+      }
+
+      document.getElementById('batch-id-display').textContent = sessionBatchId;
+      startCamera();
+      setWorkflowStep(1);
+    }
+
+    function exitApp() {
+      if (localStream) {
+        localStream.getTracks().forEach(track => {
+          try { track.stop(); } catch (_) {}
+        });
+      }
+      window.location.href = "../index.html";
+    }
+
+    // Manual Entry dialog controls
+    const manualInputOverlay = document.getElementById('manual-input-overlay');
+    const manualBarcodeVal = document.getElementById('manual-barcode-input');
+    const keyboardBtn = document.getElementById('keyboard-btn');
+    const keyboardSpacer = document.getElementById('keyboard-spacer');
+
+    function openManualInput() {
+      if (isProcessing) return;
+      stopAutoScan();
+      manualBarcodeVal.value = "";
+      manualInputOverlay.style.display = "flex";
+      setTimeout(() => manualBarcodeVal.focus(), 150);
+    }
+
+    function closeManualInput() {
+      manualInputOverlay.style.display = "none";
+      if (currentStep === 2) {
+        startAutoScan();
+      }
+    }
+
+    async function submitManualBarcode() {
+      const code = manualBarcodeVal.value.trim();
+      if (!code) {
+        showToast("Barcode cannot be empty");
+        return;
+      }
+      manualInputOverlay.style.display = "none";
+      await processDecodedBarcode(code);
+    }
+
+    // Toast helper
+    let toastTimeout = null;
+    function showToast(msg) {
+      const banner = document.getElementById('alert-banner');
+      const text = document.getElementById('alert-text');
+      text.textContent = msg;
+      banner.classList.add('visible');
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        banner.classList.remove('visible');
+      }, 3500);
+    }
+
+    // Camera Stream Management
+    const videoFeed = document.getElementById('video-feed');
+    let localStream = null;
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+        localStream = stream;
+        videoFeed.srcObject = stream;
+      } catch (err) {
+        console.error(err);
+        showToast("Camera access denied or busy. Check permissions.");
+      }
+    }
+
+    // Canvas Frame grab resizing and compression (Under 200KB)
+    function captureCompressedFrame() {
+      return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        let width = videoFeed.videoWidth || 1280;
+        let height = videoFeed.videoHeight || 720;
+        
+        const maxDim = 960;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoFeed, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          resolve({
+            blob,
+            base64: canvas.toDataURL('image/jpeg', 0.75).split(',')[1]
+          });
+        }, 'image/jpeg', 0.75);
+      });
+    }
+
+    // 2-Step Workflow state
+    let currentStep = 1;
+    let snappedPhotoData = null;
+    let isProcessing = false;
+    let autoScanInterval = null;
+
+    const shutterBtn = document.getElementById('shutter-btn');
+    const shutterIconSvg = document.getElementById('shutter-icon-svg');
+    const photoPreviewOverlay = document.getElementById('photo-preview-overlay');
+    const photoPreviewImg = document.getElementById('photo-preview-img');
+    const instructionTextUi = document.getElementById('instruction-text-ui');
+    const retakeBtn = document.getElementById('retake-btn-ui');
+    const reticleUi = document.getElementById('reticle-ui');
+
+    function setWorkflowStep(step) {
+      currentStep = step;
+      if (step === 1) {
+        snappedPhotoData = null;
+        photoPreviewOverlay.style.display = "none";
+        photoPreviewImg.src = "";
+        reticleUi.style.display = "none";
+        
+        // Hide manual input controls in Step 1
+        keyboardBtn.style.visibility = "hidden";
+        keyboardSpacer.style.display = "block";
+        
+        instructionTextUi.textContent = "Snap Goods";
+        shutterIconSvg.innerHTML = '<path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>';
+        stopAutoScan();
+      } else {
+        photoPreviewOverlay.style.display = "flex";
+        reticleUi.style.display = "flex";
+        
+        // Show manual input controls in Step 2
+        keyboardBtn.style.visibility = "visible";
+        keyboardSpacer.style.display = "none";
+        
+        instructionTextUi.textContent = "Scan Barcode";
+        shutterIconSvg.innerHTML = '<path d="M4 6h16V4H4v2zm0 14h16v-2H4v2zm0-7h16v-2H4v2z"/>';
+        startAutoScan();
+      }
+    }
+
+    retakeBtn.addEventListener('click', () => {
+      setWorkflowStep(1);
+    });
+
+    shutterBtn.addEventListener('click', async () => {
+      if (isProcessing || !localStream) return;
+
+      if (currentStep === 1) {
+        try {
+          isProcessing = true;
+          const frame = await captureCompressedFrame();
+          snappedPhotoData = frame;
+          photoPreviewImg.src = "data:image/jpeg;base64," + frame.base64;
+          playSuccessBeep();
+          setWorkflowStep(2);
+        } catch (err) {
+          console.error(err);
+          showToast("Failed to snap photo.");
+        } finally {
+          isProcessing = false;
+        }
+      } else {
+        try {
+          isProcessing = true;
+          let barcode = "";
+          
+          if (barcodeDetector) {
+            const barcodes = await barcodeDetector.detect(videoFeed);
+            if (barcodes.length > 0) {
+              barcode = barcodes[0].rawValue.trim();
+            }
+          }
+          
+          if (!barcode && zxingReader) {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = videoFeed.videoWidth || 640;
+              canvas.height = videoFeed.videoHeight || 480;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
+              const result = await zxingReader.decodeFromCanvas(canvas);
+              if (result) barcode = result.getText().trim();
+            } catch (_) {}
+          }
+
+          if (barcode) {
+            await processDecodedBarcode(barcode);
+          } else {
+            playErrorBeep();
+            throw new Error("No barcode detected in frame.");
+          }
+        } catch (err) {
+          showToast(err.message || "Decoding error.");
+          isProcessing = false;
+        }
+      }
+    });
+
+    // Local Auto-scan loop runs continuously in Step 2 (Scan barcode)
+    function startAutoScan() {
+      if (autoScanInterval) clearInterval(autoScanInterval);
+
+      autoScanInterval = setInterval(async () => {
+        if (isProcessing || currentStep !== 2 || !localStream) return;
+        try {
+          let barcode = "";
+
+          if (barcodeDetector) {
+            const barcodes = await barcodeDetector.detect(videoFeed);
+            if (barcodes.length > 0) {
+              barcode = barcodes[0].rawValue.trim();
+            }
+          }
+
+          if (!barcode && zxingReader) {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = videoFeed.videoWidth || 640;
+              canvas.height = videoFeed.videoHeight || 480;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
+              const result = await zxingReader.decodeFromCanvas(canvas);
+              if (result) barcode = result.getText().trim();
+            } catch (_) {}
+          }
+
+          if (barcode) {
+            await processDecodedBarcode(barcode);
+          }
+        } catch (_) {}
+      }, 250); // Fast 250ms local scan cycle
+    }
+
+    function stopAutoScan() {
+      if (autoScanInterval) {
+        clearInterval(autoScanInterval);
+        autoScanInterval = null;
+      }
+    }
+
+    // Process scanned barcode against pre-downloaded offline list
+    async function processDecodedBarcode(barcode) {
+      isProcessing = true;
+      stopAutoScan();
+
+      const loader = document.getElementById('loader');
+      const successFlash = document.getElementById('success-flash');
+
+      try {
+        // 1. Validate offline instantly!
+        if (pendingTrackingIds.size > 0 && !pendingTrackingIds.has(barcode)) {
+          playErrorBeep();
+          throw new Error("Wrong label or not in pending checklist");
+        }
+
+        if (scannedBarcodes.has(barcode)) {
+          playErrorBeep();
+          throw new Error(`Ignore: already scanned in current session`);
+        }
+
+        // Lock UI for upload
+        loader.classList.add('visible');
+        document.getElementById('loader-text').textContent = "Uploading Packing Proof (Max 200KB)...";
+
+        // 2. Upload Step 1 snapped photo to R2
+        const filename = `proof-before-${barcode}-${Date.now()}.jpg`;
+        const uploadRes = await fetch(`https://ib.hsgglobalpteltd.workers.dev/api/upload?filename=${encodeURIComponent(filename)}`, {
+          method: "POST",
+          headers: { "Content-Type": "image/jpeg" },
+          body: snappedPhotoData.blob
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error("Storage upload failed");
+        }
+
+        const uploadJson = await uploadRes.json();
+
+        document.getElementById('loader-text').textContent = "Saving to database...";
+
+        // 3. Update status in database
+        const dbRes = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/orders/pack", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: barcode,
+            packed_by: loggedOperator,
+            proof_photo: uploadJson.url,
+            is_after_pack: false
+          })
+        });
+
+        if (!dbRes.ok) {
+          const errMsg = await dbRes.text();
+          throw new Error(errMsg || "Database pack transaction failed");
+        }
+
+        // Add to duplicates filter and remove from pending checklist
+        scannedBarcodes.add(barcode);
+        pendingTrackingIds.delete(barcode);
+
+        // Success Feedback
+        playSuccessBeep();
+        document.getElementById('success-scanned-code').textContent = barcode;
+        successFlash.classList.add('visible');
+
+        setTimeout(() => {
+          successFlash.classList.remove('visible');
+          loader.classList.remove('visible');
+          isProcessing = false;
+          
+          setWorkflowStep(1);
+        }, 2200);
+
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Operation failed.");
+        loader.classList.remove('visible');
+        isProcessing = false;
+        
+        if (currentStep === 2) {
+          startAutoScan();
+        }
+      }
+    }
+  </script>
+</body>
+</html>
