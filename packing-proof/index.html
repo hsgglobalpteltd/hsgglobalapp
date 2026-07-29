@@ -255,23 +255,6 @@
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     }
 
-    .retake-btn {
-      position: absolute;
-      bottom: 12px;
-      left: 12px;
-      background-color: rgba(220, 38, 38, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 10px;
-      font-weight: 700;
-      color: #FFF;
-      z-index: 20;
-      text-transform: uppercase;
-      cursor: pointer;
-      display: none;
-    }
-
     /* Reticle */
     .reticle-container {
       position: absolute;
@@ -602,37 +585,13 @@
       </div>
     </div>
 
-    <!-- Bottom Controls with Manual Entry Keyboard button -->
-    <div class="controls-bar" style="gap: 24px;">
-      <button id="keyboard-btn" onclick="openManualInput()" style="width: 48px; height: 48px; border-radius: 50%; background-color: var(--card-bg); border: 1px solid rgba(255, 255, 255, 0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-secondary); transition: transform 0.1s ease; outline: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-        <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24">
-          <path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-3-3h2v2H5V8zm0 3h2v2H5v-2zm3 3h8v2H8v-2zm9-3h2v2h-2v-2zm0-3h2v2h-2V8z"/>
-        </svg>
-      </button>
-
+    <!-- Bottom Controls with shutter button -->
+    <div class="controls-bar">
       <button class="shutter-btn" id="shutter-btn" title="Capture action">
         <svg class="shutter-icon" viewBox="0 0 24 24" id="shutter-icon-svg">
           <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
         </svg>
       </button>
-
-      <!-- Empty spacer helper to visually balance keyboard button -->
-      <div id="keyboard-spacer" style="width: 48px; height: 48px;"></div>
-    </div>
-  </div>
-
-  <!-- 3. Manual Input Overlay (Custom warehouse dialog styled block) -->
-  <div id="manual-input-overlay" style="position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.95); z-index: 45; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(8px);">
-    <div style="background-color: var(--card-bg); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 24px; max-width: 320px; width: 100%; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); text-align: center;">
-      <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 8px; color: var(--text-primary);">Manual Barcode Entry</h3>
-      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 20px;">Type or paste the courier tracking number (AWB) below.</p>
-      
-      <input type="text" id="manual-barcode-input" placeholder="e.g. SPTTND014011200" style="width: 100%; background-color: var(--bg-color); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 14px; font-family: monospace; outline: none; text-align: center; margin-bottom: 20px;">
-      
-      <div style="display: flex; gap: 12px;">
-        <button onclick="closeManualInput()" style="flex: 1; background-color: transparent; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 700; cursor: pointer; outline: none;">Cancel</button>
-        <button onclick="submitManualBarcode()" style="flex: 1; background-color: var(--accent-color); border: none; border-radius: 8px; padding: 10px; color: #FFF; font-size: 13px; font-weight: 700; cursor: pointer; outline: none;">Verify</button>
-      </div>
     </div>
   </div>
 
@@ -699,19 +658,10 @@
       });
     }
 
-    // ZXing multi format reader instantiation with TRY HARDER hints for desktop webcam reading
+    // ZXing multi format reader instantiation (Standard default reader initialization)
     let zxingReader = null;
     try {
-      const hints = new Map();
-      const formats = [
-        ZXing.BarcodeFormat.CODE_128,
-        ZXing.BarcodeFormat.CODE_39,
-        ZXing.BarcodeFormat.EAN_13,
-        ZXing.BarcodeFormat.QR_CODE
-      ];
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-      zxingReader = new ZXing.BrowserMultiFormatReader(hints);
+      zxingReader = new ZXing.BrowserMultiFormatReader();
     } catch (e) {
       console.warn("ZXing failed to load", e);
     }
@@ -802,37 +752,6 @@
       window.location.href = "../index.html";
     }
 
-    // Manual Entry dialog controls
-    const manualInputOverlay = document.getElementById('manual-input-overlay');
-    const manualBarcodeVal = document.getElementById('manual-barcode-input');
-    const keyboardBtn = document.getElementById('keyboard-btn');
-    const keyboardSpacer = document.getElementById('keyboard-spacer');
-
-    function openManualInput() {
-      if (isProcessing) return;
-      stopAutoScan();
-      manualBarcodeVal.value = "";
-      manualInputOverlay.style.display = "flex";
-      setTimeout(() => manualBarcodeVal.focus(), 150);
-    }
-
-    function closeManualInput() {
-      manualInputOverlay.style.display = "none";
-      if (currentStep === 2) {
-        startAutoScan();
-      }
-    }
-
-    async function submitManualBarcode() {
-      const code = manualBarcodeVal.value.trim();
-      if (!code) {
-        showToast("Barcode cannot be empty");
-        return;
-      }
-      manualInputOverlay.style.display = "none";
-      await processDecodedBarcode(code);
-    }
-
     // Toast helper
     let toastTimeout = null;
     function showToast(msg) {
@@ -921,20 +840,12 @@
         photoPreviewImg.src = "";
         reticleUi.style.display = "none";
         
-        // Hide manual input controls in Step 1
-        keyboardBtn.style.visibility = "hidden";
-        keyboardSpacer.style.display = "block";
-        
         instructionTextUi.textContent = "Snap Goods";
         shutterIconSvg.innerHTML = '<path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>';
         stopAutoScan();
       } else {
         photoPreviewOverlay.style.display = "flex";
         reticleUi.style.display = "flex";
-        
-        // Show manual input controls in Step 2
-        keyboardBtn.style.visibility = "visible";
-        keyboardSpacer.style.display = "none";
         
         instructionTextUi.textContent = "Scan Barcode";
         shutterIconSvg.innerHTML = '<path d="M4 6h16V4H4v2zm0 14h16v-2H4v2zm0-7h16v-2H4v2z"/>';
@@ -964,39 +875,7 @@
           isProcessing = false;
         }
       } else {
-        try {
-          isProcessing = true;
-          let barcode = "";
-          
-          if (barcodeDetector) {
-            const barcodes = await barcodeDetector.detect(videoFeed);
-            if (barcodes.length > 0) {
-              barcode = barcodes[0].rawValue.trim();
-            }
-          }
-          
-          if (!barcode && zxingReader) {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = videoFeed.videoWidth || 640;
-              canvas.height = videoFeed.videoHeight || 480;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
-              const result = await zxingReader.decodeFromCanvas(canvas);
-              if (result) barcode = result.getText().trim();
-            } catch (_) {}
-          }
-
-          if (barcode) {
-            await processDecodedBarcode(barcode);
-          } else {
-            playErrorBeep();
-            throw new Error("No barcode detected in frame.");
-          }
-        } catch (err) {
-          showToast(err.message || "Decoding error.");
-          isProcessing = false;
-        }
+        // Step 2 is fully automatic. Clicking the shutter button is ignored to prevent "no barcode in frame" warnings.
       }
     });
 
