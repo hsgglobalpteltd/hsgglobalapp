@@ -673,8 +673,10 @@
     // Configure WASM path for high-performance decoding on iOS Safari / older browsers
     try {
       ZXingWASM.prepareZXingModule({
-        locateFile: (path, prefix) => {
-          return `https://cdn.jsdelivr.net/npm/zxing-wasm@1.2.6/dist/reader/${path}`;
+        overrides: {
+          locateFile: (path, prefix) => {
+            return `https://cdn.jsdelivr.net/npm/zxing-wasm@1.2.6/dist/reader/${path}`;
+          }
         }
       });
     } catch (e) {
@@ -884,7 +886,13 @@
               barcode = results[0].text.trim();
             }
           }
-        } catch (_) {}
+        } catch (err) {
+          console.error("Scan loop error:", err);
+          if (!window.hasShownWasmError) {
+            window.hasShownWasmError = true;
+            showToast("Scan Err: " + err.message);
+          }
+        }
 
         if (barcode) {
           consecutiveMisses = 0;
@@ -914,6 +922,7 @@
 
     function setWorkflowStep(step) {
       currentStep = step;
+      window.hasShownWasmError = false;
       if (step === 1) {
         snappedPhotoData = null;
         photoPreviewOverlay.style.display = "none";
