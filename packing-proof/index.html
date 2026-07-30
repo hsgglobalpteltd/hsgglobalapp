@@ -8,8 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>iB - Tiktok Packing</title>
   
-  <!-- zxing-wasm library for high-performance WebAssembly barcode decoding on iOS Safari & PC -->
-  <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@1.2.6/dist/iife/reader/index.js"></script>
+  <!-- Quagga2 library for high-performance 1D barcode scanning on iOS Safari & PC -->
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 
   <style>
     :root {
@@ -670,18 +670,7 @@
       });
     }
 
-    // Configure WASM path for high-performance decoding on iOS Safari / older browsers
-    try {
-      ZXingWASM.prepareZXingModule({
-        overrides: {
-          locateFile: (path, prefix) => {
-            return `https://cdn.jsdelivr.net/npm/zxing-wasm@1.2.6/dist/reader/${path}`;
-          }
-        }
-      });
-    } catch (e) {
-      console.warn("Failed to configure zxing-wasm path", e);
-    }
+    // Quagga2 operates automatically without WASM binaries
 
     keypad.addEventListener('click', (e) => {
       const target = e.target;
@@ -871,27 +860,35 @@
             }
           }
 
-          if (!barcode && typeof ZXingWASM !== 'undefined') {
+          if (!barcode && typeof Quagga !== 'undefined') {
             const canvas = document.createElement('canvas');
             canvas.width = videoFeed.videoWidth || 640;
             canvas.height = videoFeed.videoHeight || 480;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const results = await ZXingWASM.readBarcodes(imageData, {
-              formats: ['Code128'],
-              tryHarder: true
+            const dataURL = canvas.toDataURL('image/jpeg');
+            
+            await new Promise((resolve) => {
+              Quagga.decodeSingle({
+                src: dataURL,
+                numOfWorkers: 0,
+                inputStream: {
+                  size: 800
+                },
+                decoder: {
+                  readers: ["code_128_reader", "code_39_reader", "ean_reader", "upc_reader"]
+                },
+                locate: true
+              }, (result) => {
+                if (result && result.codeResult) {
+                  barcode = result.codeResult.code.trim();
+                }
+                resolve();
+              });
             });
-            if (results && results.length > 0) {
-              barcode = results[0].text.trim();
-            }
           }
         } catch (err) {
           console.error("Scan loop error:", err);
-          if (!window.hasShownWasmError) {
-            window.hasShownWasmError = true;
-            showToast("Scan Err: " + err.message);
-          }
         }
 
         if (barcode) {
@@ -922,7 +919,6 @@
 
     function setWorkflowStep(step) {
       currentStep = step;
-      window.hasShownWasmError = false;
       if (step === 1) {
         snappedPhotoData = null;
         photoPreviewOverlay.style.display = "none";
