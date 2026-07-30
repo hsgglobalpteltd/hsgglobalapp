@@ -646,11 +646,27 @@
       } catch (_) {}
     }
 
-    // Keypad Logic
-    const PIN_MAP = {
-      "1234": "Operator1",
-      "5678": "Operator2"
-    };
+    let operatorsCache = [];
+    try {
+      const cached = localStorage.getItem('tiktok_operators');
+      if (cached) {
+        operatorsCache = JSON.parse(cached);
+      }
+    } catch (_) {}
+
+    async function syncOperators() {
+      try {
+        const res = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/operators");
+        if (res.ok) {
+          const data = await res.json();
+          operatorsCache = data;
+          localStorage.setItem('tiktok_operators', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.error("Failed to sync operators:", err);
+      }
+    }
+    syncOperators();
 
     let enteredPin = "";
     const pinOverlay = document.getElementById('pin-overlay');
@@ -709,9 +725,9 @@
     }
 
     function validatePin() {
-      const operatorName = PIN_MAP[enteredPin];
-      if (operatorName) {
-        loggedOperator = operatorName;
+      const match = operatorsCache.find(op => op.pin === enteredPin);
+      if (match) {
+        loggedOperator = match.name;
         document.getElementById('operator-display').textContent = loggedOperator;
         pinOverlay.classList.add('hidden');
         initSession();
