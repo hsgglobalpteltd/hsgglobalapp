@@ -204,30 +204,51 @@
       justify-content: center;
     }
 
+    .camera-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Horizontal slit mode only for scan barcode step */
+    .camera-wrapper.cropped {
+      height: 200px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
     #video-feed {
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
 
+    /* Preview overlay centered horizontally and vertically in the top dark mask section */
     #photo-preview-overlay {
       position: absolute;
-      top: 12px;
-      left: 12px;
+      top: calc(50% - 170px);
+      left: 50%;
+      transform: translate(-50%, -50%);
       display: none;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
       align-items: center;
       z-index: 20;
     }
 
     #photo-preview-img {
-      width: 80px;
-      height: 80px;
+      width: 100px;
+      height: 100px;
       border: 2px solid var(--accent-color);
       border-radius: 8px;
       object-fit: cover;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
     }
 
     /* Center Middle Instruction Overlay */
@@ -268,24 +289,11 @@
 
     .reticle {
       position: relative;
-      width: 180px;
-      height: 180px;
+      width: 280px;
+      height: 90px;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-
-    .reticle-ring {
-      position: absolute;
-      inset: 0;
-      border: 1px dashed rgba(79, 70, 229, 0.4);
-      border-radius: 50%;
-      animation: rotateRing 20s linear infinite;
-    }
-
-    @keyframes rotateRing {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
     }
 
     .bracket {
@@ -334,7 +342,7 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.45);
       transition: transform 0.15s ease, background-color 0.15s ease;
     }
 
@@ -534,28 +542,32 @@
     </header>
 
     <div class="viewport-container">
-      <video id="video-feed" autoplay playsinline muted></video>
-
-      <!-- Snapped Preview and Retake Button -->
+      <!-- Snapped Preview and Retake Button outside wrapper to stay centered on top mask area -->
       <div id="photo-preview-overlay">
         <img id="photo-preview-img" src="" alt="Snapped Product">
         <button id="retake-btn-ui" style="background-color: rgba(220, 38, 38, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #FFF; text-transform: uppercase; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); pointer-events: auto;">Retake</button>
       </div>
 
-      <!-- Centered workflow instruction overlay -->
-      <div class="center-instruction-overlay" id="center-instruction-overlay">
-        <span class="instruction-text" id="instruction-text-ui">Snap Goods</span>
-      </div>
+      <div class="camera-wrapper" id="camera-wrapper-ui">
+        <video id="video-feed" autoplay playsinline muted></video>
 
-      <!-- Target reticle hunt scope -->
-      <div class="reticle-container" id="reticle-ui">
-        <div class="reticle">
-          <div class="reticle-ring"></div>
-          <div class="bracket top-left"></div>
-          <div class="bracket top-right"></div>
-          <div class="bracket bottom-left"></div>
-          <div class="bracket bottom-right"></div>
-          <div class="center-dot"></div>
+        <!-- Live Barcode text overlay (Displays just the barcode raw string) -->
+        <div id="detected-barcode-display" style="display: none; background-color: rgba(15, 23, 42, 0.85); border: 1px solid var(--accent-color); padding: 6px 12px; border-radius: 6px; font-size: 14px; font-weight: bold; color: var(--text-primary); position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 22; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-family: monospace;"></div>
+
+        <!-- Centered workflow instruction overlay -->
+        <div class="center-instruction-overlay" id="center-instruction-overlay">
+          <span class="instruction-text" id="instruction-text-ui">Snap Goods</span>
+        </div>
+
+        <!-- Target reticle hunt scope -->
+        <div class="reticle-container" id="reticle-ui">
+          <div class="reticle">
+            <div class="bracket top-left"></div>
+            <div class="bracket top-right"></div>
+            <div class="bracket bottom-left"></div>
+            <div class="bracket bottom-right"></div>
+            <div class="center-dot"></div>
+          </div>
         </div>
       </div>
 
@@ -567,7 +579,7 @@
         <span class="alert-text" id="alert-text">Error message here</span>
       </div>
 
-      <!-- Spinner Loader overlay -->
+      <!-- Spinner Loader overlay for initial target loading only -->
       <div id="loader">
         <div class="spinner"></div>
         <span class="loader-text" id="loader-text">Uploading proof...</span>
@@ -743,27 +755,6 @@
       setWorkflowStep(1);
     }
 
-    // Camera Stream Management
-    const videoFeed = document.getElementById('video-feed');
-    let localStream = null;
-
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-        localStream = stream;
-        videoFeed.srcObject = stream;
-      } catch (err) {
-        console.error(err);
-        showToast("Camera access denied or busy. Check permissions.");
-      }
-    }
-
     function exitApp() {
       if (localStream) {
         localStream.getTracks().forEach(track => {
@@ -784,6 +775,27 @@
       toastTimeout = setTimeout(() => {
         banner.classList.remove('visible');
       }, 3500);
+    }
+
+    // Camera Stream Management
+    const videoFeed = document.getElementById('video-feed');
+    let localStream = null;
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+        localStream = stream;
+        videoFeed.srcObject = stream;
+      } catch (err) {
+        console.error(err);
+        showToast("Camera access denied or busy. Check permissions.");
+      }
     }
 
     // Canvas Frame grab resizing and compression (Under 200KB)
@@ -830,6 +842,66 @@
     const instructionTextUi = document.getElementById('instruction-text-ui');
     const retakeBtn = document.getElementById('retake-btn-ui');
     const reticleUi = document.getElementById('reticle-ui');
+    const cameraWrapperUi = document.getElementById('camera-wrapper-ui');
+
+    // Live continuous translation parameters
+    let activeScanInterval = null;
+    let lastDetectedBarcode = "";
+    let consecutiveMisses = 0;
+
+    function startActiveScanner() {
+      if (activeScanInterval) return;
+      consecutiveMisses = 0;
+      lastDetectedBarcode = "";
+
+      activeScanInterval = setInterval(async () => {
+        if (currentStep !== 2 || isProcessing) return;
+
+        let barcode = "";
+        try {
+          if (barcodeDetector) {
+            const barcodes = await barcodeDetector.detect(videoFeed);
+            if (barcodes.length > 0) {
+              barcode = barcodes[0].rawValue.trim();
+            }
+          }
+
+          if (!barcode && zxingReader) {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoFeed.videoWidth || 640;
+            canvas.height = videoFeed.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
+            const result = await zxingReader.decodeFromCanvas(canvas);
+            if (result) barcode = result.getText().trim();
+          }
+        } catch (_) {}
+
+        if (barcode) {
+          consecutiveMisses = 0;
+          lastDetectedBarcode = barcode;
+          
+          const display = document.getElementById('detected-barcode-display');
+          display.textContent = barcode;
+          display.style.display = "block";
+        } else {
+          consecutiveMisses++;
+          if (consecutiveMisses >= 3) {
+            lastDetectedBarcode = "";
+            document.getElementById('detected-barcode-display').style.display = "none";
+          }
+        }
+      }, 250);
+    }
+
+    function stopActiveScanner() {
+      if (activeScanInterval) {
+        clearInterval(activeScanInterval);
+        activeScanInterval = null;
+      }
+      lastDetectedBarcode = "";
+      document.getElementById('detected-barcode-display').style.display = "none";
+    }
 
     function setWorkflowStep(step) {
       currentStep = step;
@@ -838,12 +910,16 @@
         photoPreviewOverlay.style.display = "none";
         photoPreviewImg.src = "";
         reticleUi.style.display = "none";
+        cameraWrapperUi.classList.remove('cropped');
+        stopActiveScanner();
         
         instructionTextUi.textContent = "Snap Goods";
         shutterIconSvg.innerHTML = '<path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>';
       } else {
         photoPreviewOverlay.style.display = "flex";
         reticleUi.style.display = "flex";
+        cameraWrapperUi.classList.add('cropped');
+        startActiveScanner();
         
         instructionTextUi.textContent = "Scan Barcode";
         shutterIconSvg.innerHTML = '<path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>';
@@ -872,141 +948,167 @@
           isProcessing = false;
         }
       } else {
-        // Step 2: Manual scanning with a 1.5-second multi-frame scan window
-        try {
+        // Step 2: Grab the already translated barcode instantly
+        if (lastDetectedBarcode) {
           isProcessing = true;
-          
-          // Show loader spinner
-          const loader = document.getElementById('loader');
-          loader.classList.add('visible');
-          document.getElementById('loader-text').textContent = "Scanning Barcode...";
-
-          let attempts = 0;
-          let maxAttempts = 10; // Try 10 times (1.5 seconds total)
-          let detectedBarcode = "";
-
-          const scanInterval = setInterval(async () => {
-            attempts++;
-            let barcode = "";
-
-            try {
-              if (barcodeDetector) {
-                const barcodes = await barcodeDetector.detect(videoFeed);
-                if (barcodes.length > 0) {
-                  barcode = barcodes[0].rawValue.trim();
-                }
-              }
-
-              if (!barcode && zxingReader) {
-                const canvas = document.createElement('canvas');
-                canvas.width = videoFeed.videoWidth || 640;
-                canvas.height = videoFeed.videoHeight || 480;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
-                const result = await zxingReader.decodeFromCanvas(canvas);
-                if (result) barcode = result.getText().trim();
-              }
-            } catch (_) {}
-
-            if (barcode) {
-              clearInterval(scanInterval);
-              detectedBarcode = barcode;
-              await processDecodedBarcode(barcode);
-            } else if (attempts >= maxAttempts) {
-              clearInterval(scanInterval);
-              loader.classList.remove('visible');
-              playErrorBeep();
-              showToast("No barcode detected in frame.");
-              isProcessing = false;
-            }
-          }, 150); // Scan once every 150ms
-
-        } catch (err) {
-          document.getElementById('loader').classList.remove('visible');
-          showToast(err.message || "Scanning error.");
-          isProcessing = false;
+          const barcodeToProcess = lastDetectedBarcode;
+          stopActiveScanner();
+          processDecodedBarcode(barcodeToProcess);
+        } else {
+          playErrorBeep();
+          showToast("No barcode detected in frame.");
         }
       }
     });
 
-    // Process scanned barcode against pre-downloaded offline list
-    async function processDecodedBarcode(barcode) {
-      const loader = document.getElementById('loader');
-      const successFlash = document.getElementById('success-flash');
+    // Offline-First Sync Queue Management
+    let isSyncing = false;
+
+    function getSyncQueue() {
+      try {
+        return JSON.parse(localStorage.getItem('tiktok_sync_queue') || '[]');
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function saveSyncQueue(queue) {
+      try {
+        localStorage.setItem('tiktok_sync_queue', JSON.stringify(queue));
+      } catch (_) {}
+    }
+
+    function addToSyncQueue(barcode, operator, photoBase64, isAfterPack) {
+      const queue = getSyncQueue();
+      queue.push({
+        id: "sync_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+        barcode,
+        operator,
+        photoBase64,
+        isAfterPack,
+        timestamp: Date.now()
+      });
+      saveSyncQueue(queue);
+      triggerBackgroundSync();
+    }
+
+    async function triggerBackgroundSync() {
+      if (isSyncing) return;
+      const queue = getSyncQueue();
+      if (queue.length === 0) return;
+
+      isSyncing = true;
+      const item = queue[0];
 
       try {
-        // 1. Validate offline instantly!
-        if (pendingTrackingIds.size > 0 && !pendingTrackingIds.has(barcode)) {
-          playErrorBeep();
-          throw new Error("Wrong label or not in pending checklist");
+        // 1. Convert base64 back to Blob for upload
+        const byteCharacters = atob(item.photoBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/jpeg' });
 
-        if (scannedBarcodes.has(barcode)) {
-          playErrorBeep();
-          throw new Error(`Ignore: already scanned in current session`);
-        }
-
-        // Lock UI for upload
-        loader.classList.add('visible');
-        document.getElementById('loader-text').textContent = "Uploading Packing Proof (Max 200KB)...";
-
-        // 2. Upload Step 1 snapped photo to R2
-        const filename = `proof-after-${barcode}-${Date.now()}.jpg`; /* app 6 uses proof-after! */
+        // 2. Upload photo to R2
+        const suffix = item.isAfterPack ? 'after' : 'before';
+        const filename = `proof-${suffix}-${item.barcode}-${item.timestamp}.jpg`;
+        
         const uploadRes = await fetch(`https://ib.hsgglobalpteltd.workers.dev/api/upload?filename=${encodeURIComponent(filename)}`, {
           method: "POST",
           headers: { "Content-Type": "image/jpeg" },
-          body: snappedPhotoData.blob
+          body: blob
         });
 
         if (!uploadRes.ok) {
-          throw new Error("Storage upload failed");
+          throw new Error("R2 upload failed");
         }
 
         const uploadJson = await uploadRes.json();
 
-        document.getElementById('loader-text').textContent = "Saving to database...";
-
-        // 3. Update status in database
+        // 3. Save to database via Worker
         const dbRes = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/orders/pack", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            order_id: barcode,
-            packed_by: loggedOperator,
+            order_id: item.barcode,
+            packed_by: item.operator,
             proof_photo: uploadJson.url,
-            is_after_pack: true /* app 6 uses is_after_pack: true! */
+            is_after_pack: item.isAfterPack
           })
         });
 
         if (!dbRes.ok) {
-          const errMsg = await dbRes.text();
-          throw new Error(errMsg || "Database pack transaction failed");
+          throw new Error("Worker DB write failed");
+        }
+
+        // Success! Remove item from queue and save
+        const currentQueue = getSyncQueue();
+        const updatedQueue = currentQueue.filter(q => q.id !== item.id);
+        saveSyncQueue(updatedQueue);
+
+        isSyncing = false;
+        // Process next item in queue
+        setTimeout(triggerBackgroundSync, 100);
+
+      } catch (err) {
+        console.warn("Background sync failed for item:", item.barcode, err);
+        isSyncing = false;
+        // Retry later (10 seconds)
+        setTimeout(triggerBackgroundSync, 10000);
+      }
+    }
+
+    // Process scanned barcode against pre-downloaded offline list
+    function processDecodedBarcode(barcode) {
+      try {
+        // 1. Validate offline instantly!
+        if (pendingTrackingIds.size > 0 && !pendingTrackingIds.has(barcode)) {
+          playErrorBeep();
+          showToast("Wrong label or not in pending checklist");
+          isProcessing = false;
+          startActiveScanner(); // Restart live scanner
+          return;
+        }
+
+        if (scannedBarcodes.has(barcode)) {
+          playErrorBeep();
+          showToast("Ignore: already scanned in current session");
+          isProcessing = false;
+          startActiveScanner(); // Restart live scanner
+          return;
         }
 
         // Add to duplicates filter and remove from pending checklist
         scannedBarcodes.add(barcode);
         pendingTrackingIds.delete(barcode);
 
-        // Success Feedback
+        // Queue upload silently in background
+        addToSyncQueue(barcode, loggedOperator, snappedPhotoData.base64, true); /* true for app 6 */
+
+        // Success Feedback instantly! No block loader!
         playSuccessBeep();
         document.getElementById('success-scanned-code').textContent = barcode;
+        const successFlash = document.getElementById('success-flash');
         successFlash.classList.add('visible');
 
         setTimeout(() => {
           successFlash.classList.remove('visible');
-          loader.classList.remove('visible');
           isProcessing = false;
-          
           setWorkflowStep(1);
         }, 2200);
 
       } catch (err) {
         console.error(err);
         showToast(err.message || "Operation failed.");
-        loader.classList.remove('visible');
         isProcessing = false;
+        startActiveScanner();
       }
     }
+
+    // Trigger sync on online event and load
+    window.addEventListener('online', triggerBackgroundSync);
+    setTimeout(triggerBackgroundSync, 1000);
   </script>
 </body>
 </html>
