@@ -538,7 +538,12 @@
           <span class="batch-id-tag" id="batch-id-display">Downloading targets...</span>
         </div>
       </div>
-      <span class="operator-badge" id="operator-display">Not logged in</span>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+        <span class="operator-badge" id="operator-display">Not logged in</span>
+        <span id="sync-queue-badge" style="font-size: 8px; font-weight: 800; background: #e53935; color: #ffffff; padding: 2px 6px; border-radius: 4px; display: none; align-items: center; gap: 4px; cursor: pointer; text-transform: uppercase;" onclick="clearSyncQueuePrompt()">
+          Queue: <span id="sync-queue-count">0</span> (Clear)
+        </span>
+      </div>
     </header>
 
     <div class="viewport-container">
@@ -1008,6 +1013,28 @@
       } catch (_) {}
     }
 
+    function updateSyncQueueUI() {
+      const queue = getSyncQueue();
+      const countEl = document.getElementById('sync-queue-count');
+      const badgeEl = document.getElementById('sync-queue-badge');
+      if (countEl && badgeEl) {
+        countEl.textContent = queue.length;
+        if (queue.length > 0) {
+          badgeEl.style.display = 'inline-flex';
+        } else {
+          badgeEl.style.display = 'none';
+        }
+      }
+    }
+
+    function clearSyncQueuePrompt() {
+      if (confirm("Are you sure you want to clear the pending sync queue? This will delete all unsynced scans!")) {
+        saveSyncQueue([]);
+        updateSyncQueueUI();
+        showToast("Sync queue cleared.");
+      }
+    }
+
     function addToSyncQueue(barcode, operator, photoBase64, isAfterPack) {
       const queue = getSyncQueue();
       queue.push({
@@ -1019,10 +1046,12 @@
         timestamp: Date.now()
       });
       saveSyncQueue(queue);
+      updateSyncQueueUI();
       triggerBackgroundSync();
     }
 
     async function triggerBackgroundSync() {
+      updateSyncQueueUI();
       if (isSyncing) return;
       const queue = getSyncQueue();
       if (queue.length === 0) return;
@@ -1069,6 +1098,21 @@
         });
 
         if (!dbRes.ok) {
+          if (dbRes.status === 400 || dbRes.status === 404) {
+            const errJson = await dbRes.json().catch(() => ({}));
+            const errMsg = errJson.error || "Order not found or invalid request";
+            showToast(`⚠️ Sync skipped: ${item.barcode} (${errMsg})`);
+            
+            // Discard unresolvable scan
+            const currentQueue = getSyncQueue();
+            const updatedQueue = currentQueue.filter(q => q.id !== item.id);
+            saveSyncQueue(updatedQueue);
+            updateSyncQueueUI();
+            
+            isSyncing = false;
+            setTimeout(triggerBackgroundSync, 100);
+            return;
+          }
           throw new Error("Worker DB write failed");
         }
 
@@ -1076,6 +1120,7 @@
         const currentQueue = getSyncQueue();
         const updatedQueue = currentQueue.filter(q => q.id !== item.id);
         saveSyncQueue(updatedQueue);
+        updateSyncQueueUI();
 
         isSyncing = false;
         // Process next item in queue
