@@ -8,8 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>iB - Tiktok Packing</title>
   
-  <!-- ZXing library for local 1D/2D barcode scanning fallback on PC and other browsers -->
-  <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+  <!-- zxing-wasm library for high-performance WebAssembly barcode decoding on iOS Safari & PC -->
+  <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@1.2.6/dist/iife/reader/index.js"></script>
 
   <style>
     :root {
@@ -670,12 +670,15 @@
       });
     }
 
-    // ZXing multi format reader instantiation (Standard default reader initialization)
-    let zxingReader = null;
+    // Configure WASM path for high-performance decoding on iOS Safari / older browsers
     try {
-      zxingReader = new ZXing.BrowserMultiFormatReader();
+      ZXingWASM.prepareZXingModule({
+        locateFile: (path, prefix) => {
+          return `https://cdn.jsdelivr.net/npm/zxing-wasm@1.2.6/dist/reader/${path}`;
+        }
+      });
     } catch (e) {
-      console.warn("ZXing failed to load", e);
+      console.warn("Failed to configure zxing-wasm path", e);
     }
 
     keypad.addEventListener('click', (e) => {
@@ -866,14 +869,20 @@
             }
           }
 
-          if (!barcode && zxingReader) {
+          if (!barcode && typeof ZXingWASM !== 'undefined') {
             const canvas = document.createElement('canvas');
             canvas.width = videoFeed.videoWidth || 640;
             canvas.height = videoFeed.videoHeight || 480;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
-            const result = await zxingReader.decodeFromCanvas(canvas);
-            if (result) barcode = result.getText().trim();
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const results = await ZXingWASM.readBarcodes(imageData, {
+              formats: ['Code128'],
+              tryHarder: true
+            });
+            if (results && results.length > 0) {
+              barcode = results[0].text.trim();
+            }
           }
         } catch (_) {}
 
