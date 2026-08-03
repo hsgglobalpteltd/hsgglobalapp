@@ -4,7 +4,7 @@ if (window.innerWidth > 600) {
 }
 
 const WORKER_URL = 'https://ib.hsgglobalpteltd.workers.dev';
-const APP_VERSION = "26.0.37";
+const APP_VERSION = "26.0.38";
 
 // Refresh and Auto-refresh State
 let lastRefreshTime = Date.now();

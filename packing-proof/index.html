@@ -191,6 +191,7 @@
       font-size: 11px;
       font-weight: 700;
       color: var(--text-secondary);
+      cursor: pointer;
     }
 
     /* Viewport feed */
@@ -677,8 +678,46 @@
     const pinOverlay = document.getElementById('pin-overlay');
     const pinDots = document.querySelectorAll('.pin-dot');
     const keypad = document.getElementById('keypad');
+
+    // Operator Badge click handler (Manual Logout)
+    document.getElementById('operator-display').addEventListener('click', () => {
+      if (loggedOperator && confirm(`Log out operator ${loggedOperator}?`)) {
+        try {
+          localStorage.removeItem('tiktok_login_operator');
+          localStorage.removeItem('tiktok_login_time');
+        } catch (_) {}
+        loggedOperator = "";
+        document.getElementById('operator-display').textContent = "Not logged in";
+        
+        // Stop camera stream if active
+        if (localStream) {
+          localStream.getTracks().forEach(track => {
+            try { track.stop(); } catch (_) {}
+          });
+          localStream = null;
+        }
+        
+        pinOverlay.classList.remove('hidden');
+        enteredPin = "";
+        updatePinDots();
+      }
+    });
     
     let loggedOperator = "";
+    // Auto-login from cache (valid for 1 hour)
+    try {
+      const cachedOperator = localStorage.getItem('tiktok_login_operator');
+      const cachedLoginTime = localStorage.getItem('tiktok_login_time');
+      if (cachedOperator && cachedLoginTime && (Date.now() - Number(cachedLoginTime) < 3600000)) {
+        loggedOperator = cachedOperator;
+        document.getElementById('operator-display').textContent = loggedOperator;
+        pinOverlay.classList.add('hidden');
+        // Defer session initialization slightly to ensure all structures are ready
+        setTimeout(() => {
+          initSession();
+        }, 100);
+      }
+    } catch (_) {}
     let sessionBatchId = "";
     let scannedBarcodes = new Set();
     let pendingTrackingIds = new Set();
@@ -733,6 +772,10 @@
       const match = operatorsCache.find(op => op.pin === enteredPin);
       if (match) {
         loggedOperator = match.name;
+        try {
+          localStorage.setItem('tiktok_login_operator', match.name);
+          localStorage.setItem('tiktok_login_time', Date.now().toString());
+        } catch (_) {}
         document.getElementById('operator-display').textContent = loggedOperator;
         pinOverlay.classList.add('hidden');
         initSession();
