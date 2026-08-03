@@ -563,7 +563,7 @@ html, body {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 1rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
+  padding: 1rem 1.25rem max(1.75rem, calc(1rem + env(safe-area-inset-bottom)));
   background: linear-gradient(to top, var(--color-bg-deep) 80%, transparent);
   z-index: 50;
 }
@@ -1041,7 +1041,7 @@ html, body {
 
 /* Calculator Modal specific */
 .calc-card {
-  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  padding-bottom: max(2rem, calc(1.5rem + env(safe-area-inset-bottom)));
 }
 
 .calc-logs-panel {

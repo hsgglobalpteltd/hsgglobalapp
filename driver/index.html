@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#0F172A">
   <link rel="manifest" href="manifest.json">
   <!-- iOS PWA Standalone Mode -->
@@ -18,7 +18,7 @@
   <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
-  <link rel="stylesheet" href="style.css?v=26.0.38">
+  <link rel="stylesheet" href="style.css?v=26.0.39">
   <script>
     // Redirect trailing slash to resolve relative files correctly
     if (!window.location.pathname.endsWith('/') && !window.location.pathname.endsWith('.html')) {
@@ -449,14 +449,14 @@
     </div>
 
     <!-- Bottom Actions sticky -->
-    <div style="padding: 16px 16px calc(16px + env(safe-area-inset-bottom)) 16px; background-color: #FFFFFF; border-top: 1.5px solid #E2E8F0; display: flex; gap: 12px; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 10; width: 100%; box-sizing: border-box;">
+    <div style="padding: 16px 16px max(32px, calc(16px + env(safe-area-inset-bottom))) 16px; background-color: #FFFFFF; border-top: 1.5px solid #E2E8F0; display: flex; gap: 12px; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 10; width: 100%; box-sizing: border-box;">
       <button id="deliver-cancel-btn" style="flex: 1; height: 50px; background-color: #EFF6FF; border: none; border-radius: 12px; color: #1e3a8a; font-size: 14px; font-weight: 800; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">Cancel</button>
       <button id="deliver-submit-btn" class="picking-action-btn disabled-mode" style="flex: 2; height: 50px; border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer; margin: 0; padding: 0;">Deliver Goods</button>
     </div>
   </div>
   <!-- WhatsApp Share Drawer overlay -->
   <div id="whatsapp-share-drawer" class="exit-modal-overlay" style="z-index: 10800; background-color: rgba(15, 23, 42, 0.6); display: none; align-items: flex-end; justify-content: center; padding: 0;">
-    <div style="width: 100%; max-width: 500px; background-color: #FFFFFF; border-top-left-radius: 20px; border-top-right-radius: 20px; box-shadow: 0 -8px 24px rgba(0,0,0,0.15); display: flex; flex-direction: column; max-height: 80vh; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-sizing: border-box; padding: 24px 24px calc(32px + env(safe-area-inset-bottom)) 24px;" id="whatsapp-share-drawer-card">
+    <div style="width: 100%; max-width: 500px; background-color: #FFFFFF; border-top-left-radius: 20px; border-top-right-radius: 20px; box-shadow: 0 -8px 24px rgba(0,0,0,0.15); display: flex; flex-direction: column; max-height: 80vh; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-sizing: border-box; padding: 24px 24px max(36px, calc(32px + env(safe-area-inset-bottom))) 24px;" id="whatsapp-share-drawer-card">
       
       <!-- Top Drag Handle Pill -->
       <div style="width: 36px; height: 4px; border-radius: 2px; background-color: #E2E8F0; margin: 0 auto 20px auto; flex-shrink: 0;"></div>
@@ -501,6 +501,6 @@
     <img id="lightbox-img" style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" alt="DO Paper Lightbox">
   </div>
 
-  <script src="app.js?v=26.0.38" defer></script>
+  <script src="app.js?v=26.0.39" defer></script>
 </body>
 </html>

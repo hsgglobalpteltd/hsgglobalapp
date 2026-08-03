@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#0F172A">
   <title>iB - Merchandiser App</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -306,7 +306,7 @@
       </div>
       
       <!-- Footer Sticky Bottom Action Button -->
-      <div style="padding: 12px 15px calc(12px + env(safe-area-inset-bottom)) 15px; background: #FFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -4px 10px rgba(0,0,0,0.03); z-index: 10; display: flex; flex-direction: column; gap: 8px;">
+      <div style="padding: 12px 15px max(28px, calc(12px + env(safe-area-inset-bottom))) 15px; background: #FFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -4px 10px rgba(0,0,0,0.03); z-index: 10; display: flex; flex-direction: column; gap: 8px;">
         <button id="po-generate-btn" class="primary-btn" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: var(--app-color); color: #FFF; font-weight: 700; font-size: 13.5px; cursor: pointer; transition: background-color 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);">
           <span>Generate Request PO</span>
         </button>
@@ -339,7 +339,7 @@
       </div>
       
       <!-- Footer Sticky Bottom -->
-      <div id="directory-footer" style="padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) 10px; background: #F8FAFC; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-weight: 600; text-align: left;">
+      <div id="directory-footer" style="padding: 8px 10px max(24px, calc(8px + env(safe-area-inset-bottom))) 10px; background: #F8FAFC; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-weight: 600; text-align: left;">
         Total Results: 0
       </div>
     </div>
@@ -368,7 +368,7 @@
       </div>
       
       <!-- Footer Sticky Bottom -->
-      <div id="phonebook-footer" style="padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) 10px; background: #F8FAFC; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-weight: 600; text-align: left;">
+      <div id="phonebook-footer" style="padding: 8px 10px max(24px, calc(8px + env(safe-area-inset-bottom))) 10px; background: #F8FAFC; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-weight: 600; text-align: left;">
         Total Contacts: 0
       </div>
     </div>
@@ -425,7 +425,7 @@
         </div>
 
         <!-- Sticky Clock Out Footer -->
-        <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)) 12px; background: #FFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -4px 10px rgba(0,0,0,0.03); z-index: 10;">
+        <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 12px max(28px, calc(12px + env(safe-area-inset-bottom))) 12px; background: #FFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -4px 10px rgba(0,0,0,0.03); z-index: 10;">
           <button id="report-clockout-btn" class="primary-btn" style="width: 100%; padding: 12px; border-radius: 6px; border: none; background: #EF4444; color: #FFF; font-weight: 700; font-size: 13px; cursor: pointer; transition: background-color 0.2s;">Clock Out</button>
         </div>
       </div>
@@ -720,7 +720,7 @@
 
   <!-- WhatsApp Report Prep Bottom Drawer -->
   <div id="whatsapp-prep-overlay" class="drawer-overlay" style="z-index: 350;"></div>
-  <div id="whatsapp-prep-drawer" class="brand-select-drawer" style="z-index: 360; height: 65dvh; padding-bottom: calc(24px + env(safe-area-inset-bottom)); background-color: #FFFFFF;">
+  <div id="whatsapp-prep-drawer" class="brand-select-drawer" style="z-index: 360; height: 65dvh; padding-bottom: max(32px, calc(24px + env(safe-area-inset-bottom))); background-color: #FFFFFF;">
     <div class="drawer-drag-handle"></div>
     <div class="drawer-title-row" style="border-bottom: none; padding-bottom: 4px;">
       <span class="drawer-title" style="font-size: 16px; font-weight: 700;">WhatsApp Share Report</span>
@@ -751,7 +751,7 @@
       </div>
       
       <!-- Footer Progress and Action Buttons Section -->
-      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: auto; padding-top: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid #F1F5F9; background: #FFF;">
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: auto; padding-top: 12px; padding-bottom: max(24px, calc(12px + env(safe-area-inset-bottom))); border-top: 1px solid #F1F5F9; background: #FFF;">
         <!-- Status Text -->
         <div id="whatsapp-prep-status" style="font-size: 12px; font-weight: 600; color: var(--text-color);">Preparing report...</div>
         

@@ -4,7 +4,7 @@ if (window.innerWidth > 600) {
 }
 
 const WORKER_URL = 'https://ib.hsgglobalpteltd.workers.dev';
-const APP_VERSION = "26.0.2";
+const APP_VERSION = "26.0.3";
 
 // App State
 let allOrders = [];
