@@ -794,6 +794,7 @@
     // Session Init & Offline Target List Sync
     async function initSession() {
       sessionBatchId = "BATCH_" + Date.now();
+      scannedBarcodes.clear();
       document.getElementById('batch-id-display').textContent = "Downloading targets...";
 
       try {
@@ -801,7 +802,7 @@
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.tracking_ids) {
-            pendingTrackingIds = new Set(data.tracking_ids.map(id => String(id).trim()));
+            pendingTrackingIds = new Set(data.tracking_ids.map(id => String(id).trim().toUpperCase()));
           }
         }
       } catch (err) {
@@ -1180,26 +1181,28 @@
     // Process scanned barcode against pre-downloaded offline list
     function processDecodedBarcode(barcode) {
       try {
+        const normalizedBarcode = String(barcode).trim().toUpperCase();
+
         // 1. Validate offline instantly!
-        if (pendingTrackingIds.size > 0 && !pendingTrackingIds.has(barcode)) {
+        if (!pendingTrackingIds.has(normalizedBarcode)) {
           playErrorBeep();
-          showToast("Wrong label or not in pending checklist");
+          showToast("Wrong barcode, barcode not in the list");
           isProcessing = false;
           startActiveScanner(); // Restart live scanner
           return;
         }
 
-        if (scannedBarcodes.has(barcode)) {
+        if (scannedBarcodes.has(normalizedBarcode)) {
           playErrorBeep();
-          showToast("Ignore: already scanned in current session");
+          showToast("Barcode already scanned just now. Please check if this is a duplicate order.");
           isProcessing = false;
           startActiveScanner(); // Restart live scanner
           return;
         }
 
         // Add to duplicates filter and remove from pending checklist
-        scannedBarcodes.add(barcode);
-        pendingTrackingIds.delete(barcode);
+        scannedBarcodes.add(normalizedBarcode);
+        pendingTrackingIds.delete(normalizedBarcode);
 
         // Queue upload silently in background
         addToSyncQueue(barcode, loggedOperator, snappedPhotoData.base64, false);
