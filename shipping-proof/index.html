@@ -720,7 +720,19 @@
     } catch (_) {}
     let sessionBatchId = "";
     let scannedBarcodes = new Set();
-    let pendingTrackingIds = new Set();
+    let pendingTrackingIds = new Map();
+
+    function getPendingCount() {
+      let count = 0;
+      const uniqueItems = new Set(pendingTrackingIds.values());
+      uniqueItems.forEach(item => {
+        const val = item.batch_id_packed;
+        if (!val || val.trim() === "") {
+          count++;
+        }
+      });
+      return count;
+    }
 
     // Native BarcodeDetector API Instantiation
     let barcodeDetector = null;
@@ -797,19 +809,30 @@
       scannedBarcodes.clear();
       document.getElementById('batch-id-display').textContent = "Downloading targets...";
 
+      localStorage.removeItem('tiktok_pending_tracking_ids');
+      pendingTrackingIds.clear();
+
       try {
-        const res = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids");
+        const res = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids?_t=" + Date.now(), { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.tracking_ids) {
-            pendingTrackingIds = new Set(data.tracking_ids.map(id => String(id).trim().toUpperCase()));
+            localStorage.setItem('tiktok_pending_tracking_ids', JSON.stringify(data.tracking_ids));
+            data.tracking_ids.forEach(item => {
+              const orderIdKey = String(item.order_id).trim().toUpperCase();
+              pendingTrackingIds.set(orderIdKey, item);
+              if (item.tracking_number && item.tracking_number.trim() !== "") {
+                const trackingKey = String(item.tracking_number).trim().toUpperCase();
+                pendingTrackingIds.set(trackingKey, item);
+              }
+            });
           }
         }
       } catch (err) {
         console.warn("Failed to download pending list:", err);
       }
 
-      document.getElementById('batch-id-display').textContent = sessionBatchId;
+      document.getElementById('batch-id-display').textContent = sessionBatchId + " (" + getPendingCount() + " left)";
       startCamera();
       setWorkflowStep(1);
     }
@@ -820,6 +843,7 @@
           try { track.stop(); } catch (_) {}
         });
       }
+      localStorage.removeItem('tiktok_pending_tracking_ids');
       window.location.href = "../index.html";
     }
 
@@ -1079,7 +1103,7 @@
       }
     }
 
-    function addToSyncQueue(barcode, operator, photoBase64, isAfterPack) {
+    function addToSyncQueue(barcode, operator, photoBase64, isAfterPack, batchId) {
       const queue = getSyncQueue();
       queue.push({
         id: "sync_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
@@ -1087,6 +1111,7 @@
         operator,
         photoBase64,
         isAfterPack,
+        batchId,
         timestamp: Date.now()
       });
       saveSyncQueue(queue);
@@ -1137,7 +1162,8 @@
             order_id: item.barcode,
             packed_by: item.operator,
             proof_photo: uploadJson.url,
-            is_after_pack: item.isAfterPack
+            is_after_pack: item.isAfterPack,
+            batch_id: item.batchId
           })
         });
 
@@ -1184,7 +1210,8 @@
         const normalizedBarcode = String(barcode).trim().toUpperCase();
 
         // 1. Validate offline instantly!
-        if (!pendingTrackingIds.has(normalizedBarcode)) {
+        const match = pendingTrackingIds.get(normalizedBarcode);
+        if (!match) {
           playErrorBeep();
           showToast("Wrong barcode, barcode not in the list");
           isProcessing = false;
@@ -1192,20 +1219,33 @@
           return;
         }
 
-        if (scannedBarcodes.has(normalizedBarcode)) {
+        // Check if scanned in current session or has matching batch ID
+        const existingBatchId = match.batch_id_packed;
+        if (existingBatchId === sessionBatchId || scannedBarcodes.has(normalizedBarcode)) {
           playErrorBeep();
-          showToast("Barcode already scanned just now. Please check if this is a duplicate order.");
+          showToast("Scanned");
           isProcessing = false;
-          startActiveScanner(); // Restart live scanner
+          startActiveScanner();
           return;
         }
 
-        // Add to duplicates filter and remove from pending checklist
+        // Warning alert if already has batch ID, but still allow push to server
+        if (existingBatchId) {
+          alert("it alrdy scan. pleace check if have dublicate AWB");
+        }
+
+        // Add to duplicates filter and update local checklist
         scannedBarcodes.add(normalizedBarcode);
-        pendingTrackingIds.delete(normalizedBarcode);
+        match.batch_id_packed = sessionBatchId;
+
+        const updatedList = Array.from(new Set(pendingTrackingIds.values()));
+        localStorage.setItem('tiktok_pending_tracking_ids', JSON.stringify(updatedList));
+
+        // Update visual counter in UI
+        document.getElementById('batch-id-display').textContent = sessionBatchId + " (" + getPendingCount() + " left)";
 
         // Queue upload silently in background
-        addToSyncQueue(barcode, loggedOperator, snappedPhotoData.base64, true); /* true for app 6 */
+        addToSyncQueue(barcode, loggedOperator, snappedPhotoData.base64, true, sessionBatchId);
 
         // Success Feedback instantly! No block loader!
         playSuccessBeep();

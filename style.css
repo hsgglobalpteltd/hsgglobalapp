@@ -264,6 +264,12 @@ body {
   --app-glow: rgba(79, 70, 229, 0.15);
 }
 
+.app-card.pending-status {
+  --app-color: #EC4899; /* Pink */
+  --app-bg-light: #FDF2F8; /* Pink 50 */
+  --app-glow: rgba(236, 72, 153, 0.15);
+}
+
 
 /* App Icon Container circle */
 .app-icon-container {
