@@ -233,11 +233,11 @@
             let pendingCollection = 0;
 
             data.tracking_ids.forEach(item => {
-              // Calculate Pending Pack (batch_id_packing is empty)
-              if (!item.batch_id_packing || item.batch_id_packing.trim() === "") {
+              // Calculate Pending Pack (batch_id_packed is empty)
+              if (!item.batch_id_packed || item.batch_id_packed.trim() === "") {
                 pendingPack++;
               }
-              // Calculate Pending Collection (batch_id_packed is NOT empty/meaning it is packed, waiting courier transit)
+              // Calculate Pending Collection (batch_id_packed is NOT empty)
               if (item.batch_id_packed && item.batch_id_packed.trim() !== "") {
                 pendingCollection++;
               }
