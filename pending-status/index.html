@@ -18,6 +18,8 @@
       --collect-color: #4F46E5; /* Indigo */
       --btn-bg: #E2E8F0; /* slate-200 */
       --border-color: rgba(0, 0, 0, 0.08);
+      --app-color: #EC4899; /* Pink to match the pending-status theme icon */
+      --app-glow: rgba(236, 72, 153, 0.25);
     }
 
     * {
@@ -155,7 +157,7 @@
       border-radius: 30px;
       font-size: 12px;
       font-weight: 600;
-      color: var(--text-primary);
+      color: #FFFFFF;
       opacity: 0;
       pointer-events: none;
       transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -166,6 +168,51 @@
     #toast.visible {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
+    }
+
+    /* Shop Tabs Styling */
+    .tabs-scroll-container {
+      width: 100%;
+      background-color: #FFFFFF;
+      border-bottom: 1px solid var(--border-color);
+      padding: 8px 16px;
+      overflow-x: auto;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none;  /* IE/Edge */
+    }
+    
+    .tabs-scroll-container::-webkit-scrollbar {
+      display: none; /* Safari/Chrome */
+    }
+
+    .shop-tabs {
+      display: flex;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .tab-btn {
+      background-color: #F1F5F9;
+      border: none;
+      outline: none;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:active {
+      transform: scale(0.95);
+    }
+
+    .tab-btn.active {
+      background-color: var(--app-color);
+      color: #FFFFFF;
+      box-shadow: 0 2px 6px var(--app-glow);
     }
   </style>
 </head>
@@ -186,6 +233,10 @@
         </svg>
       </button>
     </header>
+
+    <div class="tabs-scroll-container">
+      <div id="shop-tabs" class="shop-tabs"></div>
+    </div>
 
     <main class="cards-container">
       <div class="status-card" id="card-pack" onclick="fetchCounts()">
@@ -219,6 +270,87 @@
       }, 1200);
     }
 
+    let allTrackingIds = [];
+    let activeShop = "All";
+
+    function formatShopName(name) {
+      if (!name || name.trim() === "" || name === "Unknown") return "Unknown";
+      let cleaned = name.replace(/[_-]/g, " ").trim();
+      return cleaned
+        .toLowerCase()
+        .split(/\s+/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    }
+
+    function updateCounts() {
+      const packEl = document.getElementById('count-pack');
+      const collectEl = document.getElementById('count-collect');
+      
+      let filtered = allTrackingIds;
+      if (activeShop !== "All") {
+        filtered = allTrackingIds.filter(item => {
+          const formatted = formatShopName(item.shop_name);
+          return formatted === activeShop;
+        });
+      }
+
+      let pendingPack = 0;
+      let pendingCollection = 0;
+
+      filtered.forEach(item => {
+        // Calculate Pending Pack (batch_id_packed is empty)
+        if (!item.batch_id_packed || item.batch_id_packed.trim() === "") {
+          pendingPack++;
+        }
+        // Calculate Pending Collection (batch_id_packed is NOT empty)
+        if (item.batch_id_packed && item.batch_id_packed.trim() !== "") {
+          pendingCollection++;
+        }
+      });
+
+      packEl.textContent = pendingPack;
+      collectEl.textContent = pendingCollection;
+    }
+
+    function renderShopTabs() {
+      const container = document.getElementById('shop-tabs');
+      if (!container) return;
+
+      const shopsSet = new Set();
+      allTrackingIds.forEach(item => {
+        if (item.shop_name) {
+          shopsSet.add(formatShopName(item.shop_name));
+        }
+      });
+
+      const sortedShops = Array.from(shopsSet).sort();
+      const tabs = ["All", ...sortedShops];
+
+      if (!tabs.includes(activeShop)) {
+        activeShop = "All";
+      }
+
+      container.innerHTML = '';
+      tabs.forEach(shop => {
+        const btn = document.createElement('button');
+        btn.className = `tab-btn ${activeShop === shop ? 'active' : ''}`;
+        btn.textContent = shop;
+        btn.onclick = () => {
+          activeShop = shop;
+          container.querySelectorAll('.tab-btn').forEach(b => {
+            if (b.textContent === shop) {
+              b.classList.add('active');
+            } else {
+              b.classList.remove('active');
+            }
+          });
+          updateCounts();
+        };
+        container.appendChild(btn);
+      });
+    }
+
     async function fetchCounts() {
       showToast("Refreshing quantities...");
       const packEl = document.getElementById('count-pack');
@@ -229,22 +361,9 @@
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.tracking_ids) {
-            let pendingPack = 0;
-            let pendingCollection = 0;
-
-            data.tracking_ids.forEach(item => {
-              // Calculate Pending Pack (batch_id_packed is empty)
-              if (!item.batch_id_packed || item.batch_id_packed.trim() === "") {
-                pendingPack++;
-              }
-              // Calculate Pending Collection (batch_id_packed is NOT empty)
-              if (item.batch_id_packed && item.batch_id_packed.trim() !== "") {
-                pendingCollection++;
-              }
-            });
-
-            packEl.textContent = pendingPack;
-            collectEl.textContent = pendingCollection;
+            allTrackingIds = data.tracking_ids;
+            renderShopTabs();
+            updateCounts();
             return;
           }
         }

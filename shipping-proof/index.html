@@ -562,7 +562,7 @@
 
         <!-- Centered workflow instruction overlay -->
         <div class="center-instruction-overlay" id="center-instruction-overlay">
-          <span class="instruction-text" id="instruction-text-ui">Snap Goods</span>
+          <span class="instruction-text" id="instruction-text-ui">Snap Parcel</span>
         </div>
 
         <!-- Target reticle hunt scope -->
@@ -885,24 +885,33 @@
     function captureCompressedFrame() {
       return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
-        let width = videoFeed.videoWidth || 1280;
-        let height = videoFeed.videoHeight || 720;
+        const videoWidth = videoFeed.videoWidth || 1280;
+        const videoHeight = videoFeed.videoHeight || 720;
         
-        const maxDim = 960;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
+        // Target aspect ratio is 3:4 (3 width, 4 height)
+        const targetAspect = 3 / 4;
+        let sWidth, sHeight, sx, sy;
+        
+        if (videoWidth / videoHeight > targetAspect) {
+          // Stream is wider (landscape), crop width to fit 3:4
+          sHeight = videoHeight;
+          sWidth = videoHeight * targetAspect;
+          sx = (videoWidth - sWidth) / 2;
+          sy = 0;
+        } else {
+          // Stream is narrower (portrait), crop height to fit 3:4
+          sWidth = videoWidth;
+          sHeight = videoWidth / targetAspect;
+          sx = 0;
+          sy = (videoHeight - sHeight) / 2;
         }
 
-        canvas.width = width;
-        canvas.height = height;
+        // Set output dimensions to 720x960 (3:4 ratio)
+        canvas.width = 720;
+        canvas.height = 960;
+        
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoFeed, 0, 0, width, height);
+        ctx.drawImage(videoFeed, sx, sy, sWidth, sHeight, 0, 0, 720, 960);
 
         canvas.toBlob((blob) => {
           resolve({
@@ -987,6 +996,12 @@
           const display = document.getElementById('detected-barcode-display');
           display.textContent = barcode;
           display.style.display = "block";
+
+          // Auto-trigger lock-in
+          isProcessing = true;
+          const barcodeToProcess = barcode;
+          stopActiveScanner();
+          processDecodedBarcode(barcodeToProcess);
         } else {
           consecutiveMisses++;
           if (consecutiveMisses >= 3) {
@@ -1016,7 +1031,7 @@
         cameraWrapperUi.classList.remove('cropped');
         stopActiveScanner();
         
-        instructionTextUi.textContent = "Snap Goods";
+        instructionTextUi.textContent = "Snap Parcel";
         shutterIconSvg.innerHTML = '<path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>';
       } else {
         photoPreviewOverlay.style.display = "flex";
@@ -1212,8 +1227,7 @@
         // 1. Validate offline instantly!
         const match = pendingTrackingIds.get(normalizedBarcode);
         if (!match) {
-          playErrorBeep();
-          showToast("Wrong barcode, barcode not in the list");
+          showToast("Barcode not read correctly");
           isProcessing = false;
           startActiveScanner(); // Restart live scanner
           return;
