@@ -662,7 +662,7 @@
 
     async function syncOperators() {
       try {
-        const res = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/operators");
+        const res = await fetch("https://ib-v2.hsgglobalpteltd.workers.dev/api/tiktok/operators");
         if (res.ok) {
           const data = await res.json();
           operatorsCache = data;
@@ -813,7 +813,7 @@
       pendingTrackingIds.clear();
 
       try {
-        const res = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids?_t=" + Date.now(), { cache: "no-store" });
+        const res = await fetch("https://ib-v2.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids?_t=" + Date.now(), { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.tracking_ids) {
@@ -1157,7 +1157,7 @@
         const suffix = item.isAfterPack ? 'after' : 'before';
         const filename = `proof-${suffix}-${item.barcode}-${item.timestamp}.jpg`;
         
-        const uploadRes = await fetch(`https://ib.hsgglobalpteltd.workers.dev/api/upload?filename=${encodeURIComponent(filename)}`, {
+        const uploadRes = await fetch(`https://ib-v2.hsgglobalpteltd.workers.dev/api/upload?filename=${encodeURIComponent(filename)}`, {
           method: "POST",
           headers: { "Content-Type": "image/jpeg" },
           body: blob
@@ -1170,7 +1170,7 @@
         const uploadJson = await uploadRes.json();
 
         // 3. Save to database via Worker
-        const dbRes = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/orders/pack", {
+        const dbRes = await fetch("https://ib-v2.hsgglobalpteltd.workers.dev/api/tiktok/orders/pack", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

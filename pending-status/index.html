@@ -357,7 +357,7 @@
       const collectEl = document.getElementById('count-collect');
       
       try {
-        const res = await fetch("https://ib.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids?_t=" + Date.now(), { cache: "no-store" });
+        const res = await fetch("https://ib-v2.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids?_t=" + Date.now(), { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.tracking_ids) {
