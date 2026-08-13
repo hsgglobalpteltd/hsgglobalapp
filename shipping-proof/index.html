@@ -1193,9 +1193,9 @@
         });
 
         if (!dbRes.ok) {
-          if (dbRes.status === 400 || dbRes.status === 404) {
+          if (dbRes.status === 400 || dbRes.status === 404 || dbRes.status === 403) {
             const errJson = await dbRes.json().catch(() => ({}));
-            const errMsg = errJson.error || "Order not found or invalid request";
+            const errMsg = errJson.error || "Order not found or access denied";
             showToast(`⚠️ Sync skipped: ${item.barcode} (${errMsg})`);
             
             // Discard unresolvable scan
