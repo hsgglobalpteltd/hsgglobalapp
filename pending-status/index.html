@@ -214,6 +214,32 @@
       color: #FFFFFF;
       box-shadow: 0 2px 6px var(--app-glow);
     }
+
+    .action-footer {
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom)) 16px;
+      background-color: #FFFFFF;
+      border-top: 1px solid var(--border-color);
+    }
+    .footer-action-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      height: 48px;
+      background-color: var(--app-color);
+      color: #FFFFFF;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 14px;
+      box-shadow: 0 4px 6px var(--app-glow);
+      transition: background-color 0.15s ease, transform 0.1s ease;
+    }
+    .footer-action-btn:active {
+      background-color: #DB2777;
+      transform: scale(0.98);
+    }
   </style>
 </head>
 <body>
@@ -249,6 +275,15 @@
         <span class="qty-label">Pending Collection</span>
       </div>
     </main>
+
+    <div class="action-footer">
+      <a href="check-awb.html" class="footer-action-btn">
+        <svg style="width: 18px; height: 18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        Check AWB Printed
+      </a>
+    </div>
 
   </div>
 

@@ -667,6 +667,16 @@
           const data = await res.json();
           operatorsCache = data;
           localStorage.setItem('tiktok_operators', JSON.stringify(data));
+          
+          const cachedOperator = localStorage.getItem('tiktok_login_operator');
+          if (cachedOperator) {
+            const active = data.some(op => op.name === cachedOperator);
+            if (!active) {
+              localStorage.removeItem('tiktok_login_operator');
+              localStorage.removeItem('tiktok_login_time');
+              location.reload();
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to sync operators:", err);
