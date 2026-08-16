@@ -6,7 +6,7 @@ if (window.innerWidth > 600) {
 // ==========================================
 // CONFIGURATION & CORE STATE
 // ==========================================
-const WORKER_URL = 'https://ib.hsgglobalpteltd.workers.dev';
+const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
 
 let products = [];
 let quantities = {};
@@ -28,8 +28,17 @@ window.addEventListener('DOMContentLoaded', () => {
   const cachedStoreKeepers = localStorage.getItem('inventoryStoreKeepers');
 
   if (cachedProducts) {
-    products = JSON.parse(cachedProducts);
-    isDataReady = true;
+    try {
+      const parsed = JSON.parse(cachedProducts);
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(p => p.Description !== undefined && p.Description !== null)) {
+        products = parsed;
+        isDataReady = true;
+      } else {
+        localStorage.removeItem('inventoryProducts');
+      }
+    } catch (e) {
+      localStorage.removeItem('inventoryProducts');
+    }
   }
   if (cachedLogs) logs = JSON.parse(cachedLogs);
   if (cachedStoreKeepers) storeKeepers = JSON.parse(cachedStoreKeepers);
@@ -99,12 +108,12 @@ async function fetchData(silent = true) {
   try {
     updateSyncStatus('loading');
 
-    // Fetch in parallel from Cloudflare Worker
+    // Fetch in parallel from Cloudflare Worker secure proxy to Supabase REST API
     const [prodRes, brandRes, logsRes, usersRes] = await Promise.all([
-      fetch(`${WORKER_URL}/api/app/stock-take/products?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app/stock-take/brands?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app/stock-take/log?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app/stock-take/users?t=${Date.now()}`)
+      fetch(`${WORKER_URL}/api/supabase/rest/v1/products_db?select=*&limit=5000`),
+      fetch(`${WORKER_URL}/api/supabase/rest/v1/brands_db?select=*&limit=5000`),
+      fetch(`${WORKER_URL}/api/supabase/rest/v1/stock_take_log?select=*&order=timestamp.desc&limit=5000`),
+      fetch(`${WORKER_URL}/api/supabase/rest/v1/employees?select=*&limit=5000`)
     ]);
 
     if (!prodRes.ok || !brandRes.ok || !logsRes.ok || !usersRes.ok) {
@@ -116,34 +125,34 @@ async function fetchData(silent = true) {
     const rawLogs = await logsRes.json();
     const rawUsers = await usersRes.json();
 
-    // 1. Map Brands
+    // 1. Map Brands (raw SQL lowercase columns)
     const brandMap = {};
     rawBrands.forEach(b => {
-      brandMap[b.ID || b.id] = {
-        name: b["Display Name"] || b.name,
-        rank: parseInt(b.Rank || b.rank) || 999
+      brandMap[b.id] = {
+        name: b.display_name,
+        rank: parseInt(b.rank) || 999
       };
     });
 
-    // 2. Map Products and normalize
+    // 2. Map Products and normalize (raw SQL lowercase columns)
     products = rawProducts.map(p => {
-      const bInfo = brandMap[p["Brands ID"] || p["brands id"] || p["Brand ID"]] || { name: "Unknown", rank: 999 };
+      const bInfo = brandMap[p.brands_id] || { name: "Unknown", rank: 999 };
       return {
-        Code: p.SKU || p.sku || p.Code || p.code,
-        Description: p["Display Name"] || p.Description || p.description,
-        ImgLink: p.Image || p.image || p.ImgLink,
-        Pack: parseInt(p.Carton || p.carton || p.Pack) || 0,
-        Rank: parseInt(p.Rank || p.rank) || 999,
+        Code: p.sku,
+        Description: p.display_name,
+        ImgLink: p.image,
+        Pack: parseInt(p.carton) || 0,
+        Rank: parseInt(p.rank) || 999,
         Brand: bInfo.name,
         BrandRank: bInfo.rank
       };
     });
 
-    // 3. Map and parse Logs (handling user's Audit column change)
+    // 3. Map and parse Logs (raw SQL lowercase columns)
     logs = rawLogs.map(l => {
       let auditData = [];
       try {
-        const rawData = typeof l.Audit === 'string' ? JSON.parse(l.Audit) : (l.Audit || l["Audit JSON"]);
+        const rawData = typeof l.audit === 'string' ? JSON.parse(l.audit) : l.audit;
         if (Array.isArray(rawData)) {
           auditData = rawData.map(item => ({
             Code: item.sku || item.code || item.Code || item.SKU,
@@ -152,20 +161,30 @@ async function fetchData(silent = true) {
           }));
         }
       } catch (e) {
-        console.warn("Failed to parse Audit JSON for log at " + l.Timestamp, e);
+        console.warn("Failed to parse Audit JSON for log at " + l.timestamp, e);
       }
       return {
-        timestamp: l.Timestamp || l.timestamp,
-        submittedBy: l["Audit by"] || l.submittedBy,
+        timestamp: l.timestamp,
+        submittedBy: l.audit_by,
         data: auditData
       };
     }).filter(l => l.data && l.data.length > 0);
 
-    // 4. Set Storekeepers (Users)
-    storeKeepers = rawUsers.map(u => ({
-      id: u.ID || u.id,
-      name: u.Name || u.name,
-      pin: String(u.PIN || u.pin).trim()
+    // 4. Set Storekeepers (filter employees with app role 'Warehouse')
+    storeKeepers = rawUsers.filter(emp => {
+      const isArchived = emp.archived === true || emp.archived === 1 || String(emp.archived) === "true";
+      if (isArchived) return false;
+      try {
+        if (!emp.role) return false;
+        const roles = typeof emp.role === "string" ? JSON.parse(emp.role) : emp.role;
+        return Array.isArray(roles) && roles.includes("Warehouse");
+      } catch {
+        return false;
+      }
+    }).map(u => ({
+      id: u.id,
+      name: u.name,
+      pin: String(u.pin || "").trim()
     }));
 
     // Sort logs descending
@@ -1199,19 +1218,18 @@ async function syncSubmissions() {
       const safeStoreKeeperId = item.storeKeeperId || 'Unknown';
       
       const payload = {
-        sheet: "Stock_Take_Log",
-        action: "insert",
-        data: {
-          "Timestamp": item.id,
-          "Audit by": safeStoreKeeperId,
-          "Audit": JSON.stringify(item.payload) // Written as stringified JSON to Audit column
-        }
+        timestamp: String(item.id),
+        audit_by: safeStoreKeeperId,
+        audit: JSON.stringify(item.payload)
       };
 
-      const res = await fetch(`${WORKER_URL}/api/app/stock-take/write`, {
+      const res = await fetch(`${WORKER_URL}/api/supabase/rest/v1/stock_take_log`, {
         method: "POST",
         body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        }
       });
 
       if (!res.ok) {

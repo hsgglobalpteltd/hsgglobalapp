@@ -325,12 +325,229 @@
       background-color: rgba(15, 23, 42, 0.95);
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: center;
+      gap: 32px;
       position: relative;
       z-index: 10;
       padding-top: 12px;
       padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
+    }
+
+    .list-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background-color: var(--card-bg);
+      border: 2px solid var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+      color: var(--text-primary);
+      outline: none;
+    }
+    .list-btn:active {
+      transform: scale(0.92);
+    }
+    .list-btn .badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background-color: var(--accent-color);
+      color: var(--text-primary);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 10px;
+      min-width: 16px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .list-btn.btn-done .badge {
+      background-color: var(--success-color);
+    }
+
+    /* List Overlay Modal */
+    .list-overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(15, 23, 42, 0.98);
+      z-index: 45;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      padding-top: calc(env(safe-area-inset-top) + 24px);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .list-overlay.hidden {
+      transform: translateY(100%);
+      pointer-events: none;
+    }
+    .list-overlay-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 12px;
+    }
+    .list-overlay-title {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: -0.01em;
+    }
+    .close-overlay-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      outline: none;
+    }
+    .close-overlay-btn:active {
+      color: var(--text-primary);
+    }
+    .list-overlay-content {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .list-item-card {
+      background-color: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+    }
+
+    .list-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      margin-bottom: 6px;
+      padding: 6px 10px;
+      background-color: rgba(255, 255, 255, 0.03);
+      border-radius: 6px;
+      border-left: 3px solid var(--accent-color);
+    }
+    .list-group-header.group-jt {
+      border-left-color: #FF6B00; /* Orange for J&T */
+    }
+    .list-group-header.group-sp {
+      border-left-color: #0099FF; /* Blue for SingPost */
+    }
+    .group-header-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .group-header-count {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    /* Custom Confirm Overlay */
+    .confirm-overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(15, 23, 42, 0.85);
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      transition: opacity 0.25s ease;
+    }
+    .confirm-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .confirm-card {
+      background-color: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 320px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      text-align: center;
+    }
+    .confirm-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: var(--text-primary);
+    }
+    .confirm-message {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .confirm-buttons {
+      display: flex;
+      gap: 12px;
+    }
+    .confirm-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      outline: none;
+    }
+    .confirm-btn.btn-cancel {
+      background-color: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+    }
+    .confirm-btn.btn-cancel:active {
+      background-color: rgba(255, 255, 255, 0.15);
+    }
+    .confirm-btn.btn-ok {
+      background-color: var(--accent-color);
+      color: #FFF;
+    }
+    .confirm-btn.btn-ok:active {
+      opacity: 0.9;
+    }
+
+    .list-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      text-align: left;
+    }
+    .list-item-tracking {
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--text-primary);
+      font-family: monospace;
+    }
+    .list-item-order {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+    .list-item-qty {
+      font-size: 10px;
+      font-weight: 800;
+      background-color: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
     .shutter-btn {
@@ -605,10 +822,26 @@
 
     <!-- Bottom Controls with shutter button -->
     <div class="controls-bar">
+      <!-- Pending List Button -->
+      <button class="list-btn btn-pending" id="pending-btn-ui" onclick="openListOverlay('pending')" title="Pending Targets">
+        <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+        <span class="badge" id="pending-badge-ui" style="display: none;">0</span>
+      </button>
+
       <button class="shutter-btn" id="shutter-btn" title="Capture action">
         <svg class="shutter-icon" viewBox="0 0 24 24" id="shutter-icon-svg">
           <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
         </svg>
+      </button>
+
+      <!-- Done List Button -->
+      <button class="list-btn btn-done" id="done-btn-ui" onclick="openListOverlay('done')" title="Done Targets">
+        <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+        <span class="badge" id="done-badge-ui" style="display: none;">0</span>
       </button>
     </div>
   </div>
@@ -731,6 +964,7 @@
     let sessionBatchId = "";
     let scannedBarcodes = new Set();
     let pendingTrackingIds = new Map();
+    let intransitTrackingIds = new Set();
 
     function getPendingCount() {
       let count = 0;
@@ -820,22 +1054,37 @@
       document.getElementById('batch-id-display').textContent = "Downloading targets...";
 
       localStorage.removeItem('tiktok_pending_tracking_ids');
+      localStorage.removeItem('tiktok_intransit_tracking_ids');
       pendingTrackingIds.clear();
+      intransitTrackingIds.clear();
 
       try {
         const res = await fetch("https://ib-v2.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids?_t=" + Date.now(), { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
-          if (data.success && data.tracking_ids) {
-            localStorage.setItem('tiktok_pending_tracking_ids', JSON.stringify(data.tracking_ids));
-            data.tracking_ids.forEach(item => {
-              const orderIdKey = String(item.order_id).trim().toUpperCase();
-              pendingTrackingIds.set(orderIdKey, item);
-              if (item.tracking_number && item.tracking_number.trim() !== "") {
-                const trackingKey = String(item.tracking_number).trim().toUpperCase();
-                pendingTrackingIds.set(trackingKey, item);
-              }
-            });
+          if (data.success) {
+            if (data.tracking_ids) {
+              localStorage.setItem('tiktok_pending_tracking_ids', JSON.stringify(data.tracking_ids));
+              data.tracking_ids.forEach(item => {
+                const orderIdKey = String(item.order_id).trim().toUpperCase();
+                pendingTrackingIds.set(orderIdKey, item);
+                if (item.tracking_number && item.tracking_number.trim() !== "") {
+                  const trackingKey = String(item.tracking_number).trim().toUpperCase();
+                  pendingTrackingIds.set(trackingKey, item);
+                }
+              });
+            }
+            if (data.intransit_ids) {
+              localStorage.setItem('tiktok_intransit_tracking_ids', JSON.stringify(data.intransit_ids));
+              data.intransit_ids.forEach(item => {
+                const orderIdKey = String(item.order_id).trim().toUpperCase();
+                intransitTrackingIds.add(orderIdKey);
+                if (item.tracking_number && item.tracking_number.trim() !== "") {
+                  const trackingKey = String(item.tracking_number).trim().toUpperCase();
+                  intransitTrackingIds.add(trackingKey);
+                }
+              });
+            }
           }
         }
       } catch (err) {
@@ -843,6 +1092,7 @@
       }
 
       document.getElementById('batch-id-display').textContent = sessionBatchId + " (" + getPendingCount() + " left)";
+      updateListBadges();
       startCamera();
       setWorkflowStep(1);
     }
@@ -1229,6 +1479,37 @@
       }
     }
 
+    function proceedWithSave(normalizedBarcode, barcode, match) {
+      const isPackingApp = window.location.pathname.includes('packing-proof');
+      const statusKey = isPackingApp ? 'batch_id_packing' : 'batch_id_packed';
+
+      // Add to duplicates filter and update local checklist
+      scannedBarcodes.add(normalizedBarcode);
+      match[statusKey] = sessionBatchId;
+
+      const updatedList = Array.from(new Set(pendingTrackingIds.values()));
+      localStorage.setItem('tiktok_pending_tracking_ids', JSON.stringify(updatedList));
+
+      // Update visual counter in UI
+      document.getElementById('batch-id-display').textContent = sessionBatchId + " (" + getPendingCount() + " left)";
+      updateListBadges();
+
+      // Queue upload silently in background
+      addToSyncQueue(barcode, loggedOperator, snappedPhotoData.base64, !isPackingApp, sessionBatchId);
+
+      // Success Feedback instantly! No block loader!
+      playSuccessBeep();
+      document.getElementById('success-scanned-code').textContent = barcode;
+      const successFlash = document.getElementById('success-flash');
+      successFlash.classList.add('visible');
+
+      setTimeout(() => {
+        successFlash.classList.remove('visible');
+        isProcessing = false;
+        setWorkflowStep(1);
+      }, 2200);
+    }
+
     // Process scanned barcode against pre-downloaded offline list
     function processDecodedBarcode(barcode) {
       try {
@@ -1237,6 +1518,22 @@
         // 1. Validate offline instantly!
         const match = pendingTrackingIds.get(normalizedBarcode);
         if (!match) {
+          // Check if order has already been collected/in-transit
+          if (intransitTrackingIds.has(normalizedBarcode)) {
+            playErrorBeep();
+            const isPacking = window.location.pathname.includes('packing-proof');
+            const warnTitle = "Order Already Collected";
+            const warnMsg = isPacking 
+              ? "DO NOT PREPARE THIS ORDER!\n\nThe parcel has already been collected by the courier."
+              : "PLEASE OPEN BACK THIS PARCEL!\n\nThis order has already been packed and collected by the courier.";
+            
+            showCustomConfirm(warnMsg, () => {
+              isProcessing = false;
+              startActiveScanner();
+            }, null, warnTitle);
+            return;
+          }
+
           showToast("Barcode not read correctly");
           isProcessing = false;
           startActiveScanner(); // Restart live scanner
@@ -1255,33 +1552,16 @@
 
         // Warning alert if already has batch ID, but still allow push to server
         if (existingBatchId) {
-          alert("it alrdy scan. pleace check if have dublicate AWB");
+          showCustomConfirm("This order has already been shipped in batch " + existingBatchId + ". Do you want to resubmit?", () => {
+            proceedWithSave(normalizedBarcode, barcode, match);
+          }, () => {
+            isProcessing = false;
+            startActiveScanner();
+          });
+          return;
         }
 
-        // Add to duplicates filter and update local checklist
-        scannedBarcodes.add(normalizedBarcode);
-        match.batch_id_packed = sessionBatchId;
-
-        const updatedList = Array.from(new Set(pendingTrackingIds.values()));
-        localStorage.setItem('tiktok_pending_tracking_ids', JSON.stringify(updatedList));
-
-        // Update visual counter in UI
-        document.getElementById('batch-id-display').textContent = sessionBatchId + " (" + getPendingCount() + " left)";
-
-        // Queue upload silently in background
-        addToSyncQueue(barcode, loggedOperator, snappedPhotoData.base64, true, sessionBatchId);
-
-        // Success Feedback instantly! No block loader!
-        playSuccessBeep();
-        document.getElementById('success-scanned-code').textContent = barcode;
-        const successFlash = document.getElementById('success-flash');
-        successFlash.classList.add('visible');
-
-        setTimeout(() => {
-          successFlash.classList.remove('visible');
-          isProcessing = false;
-          setWorkflowStep(1);
-        }, 2200);
+        proceedWithSave(normalizedBarcode, barcode, match);
 
       } catch (err) {
         console.error(err);
@@ -1291,9 +1571,160 @@
       }
     }
 
+    function openListOverlay(type) {
+      const overlay = document.getElementById('list-overlay');
+      const title = document.getElementById('list-overlay-title');
+      const content = document.getElementById('list-overlay-content');
+
+      content.innerHTML = "";
+
+      const uniqueItems = Array.from(new Set(pendingTrackingIds.values()));
+      const isPackingApp = window.location.pathname.includes('packing-proof');
+      const statusKey = isPackingApp ? 'batch_id_packing' : 'batch_id_packed';
+
+      let filteredItems = [];
+      if (type === 'pending') {
+        title.textContent = "Pending Targets";
+        filteredItems = uniqueItems.filter(item => !item[statusKey] || item[statusKey].trim() === "");
+      } else {
+        title.textContent = "Done Targets";
+        filteredItems = uniqueItems.filter(item => item[statusKey] && item[statusKey].trim() !== "");
+      }
+
+      // Group items by Courier
+      const groups = {
+        "J&T": [],
+        "SingPost": [],
+        "Others": []
+      };
+
+      filteredItems.forEach(item => {
+        const tracking = item.tracking_number && item.tracking_number !== "N/A" ? item.tracking_number : item.order_id;
+        const trackingUpper = String(tracking).trim().toUpperCase();
+        
+        let courier = "Others";
+        if (trackingUpper.startsWith("JT")) {
+          courier = "J&T";
+        } else if (trackingUpper.startsWith("SP")) {
+          courier = "SingPost";
+        }
+        groups[courier].push(item);
+      });
+
+      let hasAnyItems = false;
+      const groupKeys = ["J&T", "SingPost", "Others"];
+
+      groupKeys.forEach(courierName => {
+        const itemsInGroup = groups[courierName];
+        if (itemsInGroup.length > 0) {
+          hasAnyItems = true;
+
+          const groupClass = courierName === "J&T" ? "group-jt" : (courierName === "SingPost" ? "group-sp" : "group-others");
+          const header = document.createElement('div');
+          header.className = `list-group-header ${groupClass}`;
+          header.innerHTML = `
+            <span class="group-header-title">${courierName}</span>
+            <span class="group-header-count">(${itemsInGroup.length})</span>
+          `;
+          content.appendChild(header);
+
+          itemsInGroup.forEach(item => {
+            const tracking = item.tracking_number && item.tracking_number !== "N/A" ? item.tracking_number : item.order_id;
+            const orderId = item.order_id;
+
+            const card = document.createElement('div');
+            card.className = 'list-item-card';
+            card.innerHTML = `
+              <div class="list-item-info">
+                <span class="list-item-tracking">${tracking}</span>
+                <span class="list-item-order">ID: ${orderId}</span>
+              </div>
+            `;
+            content.appendChild(card);
+          });
+        }
+      });
+
+      if (!hasAnyItems) {
+        content.innerHTML = `<div style="text-align: center; color: var(--text-secondary); font-size: 12px; padding: 40px 0; font-style: italic;">No items found</div>`;
+      }
+
+      overlay.classList.remove('hidden');
+    }
+
+    function closeListOverlay() {
+      document.getElementById('list-overlay').classList.add('hidden');
+    }
+
+    function updateListBadges() {
+      const uniqueItems = Array.from(new Set(pendingTrackingIds.values()));
+      const isPackingApp = window.location.pathname.includes('packing-proof');
+      const statusKey = isPackingApp ? 'batch_id_packing' : 'batch_id_packed';
+
+      const pendingCount = uniqueItems.filter(item => !item[statusKey] || item[statusKey].trim() === "").length;
+      const doneCount = uniqueItems.filter(item => item[statusKey] && item[statusKey].trim() !== "").length;
+
+      const pendingBadge = document.getElementById('pending-badge-ui');
+      const doneBadge = document.getElementById('done-badge-ui');
+
+      if (pendingBadge) {
+        pendingBadge.textContent = pendingCount;
+        pendingBadge.style.display = pendingCount > 0 ? "block" : "none";
+      }
+      if (doneBadge) {
+        doneBadge.textContent = doneCount;
+        doneBadge.style.display = doneCount > 0 ? "block" : "none";
+      }
+    }
+
+    let currentConfirmOk = null;
+    let currentConfirmCancel = null;
+
+    function showCustomConfirm(message, onOk, onCancel) {
+      document.getElementById('confirm-message').textContent = message;
+      currentConfirmOk = onOk;
+      currentConfirmCancel = onCancel;
+      document.getElementById('confirm-overlay').classList.remove('hidden');
+    }
+
+    document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+      document.getElementById('confirm-overlay').classList.add('hidden');
+      if (currentConfirmOk) currentConfirmOk();
+    });
+
+    document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
+      document.getElementById('confirm-overlay').classList.add('hidden');
+      if (currentConfirmCancel) currentConfirmCancel();
+    });
+
     // Trigger sync on online event and load
     window.addEventListener('online', triggerBackgroundSync);
     setTimeout(triggerBackgroundSync, 1000);
   </script>
+
+  <!-- List Overlay Modal -->
+  <div id="list-overlay" class="list-overlay hidden">
+    <div class="list-overlay-header">
+      <h3 id="list-overlay-title" class="list-overlay-title">Pending Targets</h3>
+      <button onclick="closeListOverlay()" class="close-overlay-btn" title="Close">
+        <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div id="list-overlay-content" class="list-overlay-content"></div>
+  </div>
+
+  <!-- Custom Confirm Overlay -->
+  <div id="confirm-overlay" class="confirm-overlay hidden">
+    <div class="confirm-card">
+      <h3 class="confirm-title">Duplicate Scan Detected</h3>
+      <p id="confirm-message" class="confirm-message">This order has already been scanned. Do you want to resubmit?</p>
+      <div class="confirm-buttons">
+        <button id="confirm-cancel-btn" class="confirm-btn btn-cancel">Cancel</button>
+        <button id="confirm-ok-btn" class="confirm-btn btn-ok">OK</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
