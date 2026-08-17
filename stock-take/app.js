@@ -110,10 +110,10 @@ async function fetchData(silent = true) {
 
     // Fetch in parallel from Cloudflare Worker secure proxy to Supabase REST API
     const [prodRes, brandRes, logsRes, usersRes] = await Promise.all([
-      fetch(`${WORKER_URL}/api/supabase/rest/v1/products_db?select=*&limit=5000`),
-      fetch(`${WORKER_URL}/api/supabase/rest/v1/brands_db?select=*&limit=5000`),
-      fetch(`${WORKER_URL}/api/supabase/rest/v1/stock_take_log?select=*&order=timestamp.desc&limit=5000`),
-      fetch(`${WORKER_URL}/api/supabase/rest/v1/employees?select=*&limit=5000`)
+      fetch(`${WORKER_URL}/api/app4/products?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app4/brands?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app4/logs?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app4/users?t=${Date.now()}`)
     ]);
 
     if (!prodRes.ok || !brandRes.ok || !logsRes.ok || !usersRes.ok) {
@@ -1218,17 +1218,20 @@ async function syncSubmissions() {
       const safeStoreKeeperId = item.storeKeeperId || 'Unknown';
       
       const payload = {
-        timestamp: String(item.id),
-        audit_by: safeStoreKeeperId,
-        audit: JSON.stringify(item.payload)
+        sheet: "stock_take_log",
+        action: "insert",
+        data: {
+          timestamp: String(item.id),
+          audit_by: safeStoreKeeperId,
+          audit: JSON.stringify(item.payload)
+        }
       };
 
-      const res = await fetch(`${WORKER_URL}/api/supabase/rest/v1/stock_take_log`, {
+      const res = await fetch(`${WORKER_URL}/api/app4/write`, {
         method: "POST",
         body: JSON.stringify(payload),
         headers: { 
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
+          'Content-Type': 'application/json'
         }
       });
 

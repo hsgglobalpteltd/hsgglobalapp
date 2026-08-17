@@ -473,7 +473,7 @@ async function fetchData() {
   if (refreshIcon) refreshIcon.classList.add('spinning');
 
   try {
-    const response = await fetch(`${WORKER_URL}/api/app/picker/Track_Orders?t=${Date.now()}`);
+    const response = await fetch(`${WORKER_URL}/api/app2/Track_Orders?t=${Date.now()}`);
     if (!response.ok) {
       throw new Error(`Worker API returned status ${response.status}`);
     }
@@ -1057,9 +1057,9 @@ async function fetchSupportData() {
 
   try {
     const [prodRes, brandRes, userRes] = await Promise.all([
-      fetch(`${WORKER_URL}/api/app/picker/products?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app/picker/brands?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app/picker/users?t=${Date.now()}`)
+      fetch(`${WORKER_URL}/api/app2/products?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app2/brands?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app2/users?t=${Date.now()}`)
     ]);
     
     if (prodRes.ok) {
@@ -1107,7 +1107,7 @@ async function silentSyncOrderUpdate(orderId, fields) {
       }
     };
     
-    fetch(`${WORKER_URL}/api/app/picker/write`, {
+    fetch(`${WORKER_URL}/api/app2/write`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)

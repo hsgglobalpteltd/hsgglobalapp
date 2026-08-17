@@ -3,7 +3,7 @@ if (window.innerWidth > 600) {
   window.location.href = '../index.html';
 }
 
-const WORKER_URL = 'https://ib.hsgglobalpteltd.workers.dev';
+const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
 const APP_VERSION = "26.0.39";
 
 // Refresh and Auto-refresh State
@@ -1258,10 +1258,21 @@ function loadCachedData() {
     try {
       const logs = JSON.parse(cachedLogs);
       if (Array.isArray(logs)) {
+        const latestByStore = {};
+        logs.forEach(log => {
+          const storeId = (log['Retailer Stores ID'] || log['retailer_store_id'] || log['RetailerStoresID'] || "").toString().trim();
+          if (!storeId) return;
+          const logTime = parseTimestamp(log.Timestamp || log.timestamp);
+          if (!latestByStore[storeId] || logTime > latestByStore[storeId].time) {
+            latestByStore[storeId] = { log, time: logTime };
+          }
+        });
         const sixtyDaysAgo = Date.now() - (60 * 24 * 60 * 60 * 1000);
         allAuditLogs = logs.filter(log => {
           const logTime = parseTimestamp(log.Timestamp || log.timestamp);
-          return logTime > 0 && logTime >= sixtyDaysAgo;
+          const storeId = (log['Retailer Stores ID'] || log['retailer_store_id'] || log['RetailerStoresID'] || "").toString().trim();
+          const isLatest = latestByStore[storeId] && latestByStore[storeId].log === log;
+          return (logTime > 0 && logTime >= sixtyDaysAgo) || isLatest;
         });
       }
     } catch (e) {
@@ -1323,17 +1334,17 @@ async function fetchDataSilently(showToastOnSuccess = false) {
   
   try {
     const [tasksRes, storesRes, retailersRes, logsRes, usersRes, brandsRes, productsRes, retailersSkuRes, shelfLogsRes, settingsRes, contactsRes] = await Promise.all([
-      fetch(`${WORKER_URL}/api/app1/tasks?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/store-retailer?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/retailers?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/Merch_Visit_Product_Audit_Logs?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/users?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/brands?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/products?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/retailers_sku?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/Merch_Visit_Shelf_Audit_Logs?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/Merch_Visit_Setting?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app1/contacts?t=${Date.now()}`)
+      fetch(`${WORKER_URL}/api/app1?resource=tasks&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=store-retailer&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=retailers&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=Merch_Visit_Product_Audit_Logs&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=users&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=brands&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=products&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=retailers_sku&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=Merch_Visit_Shelf_Audit_Logs&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=Merch_Visit_Setting&t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app1?resource=contacts&t=${Date.now()}`)
     ]);
 
     if (retailersRes.ok) {
@@ -1387,10 +1398,21 @@ async function fetchDataSilently(showToastOnSuccess = false) {
     if (logsRes.ok) {
       const logs = await logsRes.json();
       if (Array.isArray(logs)) {
+        const latestByStore = {};
+        logs.forEach(log => {
+          const storeId = (log['Retailer Stores ID'] || log['retailer_store_id'] || log['RetailerStoresID'] || "").toString().trim();
+          if (!storeId) return;
+          const logTime = parseTimestamp(log.Timestamp || log.timestamp);
+          if (!latestByStore[storeId] || logTime > latestByStore[storeId].time) {
+            latestByStore[storeId] = { log, time: logTime };
+          }
+        });
         const sixtyDaysAgo = Date.now() - (60 * 24 * 60 * 60 * 1000);
         const filteredLogs = logs.filter(log => {
           const logTime = parseTimestamp(log.Timestamp || log.timestamp);
-          return logTime > 0 && logTime >= sixtyDaysAgo;
+          const storeId = (log['Retailer Stores ID'] || log['retailer_store_id'] || log['RetailerStoresID'] || "").toString().trim();
+          const isLatest = latestByStore[storeId] && latestByStore[storeId].log === log;
+          return (logTime > 0 && logTime >= sixtyDaysAgo) || isLatest;
         });
         localStorage.setItem('merch_audit_logs', JSON.stringify(filteredLogs));
         allAuditLogs = filteredLogs;
@@ -2972,7 +2994,15 @@ function openNewAudit() {
       return dateB - dateA;
     });
     
-    const latestLog = storeLogs[0];
+    const latestLog = storeLogs.find(l => {
+      const jsonStr = l['Audit JSON'] || l['audit_json'] || '[]';
+      try {
+        const parsed = JSON.parse(jsonStr);
+        return Array.isArray(parsed) && parsed.length > 0;
+      } catch (e) {
+        return false;
+      }
+    }) || storeLogs[0];
     if (latestLog) {
       const auditJsonStr = latestLog['Audit JSON'] || latestLog['audit_json'] || '[]';
       try {
@@ -3702,7 +3732,7 @@ function validateAndGoToRemark() {
 async function writeWithRetry(payload, retries = 3, delay = 3000) {
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(`${WORKER_URL}/api/app1/write`, {
+      const res = await fetch(`${WORKER_URL}/api/app1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -4051,7 +4081,15 @@ function openLatestAudit() {
       return dateB - dateA;
     });
     
-    const latestLog = storeLogs[0];
+    const latestLog = storeLogs.find(l => {
+      const jsonStr = l['Audit JSON'] || l['audit_json'] || '[]';
+      try {
+        const parsed = JSON.parse(jsonStr);
+        return Array.isArray(parsed) && parsed.length > 0;
+      } catch (e) {
+        return false;
+      }
+    }) || storeLogs[0];
     let hasProducts = false;
     
     if (latestLog) {

@@ -624,7 +624,7 @@ async function checkActiveJobFromDatabase() {
   if (!driverName) return;
 
   try {
-    const res = await fetch(`${WORKER_URL}/api/app/driver/Deliver_Job?t=${Date.now()}`);
+    const res = await fetch(`${WORKER_URL}/api/app3/Deliver_Job?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data && Array.isArray(data.value) ? data.value : []);
@@ -677,7 +677,7 @@ async function fetchData() {
   if (drawerRefreshIcon) drawerRefreshIcon.classList.add('spinning');
 
   try {
-    const response = await fetch(`${WORKER_URL}/api/app/driver/Track_Orders?t=${Date.now()}`);
+    const response = await fetch(`${WORKER_URL}/api/app3/Track_Orders?t=${Date.now()}`);
     if (!response.ok) {
       throw new Error(`Worker API returned status ${response.status}`);
     }
@@ -961,9 +961,9 @@ async function fetchSupportData() {
 
   try {
     const [userRes, prodRes, brandRes] = await Promise.all([
-      fetch(`${WORKER_URL}/api/app/driver/users?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app/picker/products?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app/picker/brands?t=${Date.now()}`)
+      fetch(`${WORKER_URL}/api/app3/users?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app3/products?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app3/brands?t=${Date.now()}`)
     ]);
 
     if (userRes.ok) {
@@ -2102,7 +2102,7 @@ async function silentSyncOrderUpdate(orderId, fields) {
       }
     };
     
-    fetch(`${WORKER_URL}/api/app/driver/write`, {
+    fetch(`${WORKER_URL}/api/app3/write`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -4159,7 +4159,7 @@ async function syncDeliverJob(jobId, action, fields) {
       }
     };
     
-    const res = await fetch(`${WORKER_URL}/api/app/driver/write`, {
+    const res = await fetch(`${WORKER_URL}/api/app3/write`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
