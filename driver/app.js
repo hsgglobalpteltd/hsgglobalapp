@@ -3,8 +3,11 @@ if (window.innerWidth > 600) {
   window.location.href = '../index.html';
 }
 
-const WORKER_URL = 'https://ib.hsgglobalpteltd.workers.dev';
+const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
 const APP_VERSION = "26.0.3";
+
+// Sync Queue / Failed submissions State
+let failedSyncs = [];
 
 // App State
 let allOrders = [];
@@ -111,6 +114,8 @@ window.addEventListener('DOMContentLoaded', () => {
       closeDrawer();
     });
   });
+
+  initOutsourceDriverLogin();
 
   // Bind Expandable Search Bar controls (only active/visible on Complete page)
   const searchContainer = document.getElementById('search-bar-container');
@@ -282,11 +287,30 @@ window.addEventListener('DOMContentLoaded', () => {
   // Bind Deliver Page events
   bindDeliverPageEvents();
 
+  // Initialize offline sync queue
+  const cachedFailedSyncs = localStorage.getItem('driver_failed_syncs');
+  if (cachedFailedSyncs) {
+    try {
+      failedSyncs = JSON.parse(cachedFailedSyncs);
+      if (!Array.isArray(failedSyncs)) failedSyncs = [];
+    } catch (_) {
+      failedSyncs = [];
+    }
+  }
+  updateSyncUI();
+
+  const resubmitBtn = document.getElementById('resubmit-btn');
+  if (resubmitBtn) {
+    resubmitBtn.addEventListener('click', retryFailedSyncs);
+  }
+
   // Enforce mandatory login on app open
   if (!isSessionAuthenticated()) {
     setTimeout(() => {
       openAuthPage(true);
     }, 500);
+  } else {
+    enforceNavigationRestrictions();
   }
 });
 
@@ -510,20 +534,31 @@ function renderDeliverOrderPage() {
     return m.startsWith('R');
   };
 
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+
   let filtered = [];
   if (activeDeliverOrderTab === "inprogress") {
-    filtered = allOrders.filter(o => 
-      !isReturnOrder(o) &&
-      (o.Driver || "").trim() === driverName &&
-      ((o.Status || "").trim().toLowerCase() === "load" || (o.Status || "").trim().toLowerCase() === "out for delivery")
-    );
+    filtered = allOrders.filter(o => {
+      if (isReturnOrder(o)) return false;
+      const driverClean = (o.Driver || "").trim();
+      const statusClean = (o.Status || "").trim().toLowerCase();
+      return driverClean === driverName && (statusClean === "load" || statusClean === "out for delivery");
+    });
   } else {
-    filtered = allOrders.filter(o => 
-      !isReturnOrder(o) &&
-      ((o.Status || "").trim().toLowerCase() === "ready to pick" || 
-       (o.Status || "").trim().toLowerCase() === "picking" || 
-       (o.Status || "").trim().toLowerCase() === "ready to deliver")
-    );
+    filtered = allOrders.filter(o => {
+      if (isReturnOrder(o)) return false;
+      const statusClean = (o.Status || "").trim().toLowerCase();
+      const driverClean = (o.Driver || "").trim();
+      const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+      
+      if (isOutsource) {
+        return deliverMethodClean === 'external delivery' && 
+               driverClean === "" && 
+               statusClean === 'ready to deliver';
+      } else {
+        return (statusClean === "ready to pick" || statusClean === "picking" || statusClean === "ready to deliver");
+      }
+    });
   }
 
   if (countEl) countEl.textContent = `Total Orders: ${filtered.length}`;
@@ -546,6 +581,12 @@ function renderDeliverOrderPage() {
 }
 
 function renderReturnOrderPage() {
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  if (isOutsource) {
+    const cardsContainer = document.getElementById('return-order-list-cards');
+    if (cardsContainer) cardsContainer.innerHTML = `<div class="map-placeholder-text" style="padding: 40px 0;">Access Denied.</div>`;
+    return;
+  }
   const driverName = getCachedAuth() || "";
   const inprogressTab = document.getElementById('return-tab-inprogress');
   const pendingTab = document.getElementById('return-tab-pending');
@@ -624,7 +665,7 @@ async function checkActiveJobFromDatabase() {
   if (!driverName) return;
 
   try {
-    const res = await fetch(`${WORKER_URL}/api/app3/Deliver_Job?t=${Date.now()}`);
+    const res = await fetch(`${WORKER_URL}/api/app3/Driver_Log?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data && Array.isArray(data.value) ? data.value : []);
@@ -642,14 +683,14 @@ async function checkActiveJobFromDatabase() {
           console.log("Restoring active job from database:", jobId);
           localStorage.setItem('active_job_id', jobId);
           
-          let deliveredRec = [];
-          const rawDelivered = activeJob.Delivered_Record;
+          let driverLogs = [];
+          const rawDelivered = activeJob.Driver_Logs;
           if (rawDelivered) {
             try {
-              deliveredRec = typeof rawDelivered === "string" ? JSON.parse(rawDelivered) : rawDelivered;
+              driverLogs = typeof rawDelivered === "string" ? JSON.parse(rawDelivered) : rawDelivered;
             } catch (_) {}
           }
-          localStorage.setItem('active_job_delivered_record', JSON.stringify(deliveredRec));
+          localStorage.setItem('active_job_driver_logs', JSON.stringify(driverLogs));
           
           const jobToggle = document.getElementById('job-toggle-input');
           if (jobToggle) {
@@ -735,6 +776,12 @@ function loadCachedData() {
 
 // Render the order list or the blank pages
 function renderOrdersList() {
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  if (isOutsource) {
+    const listContainer = document.getElementById('orders-list');
+    if (listContainer) listContainer.innerHTML = `<div class="map-placeholder-text" style="padding: 40px 0;">Access Denied.</div>`;
+    return;
+  }
   const listContainer = document.getElementById('orders-list');
   const qtyDisplay = document.getElementById('qty-count-display');
   if (!listContainer) return;
@@ -990,7 +1037,11 @@ async function fetchSupportData() {
 
 // Cache Authentication functions
 function isSessionAuthenticated() {
-  return sessionStorage.getItem('driver_session_active') === 'true' && localStorage.getItem('auth_driver_name') !== null;
+  const authTime = localStorage.getItem('auth_timestamp');
+  const name = localStorage.getItem('auth_driver_name');
+  if (!authTime || !name) return false;
+  const elapsed = Date.now() - parseInt(authTime);
+  return elapsed < (24 * 60 * 60 * 1000); // 24 hours
 }
 
 function getCachedAuth() {
@@ -1004,15 +1055,23 @@ function setCachedAuth(matchedUser) {
   const name = matchedUser.Name || matchedUser.name || 'Driver';
   localStorage.setItem('auth_driver_name', name);
   localStorage.setItem('auth_driver_user', JSON.stringify(matchedUser));
-  sessionStorage.setItem('driver_session_active', 'true');
+  localStorage.setItem('auth_timestamp', String(Date.now()));
   updateDrawerLogoutButton();
 }
 
 function clearCachedAuth() {
   localStorage.removeItem('auth_driver_name');
   localStorage.removeItem('auth_driver_user');
-  sessionStorage.removeItem('driver_session_active');
+  localStorage.removeItem('auth_timestamp');
+  localStorage.removeItem('is_outsource');
+  localStorage.removeItem('outsource_details');
   updateDrawerLogoutButton();
+  
+  const drawerItems = document.querySelectorAll('.drawer-item');
+  drawerItems.forEach(item => {
+    item.style.display = 'flex';
+  });
+
   openAuthPage(true); // Always force login again when logging out
 }
 
@@ -1035,6 +1094,20 @@ function openAuthPage(isMandatory = false) {
   const authPage = document.getElementById('auth-page');
   if (!authPage) return;
 
+  // Reset view to show PIN input by default
+  const pinContainer = document.getElementById('auth-pin-container');
+  const outsourceContainer = document.getElementById('auth-outsource-container');
+  if (pinContainer) pinContainer.classList.remove('hidden');
+  if (outsourceContainer) outsourceContainer.classList.add('hidden');
+
+  // Clear outsource inputs
+  const outsourceName = document.getElementById('outsource-name-input');
+  const outsourcePlate = document.getElementById('outsource-plate-input');
+  const outsourcePhone = document.getElementById('outsource-phone-input');
+  if (outsourceName) outsourceName.value = '';
+  if (outsourcePlate) outsourcePlate.value = '';
+  if (outsourcePhone) outsourcePhone.value = '';
+
   clearAuthPin();
   authPage.classList.add('active');
 
@@ -1052,6 +1125,104 @@ function closeAuthPage() {
   const authPage = document.getElementById('auth-page');
   if (authPage) {
     authPage.classList.remove('active');
+  }
+}
+
+function initOutsourceDriverLogin() {
+  const outsourceBtn = document.getElementById('outsource-login-btn');
+  const outsourceCancelBtn = document.getElementById('outsource-cancel-btn');
+  const outsourceConfirmBtn = document.getElementById('outsource-confirm-btn');
+
+  const pinContainer = document.getElementById('auth-pin-container');
+  const outsourceContainer = document.getElementById('auth-outsource-container');
+
+  if (outsourceBtn && pinContainer && outsourceContainer) {
+    outsourceBtn.addEventListener('click', () => {
+      pinContainer.classList.add('hidden');
+      outsourceContainer.classList.remove('hidden');
+    });
+  }
+
+  if (outsourceCancelBtn && pinContainer && outsourceContainer) {
+    outsourceCancelBtn.addEventListener('click', () => {
+      outsourceContainer.classList.add('hidden');
+      pinContainer.classList.remove('hidden');
+      clearAuthPin();
+    });
+  }
+
+  if (outsourceConfirmBtn) {
+    outsourceConfirmBtn.addEventListener('click', () => {
+      const nameInput = document.getElementById('outsource-name-input');
+      const plateInput = document.getElementById('outsource-plate-input');
+      const phoneInput = document.getElementById('outsource-phone-input');
+
+      if (!nameInput || !plateInput || !phoneInput) return;
+
+      const name = nameInput.value.trim();
+      const plate = plateInput.value.trim().toUpperCase();
+      const phone = phoneInput.value.trim();
+
+      if (!name || !plate || !phone) {
+        showToast("All fields are mandatory!", "error");
+        return;
+      }
+
+      // Format driver name: Outsource - Name (Plate) - Phone
+      const combinedName = `Outsource - ${name} (${plate}) - ${phone}`;
+
+      localStorage.setItem('auth_driver_name', combinedName);
+      localStorage.setItem('is_outsource', 'true');
+      localStorage.setItem('outsource_details', JSON.stringify({ name, plate, phone }));
+      localStorage.setItem('auth_timestamp', String(Date.now()));
+
+      updateDrawerLogoutButton();
+      closeAuthPage();
+
+      if (!authPendingAction) {
+        fetchSupportData();
+        fetchData();
+      }
+
+      if (authPendingAction) {
+        const order = allOrders.find(o => o.ID === authPendingAction.orderId);
+        if (order) {
+          if (authPendingAction.type === 'load_goods') {
+            loadingGoodsOrderId = order.ID;
+            tickedSKUs.clear();
+            if (activeTab === 'Route Map') {
+              const fallbackPin = { color: "#E28B54", textColor: "#FFFFFF" };
+              renderMapOrderDetails(order, fallbackPin);
+            }
+          } else if (authPendingAction.type === 'go_to_destination') {
+            performGoToDestination(order, combinedName);
+          } else if (authPendingAction.type === 'complete_delivery') {
+            performCompleteDelivery(order, combinedName);
+          }
+        }
+        authPendingAction = null;
+      }
+
+      enforceNavigationRestrictions();
+    });
+  }
+}
+
+function enforceNavigationRestrictions() {
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  const drawerItems = document.querySelectorAll('.drawer-item');
+
+  drawerItems.forEach(item => {
+    const menuSelection = item.getAttribute('data-menu');
+    if (isOutsource && (menuSelection === 'Return Order' || menuSelection === 'Complete')) {
+      item.style.display = 'none';
+    } else {
+      item.style.display = 'flex';
+    }
+  });
+
+  if (isOutsource && (activeTab === 'Return Order' || activeTab === 'Complete')) {
+    switchPage('Route Map');
   }
 }
 
@@ -1207,13 +1378,39 @@ async function submitProofPIN(pin) {
 }
 
 async function performPickReturnPaper(order, driverName, photoFile) {
+  // Optimistic local state update
+  let logs = [];
+  try {
+    logs = JSON.parse(order.Logs || '[]');
+  } catch (_) {}
+  logs.push({
+    action: "Pick Return Paper",
+    actionBy: driverName,
+    remark: "Return Paper photo submitted",
+    timestamp: Date.now(),
+    photoUrl: "" // Will be uploaded and filled during retry sync
+  });
+
+  order.Photo_Return_Paper = ""; 
+  order.Logs = JSON.stringify(logs);
+  order.Driver = driverName;
+  localStorage.setItem('driver_orders', JSON.stringify(allOrders));
+
+  // Re-render pins and reload details
+  renderMapPins();
+  const updatedOrder = allOrders.find(o => o.ID === order.ID);
+  if (updatedOrder) {
+    const activePin = { color: "#7C3AED", textColor: "#FFFFFF" };
+    renderMapOrderDetails(updatedOrder, activePin);
+  }
+
   showToast("Uploading proof and syncing...", "info");
 
   try {
     const compressedFile = await compressImageToMax250kb(photoFile);
     const doNumber = order.DO_Number || order.do_number || 'UNKNOWN';
     const fileName = `Track_Orders/Return_Proof/${doNumber}_${Date.now()}.jpg`;
-    const uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
+    const uploadUrl = `${WORKER_URL}/api/app3/upload?filename=${encodeURIComponent(fileName)}`;
 
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
@@ -1233,43 +1430,53 @@ async function performPickReturnPaper(order, driverName, photoFile) {
       throw new Error(`Upload failed with status ${uploadRes.status}`);
     }
 
-    let logs = [];
-    try {
-      logs = JSON.parse(order.Logs || '[]');
-    } catch (_) {}
+    // Update photo URL in logs
+    logs[logs.length - 1].photoUrl = photoUrl;
 
-    logs.push({
-      action: "Pick Return Paper",
-      actionBy: driverName,
-      remark: "Return Paper photo submitted",
-      timestamp: Date.now(),
-      photoUrl: photoUrl
+    await writeWithRetry({
+      sheet: "Track_Orders",
+      action: "update",
+      data: {
+        ID: order.ID,
+        Driver: driverName,
+        Photo_Return_Paper: photoUrl,
+        Logs: JSON.stringify(logs)
+      }
     });
 
-    await silentSyncOrderUpdate(order.ID, {
-      Driver: driverName,
-      Photo_Return_Paper: photoUrl,
-      Logs: JSON.stringify(logs)
-    });
+    // Update local state with real photo URL
+    order.Photo_Return_Paper = photoUrl;
+    order.Logs = JSON.stringify(logs);
+    localStorage.setItem('driver_orders', JSON.stringify(allOrders));
 
     showToast("Return Paper submitted successfully!", "success");
     returnPaperPhotoFile = null;
-    
-    // Re-render pins and reload details
-    renderMapPins();
-    const updatedOrder = allOrders.find(o => o.ID === order.ID);
-    if (updatedOrder) {
-      const activePin = { color: "#7C3AED", textColor: "#FFFFFF" };
-      renderMapOrderDetails(updatedOrder, activePin);
-    }
   } catch (err) {
-    console.error("Failed to pick return paper:", err);
-    showToast(`Failed: ${err.message}`, "error");
+    console.warn("Upload failed, saving to retry queue:", err);
+    showToast("Network sync issue. Saved to Re-Submit queue.", "warning");
+
+    const photoFileBase64 = await fileToBase64(photoFile);
+    const queueItem = {
+      id: 'return_paper_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      type: 'return-paper',
+      storeName: order.Deliver_To || order.deliver_to || order.DeliverTo || 'Order ' + order.ID,
+      timestamp: Date.now(),
+      payload: {
+        orderId: order.ID,
+        driverName,
+        photoFileBase64
+      },
+      error: 'Pending sync...'
+    };
+
+    failedSyncs.push(queueItem);
+    localStorage.setItem('driver_failed_syncs', JSON.stringify(failedSyncs));
+    updateSyncUI();
   }
 }
 
 async function uploadToR2(fileName, file) {
-  const uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
+  const uploadUrl = `${WORKER_URL}/api/app3/upload?filename=${encodeURIComponent(fileName)}`;
   const res = await fetch(uploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'image/jpeg' },
@@ -1302,14 +1509,45 @@ async function performDeliverGoods(order, driverName, isReturn, signedFile, supp
   showWhatsAppShare(order, isReturn, items, itemQtys);
 
   // --- 2. SILENT BACKGROUND SYNCHRONIZATION ---
-  runSilentBackgroundSync(order, driverName, isReturn, signedFile, supportingFiles, itemQtys, itemRemarks, previousStatus).catch(err => {
-    console.error("Silent background sync failed:", err);
-    showToast(`Sync failed: ${err.message}. Reverting status...`, "error");
-
-    // Rollback status in memory on error
-    order.Status = previousStatus;
-    renderMapPins();
-    renderOnModeList();
+  runSilentBackgroundSync(order, driverName, isReturn, signedFile, supportingFiles, itemQtys, itemRemarks, previousStatus).catch(async err => {
+    console.warn("Background sync failed, saving to retry queue:", err);
+    showToast("Network sync issue. Saved to Re-Submit queue.", "warning");
+    
+    try {
+      // Convert files to base64
+      const signedBase64 = await fileToBase64(signedFile);
+      const supportingBase64Promises = supportingFiles.map(fileToBase64);
+      const supportingBase64s = await Promise.all(supportingBase64Promises);
+      
+      const activeJobId = localStorage.getItem('active_job_id');
+      const driverLogs = JSON.parse(localStorage.getItem('active_job_driver_logs') || '[]');
+      
+      const queueItem = {
+        id: 'delivery_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        type: 'delivery',
+        storeName: order.Deliver_To || order.deliver_to || order.DeliverTo || 'Order ' + order.ID,
+        timestamp: Date.now(),
+        payload: {
+          orderId: order.ID,
+          driverName,
+          isReturn,
+          signedBase64,
+          supportingBase64s,
+          itemQtys,
+          itemRemarks,
+          previousStatus,
+          activeJobId,
+          driverLogs
+        },
+        error: 'Pending sync...'
+      };
+      
+      failedSyncs.push(queueItem);
+      localStorage.setItem('driver_failed_syncs', JSON.stringify(failedSyncs));
+      updateSyncUI();
+    } catch (e) {
+      console.error("Failed to queue failed delivery sync:", e);
+    }
   });
 }
 
@@ -1338,9 +1576,9 @@ async function runSilentBackgroundSync(order, driverName, isReturn, signedFile, 
   } catch (_) {}
 
   const activeJobId = localStorage.getItem('active_job_id');
-  let deliveredRecord = [];
+  let driverLogs = [];
   try {
-    deliveredRecord = JSON.parse(localStorage.getItem('active_job_delivered_record') || '[]');
+    driverLogs = JSON.parse(localStorage.getItem('active_job_driver_logs') || '[]');
   } catch (_) {}
 
   if (isReturn) {
@@ -1360,13 +1598,13 @@ async function runSilentBackgroundSync(order, driverName, isReturn, signedFile, 
       Logs: JSON.stringify(logs)
     });
 
-    // Update Deliver_Job details
-    deliveredRecord.push({
+    // Update Driver_Log details
+    driverLogs.push({
       id: order.ID,
       timestamp: Date.now(),
       signed_paper_img: signedUrl
     });
-    await saveJobAndRemoveOrder(activeJobId, order.ID, deliveredRecord);
+    await saveJobAndRemoveOrder(activeJobId, order.ID, driverLogs);
 
     showToast("Return collected successfully!", "success");
 
@@ -1405,14 +1643,14 @@ async function runSilentBackgroundSync(order, driverName, isReturn, signedFile, 
       Logs: JSON.stringify(logs)
     });
 
-    // Update Deliver_Job details
-    deliveredRecord.push({
+    // Update Driver_Log details
+    driverLogs.push({
       id: order.ID,
       timestamp: Date.now(),
       signed_paper_img: signedUrl,
       discrepancies: discrepancies
     });
-    await saveJobAndRemoveOrder(activeJobId, order.ID, deliveredRecord);
+    await saveJobAndRemoveOrder(activeJobId, order.ID, driverLogs);
 
     showToast("Goods delivered successfully!", "success");
   }
@@ -1420,10 +1658,10 @@ async function runSilentBackgroundSync(order, driverName, isReturn, signedFile, 
 
 
 
-async function saveJobAndRemoveOrder(jobId, orderId, deliveredRecord) {
+async function saveJobAndRemoveOrder(jobId, orderId, driverLogs) {
   if (!jobId) return;
 
-  localStorage.setItem('active_job_delivered_record', JSON.stringify(deliveredRecord));
+  localStorage.setItem('active_job_driver_logs', JSON.stringify(driverLogs));
 
   const driverName = getCachedAuth();
   const activeDeliverOrders = allOrders.filter(o => 
@@ -1441,9 +1679,28 @@ async function saveJobAndRemoveOrder(jobId, orderId, deliveredRecord) {
     ...activeReturnOrders.map(o => o.ID)
   ].filter(id => id !== orderId);
 
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+
+  if (isOutsource && activeOrderIds.length === 0) {
+    showToast("Last delivery completed! Ending shift...", "success");
+    await syncDeliverJob(jobId, "update", {
+      Status: "OFF",
+      End_Time: Date.now(),
+      Active_Orders: JSON.stringify([]),
+      Driver_Logs: JSON.stringify(driverLogs)
+    });
+    localStorage.removeItem('active_job_id');
+    localStorage.removeItem('active_job_driver_logs');
+    const jobToggle = document.getElementById('job-toggle-input');
+    if (jobToggle) jobToggle.checked = false;
+    updateOnModeUI(false);
+    clearCachedAuth();
+    return;
+  }
+
   await syncDeliverJob(jobId, "update", {
     Active_Orders: JSON.stringify(activeOrderIds),
-    Delivered_Record: JSON.stringify(deliveredRecord)
+    Driver_Logs: JSON.stringify(driverLogs)
   });
 }
 
@@ -1895,6 +2152,8 @@ function renderMapPins() {
     return m.startsWith('R');
   };
 
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+
   let deliveryOrders = [];
   let returnOrders = [];
 
@@ -1908,7 +2167,7 @@ function renderMapPins() {
       validatePoscode(o.Poscode)
     );
 
-    returnOrders = allOrders.filter(o => 
+    returnOrders = isOutsource ? [] : allOrders.filter(o => 
       isReturnOrder(o) &&
       (o.Status || "").trim().toLowerCase() === "pending" && 
       (o.Driver || "").trim() === driverName &&
@@ -1916,14 +2175,23 @@ function renderMapPins() {
     );
   } else {
     // OFF Job Mode: Show all unassigned or self-assigned prepare/ready/load orders
-    deliveryOrders = allOrders.filter(o => 
-      !isReturnOrder(o) &&
-      ["ready to pick", "picking", "ready to deliver", "load"].includes((o.Status || "").trim().toLowerCase()) &&
-      o.Poscode && 
-      validatePoscode(o.Poscode)
-    );
+    deliveryOrders = allOrders.filter(o => {
+      if (isReturnOrder(o)) return false;
+      const statusClean = (o.Status || "").trim().toLowerCase();
+      const driverClean = (o.Driver || "").trim();
+      const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+      
+      if (isOutsource) {
+        const isCorrectMethod = deliverMethodClean === 'external delivery';
+        const isUnassignedOrMine = driverClean === "" || driverClean === driverName;
+        const isReadyStatus = ["ready to deliver", "load"].includes(statusClean);
+        return isCorrectMethod && isUnassignedOrMine && isReadyStatus && o.Poscode && validatePoscode(o.Poscode);
+      } else {
+        return ["ready to pick", "picking", "ready to deliver", "load"].includes(statusClean) && o.Poscode && validatePoscode(o.Poscode);
+      }
+    });
 
-    returnOrders = allOrders.filter(o => 
+    returnOrders = isOutsource ? [] : allOrders.filter(o => 
       isReturnOrder(o) &&
       (o.Status || "").trim().toLowerCase() === "pending" && 
       o.Poscode
@@ -2109,12 +2377,384 @@ async function silentSyncOrderUpdate(orderId, fields) {
     }).then(res => {
       if (!res.ok) {
         console.warn("Background update sync failed with status:", res.status);
+        queueStatusUpdate(orderId, fields, `Server status ${res.status}`);
       }
     }).catch(err => {
       console.warn("Background update sync failed:", err);
+      queueStatusUpdate(orderId, fields, err.message || "Network offline");
     });
   } catch (e) {
     console.warn("Failed to schedule background sync:", e);
+    queueStatusUpdate(orderId, fields, e.message || "Execution exception");
+  }
+}
+
+function queueStatusUpdate(orderId, fields, errorMessage = 'Pending sync...') {
+  const exists = failedSyncs.some(item => 
+    item.type === 'status-update' && 
+    item.payload.orderId === orderId && 
+    JSON.stringify(item.payload.fields) === JSON.stringify(fields)
+  );
+  if (exists) return;
+
+  const order = allOrders.find(o => o.ID === orderId);
+  const storeName = order ? (order.Deliver_To || order.deliver_to || order.DeliverTo || 'Order ' + orderId) : 'Order ' + orderId;
+  
+  const queueItem = {
+    id: 'status_update_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    type: 'status-update',
+    storeName: storeName,
+    timestamp: Date.now(),
+    payload: {
+      orderId,
+      fields
+    },
+    error: errorMessage
+  };
+  
+  failedSyncs.push(queueItem);
+  localStorage.setItem('driver_failed_syncs', JSON.stringify(failedSyncs));
+  updateSyncUI();
+}
+
+function base64ToBlob(base64Str) {
+  try {
+    const parts = base64Str.split(';base64,');
+    const contentType = parts[0].split(':')[1];
+    const raw = window.atob(parts[1]);
+    const rawLength = raw.length;
+    const uInt8Array = new Uint8Array(rawLength);
+    for (let i = 0; i < rawLength; ++i) {
+      uInt8Array[i] = raw.charCodeAt(i);
+    }
+    return new Blob([uInt8Array], { type: contentType });
+  } catch (e) {
+    console.error("Failed to parse base64 to Blob:", e);
+    return null;
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateSyncUI() {
+  const resubmitBtn = document.getElementById('resubmit-btn');
+  const failedSyncList = document.getElementById('failed-sync-list');
+
+  if (!resubmitBtn || !failedSyncList) return;
+
+  if (failedSyncs.length > 0) {
+    resubmitBtn.classList.remove('hidden');
+    failedSyncList.innerHTML = '';
+    failedSyncs.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'failed-sync-item';
+      
+      const storeName = item.storeName || 'Unsaved Action';
+      const reason = item.error || 'Failed sync';
+      
+      el.innerHTML = `
+        <span class="failed-sync-store">${storeName}</span>
+        <span class="failed-sync-reason">${reason}</span>
+      `;
+      failedSyncList.appendChild(el);
+    });
+    failedSyncList.classList.remove('hidden');
+  } else {
+    resubmitBtn.classList.add('hidden');
+    failedSyncList.innerHTML = '';
+    failedSyncList.classList.add('hidden');
+  }
+}
+
+async function writeWithRetry(payload) {
+  const res = await fetch(`${WORKER_URL}/api/app3/write`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(`Write failed with status ${res.status}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function retryFailedSyncs() {
+  const resubmitBtn = document.getElementById('resubmit-btn');
+  if (!resubmitBtn || failedSyncs.length === 0) return;
+
+  resubmitBtn.disabled = true;
+  resubmitBtn.textContent = 'Syncing...';
+
+  const itemsToSync = [...failedSyncs];
+  let hasFailed = false;
+
+  for (const item of itemsToSync) {
+    try {
+      if (item.type === 'status-update') {
+        const payload = item.payload;
+        await writeWithRetry({
+          sheet: "Track_Orders",
+          action: "update",
+          data: {
+            ID: payload.orderId,
+            ...payload.fields
+          }
+        });
+      } else if (item.type === 'return-paper') {
+        const payload = item.payload;
+        
+        // 1. Upload Return Paper image
+        let finalUrl = '';
+        if (payload.photoFileBase64 && payload.photoFileBase64.startsWith('data:')) {
+          const blob = base64ToBlob(payload.photoFileBase64);
+          if (blob) {
+            const order = allOrders.find(o => o.ID === payload.orderId);
+            const doNumber = order ? (order.DO_Number || order.do_number || 'UNKNOWN') : 'UNKNOWN';
+            const fileName = `Track_Orders/Return_Proof/${doNumber}_${Date.now()}.jpg`;
+            
+            finalUrl = await uploadToR2(fileName, blob);
+          }
+        }
+
+        // 2. Perform write
+        let logs = [];
+        const order = allOrders.find(o => o.ID === payload.orderId);
+        if (order) {
+          try {
+            logs = JSON.parse(order.Logs || '[]');
+          } catch (_) {}
+        }
+        logs.push({
+          action: "Pick Return Paper",
+          actionBy: payload.driverName,
+          remark: "Return Paper photo submitted",
+          timestamp: item.timestamp,
+          photoUrl: finalUrl
+        });
+
+        await writeWithRetry({
+          sheet: "Track_Orders",
+          action: "update",
+          data: {
+            ID: payload.orderId,
+            Driver: payload.driverName,
+            Photo_Return_Paper: finalUrl,
+            Logs: JSON.stringify(logs)
+          }
+        });
+        
+        // Update local state image URL if found
+        if (order) {
+          order.Photo_Return_Paper = finalUrl;
+          order.Logs = JSON.stringify(logs);
+          localStorage.setItem('driver_orders', JSON.stringify(allOrders));
+        }
+      } else if (item.type === 'delivery') {
+        const payload = item.payload;
+
+        // 1. Upload Signed DO
+        let signedUrl = '';
+        if (payload.signedBase64 && payload.signedBase64.startsWith('data:')) {
+          const blob = base64ToBlob(payload.signedBase64);
+          if (blob) {
+            const order = allOrders.find(o => o.ID === payload.orderId);
+            const doNumber = order ? (order.DO_Number || order.do_number || 'UNKNOWN') : 'UNKNOWN';
+            const signedFolder = payload.isReturn ? "Return_Proof_Admin" : "Signed_DO";
+            const signedFileName = `Track_Orders/${signedFolder}/${doNumber}_signed_${Date.now()}.jpg`;
+            
+            signedUrl = await uploadToR2(signedFileName, blob);
+          }
+        }
+
+        // 2. Upload Supporting photos
+        const supportingUrls = [];
+        if (payload.supportingBase64s && Array.isArray(payload.supportingBase64s)) {
+          for (let i = 0; i < payload.supportingBase64s.length; i++) {
+            const base64 = payload.supportingBase64s[i];
+            if (base64 && base64.startsWith('data:')) {
+              const blob = base64ToBlob(base64);
+              if (blob) {
+                const order = allOrders.find(o => o.ID === payload.orderId);
+                const doNumber = order ? (order.DO_Number || order.do_number || 'UNKNOWN') : 'UNKNOWN';
+                const fileName = `Track_Orders/Delivery_Proof/${doNumber}_proof_${i}_${Date.now()}.jpg`;
+                
+                const url = await uploadToR2(fileName, blob);
+                supportingUrls.push(url);
+              }
+            }
+          }
+        }
+        const supportingPhotoVal = JSON.stringify(supportingUrls);
+
+        // 3. Construct Logs and payload write
+        const order = allOrders.find(o => o.ID === payload.orderId);
+        let logs = [];
+        if (order) {
+          try {
+            logs = JSON.parse(order.Logs || '[]');
+          } catch (_) {}
+        }
+
+        if (payload.isReturn) {
+          logs.push({
+            action: "Unpick Return Paper",
+            actionBy: payload.driverName,
+            remark: "Returned paper given to admin",
+            timestamp: item.timestamp,
+            photoUrl: signedUrl
+          });
+
+          await writeWithRetry({
+            sheet: "Track_Orders",
+            action: "update",
+            data: {
+              ID: payload.orderId,
+              Status: "Collected",
+              Photo_Return_Paper_Admin: signedUrl,
+              Photo_Delivered_Proof: supportingPhotoVal,
+              Logs: JSON.stringify(logs)
+            }
+          });
+
+          // Update Driver_Log
+          const jobDelivered = [...payload.driverLogs];
+          jobDelivered.push({
+            id: payload.orderId,
+            timestamp: item.timestamp,
+            signed_paper_img: signedUrl
+          });
+
+          await writeWithRetry({
+            sheet: "Driver_Log",
+            action: "update",
+            data: {
+              ID: payload.activeJobId,
+              Driver_Logs: JSON.stringify(jobDelivered)
+            }
+          });
+
+          // Save local memory state
+          if (order) {
+            order.Photo_Return_Paper_Admin = signedUrl;
+            order.Photo_Delivered_Proof = supportingPhotoVal;
+            order.Logs = JSON.stringify(logs);
+            localStorage.setItem('driver_orders', JSON.stringify(allOrders));
+          }
+          localStorage.setItem('active_job_driver_logs', JSON.stringify(jobDelivered));
+        } else {
+          // Deliver goods
+          const discrepancies = [];
+          const items = order ? (typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || [])) : [];
+          items.forEach(item => {
+            const currentQty = payload.itemQtys[item.sku] !== undefined ? payload.itemQtys[item.sku] : item.qty;
+            if (currentQty < item.qty) {
+              discrepancies.push({
+                sku: item.sku,
+                qty_ordered: item.qty,
+                qty_delivered: currentQty,
+                remark: itemRemarks[item.sku] || ''
+              });
+            }
+          });
+
+          const remarkText = discrepancies.length > 0
+            ? `Delivered with discrepancies: ${discrepancies.map(d => `${d.sku} qty ${d.qty_delivered}/${d.qty_ordered} (${d.remark})`).join(', ')}`
+            : "Delivered successfully";
+
+          logs.push({
+            action: "Delivered",
+            actionBy: payload.driverName,
+            remark: remarkText,
+            timestamp: item.timestamp,
+            photoUrl: signedUrl
+          });
+
+          await writeWithRetry({
+            sheet: "Track_Orders",
+            action: "update",
+            data: {
+              ID: payload.orderId,
+              Status: "Delivered",
+              Photo_DO_Paper_Signed: signedUrl,
+              Photo_Delivered_Proof: supportingPhotoVal,
+              Logs: JSON.stringify(logs)
+            }
+          });
+
+          // Update Driver_Log
+          const jobDelivered = [...payload.driverLogs];
+          jobDelivered.push({
+            id: payload.orderId,
+            timestamp: item.timestamp,
+            signed_paper_img: signedUrl,
+            discrepancies: discrepancies
+          });
+
+          await writeWithRetry({
+            sheet: "Driver_Log",
+            action: "update",
+            data: {
+              ID: payload.activeJobId,
+              Driver_Logs: JSON.stringify(jobDelivered),
+              Active_Orders: JSON.stringify(
+                allOrders
+                  .filter(o => {
+                    const statusClean = (o.Status || '').trim().toLowerCase();
+                    const driverClean = (o.Driver || '').trim();
+                    const isRet = String(o.Mark || '').startsWith('R');
+                    const isMatchedDriver = driverClean === payload.driverName;
+                    
+                    const isCompleted = o.ID === payload.orderId || statusClean === 'delivered' || statusClean === 'collected';
+                    if (isCompleted) return false;
+                    
+                    const isOutForDelivery = statusClean === 'out for delivery';
+                    const isPendingReturn = isRet && statusClean === 'pending';
+                    
+                    return isMatchedDriver && (isOutForDelivery || isPendingReturn);
+                  })
+                  .map(o => o.ID)
+              )
+            }
+          });
+
+          // Save local memory state
+          if (order) {
+            order.Photo_DO_Paper_Signed = signedUrl;
+            order.Photo_Delivered_Proof = supportingPhotoVal;
+            order.Logs = JSON.stringify(logs);
+            localStorage.setItem('driver_orders', JSON.stringify(allOrders));
+          }
+          localStorage.setItem('active_job_driver_logs', JSON.stringify(jobDelivered));
+        }
+      }
+
+      // Remove from queue on success
+      failedSyncs = failedSyncs.filter(q => q.id !== item.id);
+      localStorage.setItem('driver_failed_syncs', JSON.stringify(failedSyncs));
+    } catch (err) {
+      console.error("Retry failed for item:", item, err);
+      item.error = err.message || "Failed retry";
+      localStorage.setItem('driver_failed_syncs', JSON.stringify(failedSyncs));
+      hasFailed = true;
+    }
+  }
+
+  resubmitBtn.disabled = false;
+  resubmitBtn.textContent = 'Re-Submit';
+  updateSyncUI();
+
+  if (hasFailed) {
+    showToast("Some submissions failed to sync. Try again.", "error");
+  } else {
+    showToast("All submissions synced successfully!", "success");
+    fetchData();
   }
 }
 
@@ -2992,7 +3632,7 @@ function initJobToggle() {
 
         const jobId = 'JOB-' + Date.now();
         localStorage.setItem('active_job_id', jobId);
-        localStorage.setItem('active_job_delivered_record', JSON.stringify([]));
+        localStorage.setItem('active_job_driver_logs', JSON.stringify([]));
         jobToggle.checked = true;
 
         showToast("Starting delivery job...", "info");
@@ -3028,14 +3668,18 @@ function initJobToggle() {
           ...activeReturnOrders.map(o => o.ID)
         ];
 
-        // 3. Write Deliver_Job record
+        const isOutsource = localStorage.getItem('is_outsource') === 'true';
+        const outsourceDetails = isOutsource ? localStorage.getItem('outsource_details') : "";
+
+        // 3. Write Driver_Log record
         await syncDeliverJob(jobId, "insert", {
-          Driver: driverName,
+          Driver: isOutsource ? "Outsource Driver" : driverName,
           Status: "ON",
           Start_Time: Date.now(),
           End_Time: "",
           Active_Orders: JSON.stringify(activeOrderIds),
-          Delivered_Record: JSON.stringify([])
+          Driver_Logs: JSON.stringify([]),
+          ...(isOutsource && { Outsource_Driver_Details: outsourceDetails })
         });
 
         showToast("Delivery job started successfully", "success");
@@ -3065,7 +3709,8 @@ function initJobToggle() {
 
           // 2. Gather remaining active IDs
           const remainingDeliverIds = activeUndelivered.map(o => o.ID);
-          const remainingReturnIds = allOrders.filter(o => {
+          const isOutsource = localStorage.getItem('is_outsource') === 'true';
+          const remainingReturnIds = isOutsource ? [] : allOrders.filter(o => {
             const statusClean = (o.Status || '').trim().toLowerCase();
             const driverClean = (o.Driver || '').trim();
             const isReturn = String(o.Mark || '').startsWith('R');
@@ -3074,23 +3719,27 @@ function initJobToggle() {
           
           const remainingOrderIds = [...remainingDeliverIds, ...remainingReturnIds];
 
-          let deliveredRecord = [];
+          let driverLogs = [];
           try {
-            deliveredRecord = JSON.parse(localStorage.getItem('active_job_delivered_record') || '[]');
+            driverLogs = JSON.parse(localStorage.getItem('active_job_driver_logs') || '[]');
           } catch (_) {}
 
-          // 3. Update Deliver_Job record
-          await syncDeliverJob(jobId, "update", {
-            Status: "OFF",
-            End_Time: Date.now(),
-            Active_Orders: JSON.stringify(remainingOrderIds),
-            Delivered_Record: JSON.stringify(deliveredRecord)
-          });
-          
-          showToast("Delivery job ended", "success");
+          // 3. Update or Delete Driver_Log record
+          if (driverLogs.length === 0) {
+            await syncDeliverJob(jobId, "delete", {});
+            showToast("Empty job discarded", "info");
+          } else {
+            await syncDeliverJob(jobId, "update", {
+              Status: "OFF",
+              End_Time: Date.now(),
+              Active_Orders: JSON.stringify(remainingOrderIds),
+              Driver_Logs: JSON.stringify(driverLogs)
+            });
+            showToast("Delivery job ended", "success");
+          }
         }
         localStorage.removeItem('active_job_id');
-        localStorage.removeItem('active_job_delivered_record');
+        localStorage.removeItem('active_job_driver_logs');
         jobToggle.checked = false;
 
         updateOnModeUI(false);
@@ -3230,7 +3879,9 @@ function renderOnModeList() {
     (o.Driver || "").trim() === driverName
   );
 
-  const activeReturnOrders = allOrders.filter(o => 
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+
+  const activeReturnOrders = isOutsource ? [] : allOrders.filter(o => 
     isReturnOrder(o) &&
     (o.Status || "").trim().toLowerCase() === "pending" && 
     (o.Driver || "").trim() === driverName
@@ -4151,7 +4802,7 @@ function showJobConfirmModal(toOn) {
 async function syncDeliverJob(jobId, action, fields) {
   try {
     const payload = {
-      sheet: "Deliver_Job",
+      sheet: "Driver_Log",
       action: action,
       data: {
         ID: jobId,
@@ -4398,7 +5049,7 @@ function bindUnloadProofModal() {
         }
 
         const fileName = `Track_Orders/${subFolder}/${doNumber}_${Date.now()}.jpg`;
-        const uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
+        const uploadUrl = `${WORKER_URL}/api/app3/upload?filename=${encodeURIComponent(fileName)}`;
 
         const uploadRes = await fetch(uploadUrl, {
           method: 'POST',

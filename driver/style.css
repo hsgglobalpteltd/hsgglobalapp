@@ -2030,3 +2030,95 @@ input:disabled + .toggle-slider {
   color: #059669 !important;
 }
 
+/* ==========================================================================
+   Sync Queue / Failed submissions State
+   ========================================================================== */
+.header-resubmit-btn {
+  position: absolute;
+  right: 60px; /* Positioned to the left of the On/Off switch */
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #EF4444;
+  color: #FFFFFF;
+  border: none;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 55;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+.header-resubmit-btn:active {
+  background-color: #DC2626;
+  opacity: 0.9;
+}
+
+.header-resubmit-btn:disabled {
+  background-color: #9CA3AF;
+  cursor: not-allowed;
+}
+
+.failed-sync-container {
+  position: fixed;
+  top: 44px;
+  left: 0;
+  right: 0;
+  background-color: rgba(239, 68, 68, 0.95);
+  color: white;
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 500;
+  z-index: 999; /* Just below header's 1000 */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.failed-sync-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.failed-sync-store {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.failed-sync-reason {
+  opacity: 0.85;
+  font-style: italic;
+  font-size: 9px;
+}
+
+.outsource-input {
+  width: 100%;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 500;
+  outline: none;
+  background: #FFFFFF;
+  color: #0F172A;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.outsource-input::placeholder {
+  color: #94A3B8;
+}
+
+.outsource-input:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+

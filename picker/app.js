@@ -3,7 +3,7 @@ if (window.innerWidth > 600) {
   window.location.href = '../index.html';
 }
 
-const WORKER_URL = 'https://ib.hsgglobalpteltd.workers.dev';
+const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
 const APP_VERSION = "26.0.3";
 
 // App State
@@ -216,15 +216,15 @@ window.addEventListener('DOMContentLoaded', () => {
         } else {
           authPendingAction = {
             type: 'start_pick',
-            orderId: currentOrder.ID
+            orderId: currentOrder.id
           };
           openAuthPage();
         }
       } else if (label === 'Cancel') {
-        const order = allOrders.find(o => o.ID === currentOrder.ID);
+        const order = allOrders.find(o => o.id === currentOrder.id);
         let logs = [];
         try {
-          logs = JSON.parse((order && order.Logs) || '[]');
+          logs = JSON.parse((order && order.logs) || '[]');
           if (!Array.isArray(logs)) logs = [];
         } catch (e) {
           logs = [];
@@ -236,15 +236,15 @@ window.addEventListener('DOMContentLoaded', () => {
           timestamp: Date.now()
         });
         // Clear checklists
-        const items = typeof currentOrder.Items === 'string' ? JSON.parse(currentOrder.Items || '[]') : (currentOrder.Items || []);
+        const items = typeof currentOrder.items === 'string' ? JSON.parse(currentOrder.items || '[]') : (currentOrder.items || []);
         items.forEach(item => {
           checkedItems[item.sku] = false;
         });
-        localStorage.removeItem(`picker_checked_${currentOrder.ID}`);
-        silentSyncOrderUpdate(currentOrder.ID, { 
-          Status: "Ready to Pick",
-          Picker: "",
-          Logs: JSON.stringify(logs)
+        localStorage.removeItem(`picker_checked_${currentOrder.id}`);
+        silentSyncOrderUpdate(currentOrder.id, { 
+          status: "Ready to Pick",
+          picker: "",
+          logs: JSON.stringify(logs)
         });
       } else if (label === 'Submit') {
         const cachedName = getCachedAuth();
@@ -253,7 +253,7 @@ window.addEventListener('DOMContentLoaded', () => {
         } else {
           authPendingAction = {
             type: 'submit_proof',
-            orderId: currentOrder.ID
+            orderId: currentOrder.id
           };
           openAuthPage();
         }
@@ -311,7 +311,7 @@ window.addEventListener('DOMContentLoaded', () => {
       } else {
         authPendingAction = {
           type: 'submit_handover',
-          orderId: currentOrder.ID
+          orderId: currentOrder.id
         };
         openAuthPage();
       }
@@ -473,7 +473,7 @@ async function fetchData() {
   if (refreshIcon) refreshIcon.classList.add('spinning');
 
   try {
-    const response = await fetch(`${WORKER_URL}/api/app2/Track_Orders?t=${Date.now()}`);
+    const response = await fetch(`${WORKER_URL}/api/app2/track_orders?t=${Date.now()}`);
     if (!response.ok) {
       throw new Error(`Worker API returned status ${response.status}`);
     }
@@ -539,11 +539,11 @@ function renderOrdersList() {
   if (activeTab === 'Complete') {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const completedOrders = allOrders.filter(o => 
-      o.Status === 'Delivered' && Number(o.Timestamp || 0) >= thirtyDaysAgo
+      o.status === 'Delivered' && Number(o.timestamp || 0) >= thirtyDaysAgo
     );
     
     // Sort latest first
-    completedOrders.sort((a, b) => Number(b.Timestamp || 0) - Number(a.Timestamp || 0));
+    completedOrders.sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
     
     if (qtyDisplay) {
       qtyDisplay.textContent = `Completed (30d): ${completedOrders.length}`;
@@ -567,7 +567,7 @@ function renderOrdersList() {
     const groupOrder = []; // To keep track of the date headers sorted latest first
     
     completedOrders.forEach(order => {
-      const ts = Number(order.Timestamp || 0);
+      const ts = Number(order.timestamp || 0);
       const d = new Date(ts);
       const day = String(d.getDate()).padStart(2, "0");
       const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -595,17 +595,16 @@ function renderOrdersList() {
       `;
       
       ordersInGroup.forEach(order => {
-        const doNum = order.DO_Number || order.do_number || 'UNKNOWN';
-        const deliverToVal = order.Deliver_To || order.deliver_to || order.DeliverTo || '';
-        const truncatedDeliver = deliverToVal.length > 12 ? deliverToVal.substring(0, 12) + '...' : deliverToVal;
+        const doNum = order.do_number || order.do_number || 'UNKNOWN';
+        const deliverToVal = order.deliver_to || order.deliver_to || order.DeliverTo || '';
         
-        const method = (order.Deliver_Method || order.deliver_method || "").trim().toLowerCase();
+        const method = (order.deliver_method || order.deliver_method || "").trim().toLowerCase();
         const isHandover = method !== "company delivery" && method !== "company vehicle";
         
         let shareBtnHtml = '';
         if (isHandover) {
           shareBtnHtml = `
-            <button class="complete-order-share-btn" data-id="${order.ID}" style="background: none; border: none; padding: 6px; cursor: pointer; color: #25D366; display: inline-flex; align-items: center; justify-content: center; outline: none; -webkit-tap-highlight-color: transparent; margin-right: 4px;" title="Share to WhatsApp">
+            <button class="complete-order-share-btn" data-id="${order.id}" style="background: none; border: none; padding: 6px; cursor: pointer; color: #25D366; display: inline-flex; align-items: center; justify-content: center; outline: none; -webkit-tap-highlight-color: transparent; margin-right: 4px;" title="Share to WhatsApp">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="width: 15px; height: 15px;">
                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
               </svg>
@@ -615,12 +614,12 @@ function renderOrdersList() {
         
         html += `
           <tr style="border-bottom: 1px solid #E2E8F0;">
-            <td style="padding: 12px 4px; color: #1E293B; font-weight: 600; font-family: monospace;">
-              ${doNum} - <span style="font-family: inherit; font-weight: 500; color: #64748B;">${truncatedDeliver}</span>
+            <td style="padding: 12px 4px; color: #1E293B; font-weight: 600; font-family: monospace; display: flex; align-items: center;">
+              ${doNum} - <span style="font-family: inherit; font-weight: 500; color: #64748B; display: inline-block; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-left: 4px;" title="${deliverToVal}">${deliverToVal}</span>
             </td>
             <td style="padding: 12px 4px; text-align: right; width: 80px; white-space: nowrap;">
               ${shareBtnHtml}
-              <button class="complete-order-logs-btn" data-id="${order.ID}" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--app-color); display: inline-flex; align-items: center; justify-content: center; outline: none; -webkit-tap-highlight-color: transparent;">
+              <button class="complete-order-logs-btn" data-id="${order.id}" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--app-color); display: inline-flex; align-items: center; justify-content: center; outline: none; -webkit-tap-highlight-color: transparent;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="width: 15px; height: 15px;">
                   <circle cx="12" cy="12" r="10"></circle>
                   <line x1="12" y1="16" x2="12" y2="12"></line>
@@ -646,7 +645,7 @@ function renderOrdersList() {
     listContainer.querySelectorAll('.complete-order-logs-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const oId = btn.getAttribute('data-id');
-        const matchingOrder = allOrders.find(o => o.ID === oId);
+        const matchingOrder = allOrders.find(o => o.id === oId);
         if (matchingOrder) {
           openLogsPage(matchingOrder);
         }
@@ -666,23 +665,23 @@ function renderOrdersList() {
   let filtered = allOrders.filter(order => {
     // 1. Check main page tab status mapping
     if (activeTab === 'Pending') {
-      const isReady = order.Status === 'Ready to Pick';
-      const isPicking = order.Status === 'Picking';
+      const isReady = order.status === 'Ready to Pick';
+      const isPicking = order.status === 'Picking';
       if (!isReady && !isPicking) return false;
       
       // Sub-tab filters by Zone (All, North, North-East, East, West, Central, South)
       if (activeSubTab !== 'All') {
-        const orderZone = getZoneFromPostcode(order.Poscode || order.poscode);
+        const orderZone = getZoneFromPostcode(order.poscode || order.poscode);
         if (orderZone !== activeSubTab) {
           return false;
         }
       }
     } else if (activeTab === 'Goods Ready') {
       const allowedStatuses = ['Ready to Deliver', 'Load', 'Out for Delivery'];
-      if (!allowedStatuses.includes(order.Status)) return false;
+      if (!allowedStatuses.includes(order.status)) return false;
       
       // Sub-tab filters by Status (All, Ready to Deliver, Load, Out for Delivery)
-      if (activeSubTab !== 'All' && order.Status !== activeSubTab) {
+      if (activeSubTab !== 'All' && order.status !== activeSubTab) {
         return false;
       }
     }
@@ -690,8 +689,8 @@ function renderOrdersList() {
     // 2. Search query matches ID or Deliver_To
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase().trim();
-      const idMatch = (order.ID || '').toLowerCase().includes(query);
-      const deliverMatch = (order.Deliver_To || '').toLowerCase().includes(query);
+      const idMatch = (order.id || '').toLowerCase().includes(query);
+      const deliverMatch = (order.deliver_to || '').toLowerCase().includes(query);
       return idMatch || deliverMatch;
     }
     return true;
@@ -700,8 +699,8 @@ function renderOrdersList() {
   // Sort by Status (Picking first, then Ready to Pick), then by priority (Urgent > Appointment > Normal) and then oldest first
   filtered.sort((a, b) => {
     const statusOrder = { 'Picking': 1, 'Ready to Pick': 2 };
-    const statusA = a.Status || 'Ready to Pick';
-    const statusB = b.Status || 'Ready to Pick';
+    const statusA = a.status || 'Ready to Pick';
+    const statusB = b.status || 'Ready to Pick';
     const rankA = statusOrder[statusA] || 99;
     const rankB = statusOrder[statusB] || 99;
     if (rankA !== rankB) return rankA - rankB;
@@ -713,15 +712,15 @@ function renderOrdersList() {
       return 3;
     };
     
-    const scoreA = getPriorityScore(a.Type);
-    const scoreB = getPriorityScore(b.Type);
+    const scoreA = getPriorityScore(a.type);
+    const scoreB = getPriorityScore(b.type);
     
     if (scoreA !== scoreB) {
       return scoreA - scoreB;
     }
     
-    const timeA = Number(a.Timestamp || a.timestamp || 0);
-    const timeB = Number(b.Timestamp || b.timestamp || 0);
+    const timeA = Number(a.timestamp || a.timestamp || 0);
+    const timeB = Number(b.timestamp || b.timestamp || 0);
     return timeA - timeB;
   });
 
@@ -757,27 +756,44 @@ function renderOrdersList() {
     card.style.alignItems = 'stretch';
     
     const me = getCachedAuth();
-    if (order.Status === 'Picking' && me && (order.Picker || '').trim() !== me) {
+    if (order.status === 'Picking' && me && (order.picker || '').trim() !== me) {
       card.style.opacity = '0.7';
     }
 
-    // 1:1 Mark avatar - Displays the "Mark" column value from sheet (e.g. X, Y)
-    const markVal = order.Mark || '-';
+    // 1:1 Mark avatar - Displays the 'mark' column value from sheet (e.g. X, Y)
+    const markVal = order.mark || '-';
     
-    // Relative time elapsed (top-right corner)
-    const relativeTime = getRelativeTime(order.Timestamp || order.timestamp);
-    const timeHtml = `<span class="time-elapsed">${relativeTime}</span>`;
+    // Relative time elapsed (top-right corner) and optional logs icon
+    const relativeTime = getRelativeTime(order.timestamp || order.timestamp);
+    let logIconHtml = '';
+    if (activeTab === 'Goods Ready') {
+      logIconHtml = `
+        <button class="card-logs-btn" data-id="${order.id}" style="background: none; border: none; padding: 4px; margin-left: 6px; cursor: pointer; color: var(--app-color); display: inline-flex; align-items: center; justify-content: center; outline: none; -webkit-tap-highlight-color: transparent; vertical-align: middle;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+        </button>
+      `;
+    }
+    const timeHtml = `
+      <div style="display: flex; align-items: center; gap: 2px;">
+        <span class="time-elapsed">${relativeTime}</span>
+        ${logIconHtml}
+      </div>
+    `;
     
     // Bottom status badges (Zone and Type) matching Merchandiser App
-    const zoneName = getZoneFromPostcode(order.Poscode || order.poscode);
+    const zoneName = getZoneFromPostcode(order.poscode || order.poscode);
     
-    const typeRaw = (order.Type || 'Normal').trim();
+    const typeRaw = (order.type || 'Normal').trim();
     const typeUpper = typeRaw.toUpperCase();
 
     // Parse Items and count total quantity of SKUs for "Small Order" badge
     let totalQty = 0;
     try {
-      const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
+      const items = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
       if (Array.isArray(items)) {
         items.forEach(item => {
           totalQty += Number(item.qty || 0);
@@ -792,15 +808,13 @@ function renderOrdersList() {
       smallOrderBadgeHtml = `<span class="order-badge small-order-badge">Small Order</span>`;
     }
 
-    // Truncate Subtext to max 12 or 10 characters followed by 3 dots (...) if exceeded
-    const deliverToVal = order.Deliver_To || order.deliver_to || order.DeliverTo || '';
-    const limit = activeTab === 'Goods Ready' ? 10 : 12;
-    const truncatedDeliver = truncateDeliverTo(deliverToVal || 'No delivery destination specified', limit);
+    // Use full subtext to display in card (CSS handles ellipsis native truncation)
+    const deliverToVal = order.deliver_to || order.deliver_to || order.DeliverTo || 'No delivery destination specified';
 
     let typeBarHtml = '';
-    if (order.Status === 'Picking') {
+    if (order.status === 'Picking') {
       const currentPicker = getCachedAuth();
-      if (currentPicker && (order.Picker || '').trim() === currentPicker) {
+      if (currentPicker && (order.picker || '').trim() === currentPicker) {
         typeBarHtml = `
           <div class="order-card-type-bar type-bar-picking-me">
             Picking by You (In Progress)
@@ -809,7 +823,7 @@ function renderOrdersList() {
       } else {
         typeBarHtml = `
           <div class="order-card-type-bar type-bar-picking-other">
-            Picking by ${order.Picker || 'another picker'}
+            Picking by ${order.picker || 'another picker'}
           </div>
         `;
       }
@@ -825,7 +839,7 @@ function renderOrdersList() {
       if (match) {
         formattedDate = match[1];
       } else {
-        formattedDate = formatTimestamp(order.Deadline || order.deadline || order.Timestamp || order.timestamp);
+        formattedDate = formatTimestamp(order.deadline || order.deadline || order.timestamp || order.timestamp);
       }
       typeBarHtml = `
         <div class="order-card-type-bar type-bar-appointment">
@@ -835,11 +849,11 @@ function renderOrdersList() {
     }
 
     if (activeTab === 'Goods Ready') {
-      const methodVal = order.Deliver_Method || order.deliver_method || order.DeliverMethod || 'Company Delivery';
+      const methodVal = order.deliver_method || order.deliver_method || order.DeliverMethod || 'Company Delivery';
       const isCompanyDelivery = methodVal === 'Company Delivery';
       
-      const isDriverHandled = order.Status === 'Load' || order.Status === 'Out for Delivery';
-      const driverName = order.Driver || order.driver || 'Driver';
+      const isDriverHandled = order.status === 'Load' || order.status === 'Out for Delivery';
+      const driverName = order.driver || order.driver || 'driver';
 
       if (isDriverHandled) {
         card.innerHTML = `
@@ -847,10 +861,10 @@ function renderOrdersList() {
             <div class="mark-avatar" title="1:1 Mark Ratio">${markVal}</div>
             <div class="order-card-content" style="flex: 1; min-width: 0; padding: 12px 16px 12px 12px;">
               <div class="order-card-header">
-                <span class="order-id" title="${order.ID || ''}">${order.ID || 'N/A'}</span>
+                <span class="order-id" title="${order.id || ''}">${order.id || 'N/A'}</span>
                 ${timeHtml}
               </div>
-              <div class="order-deliver-to">${truncatedDeliver}</div>
+              <div class="order-deliver-to">${deliverToVal}</div>
               <div class="order-card-footer" style="margin-top: 6px;">
                 <span class="order-badge zone-badge">${zoneName}</span>
                 ${smallOrderBadgeHtml}
@@ -874,10 +888,10 @@ function renderOrdersList() {
             <div class="mark-avatar" title="1:1 Mark Ratio">${markVal}</div>
             <div class="order-card-content" style="flex: 1; min-width: 0; padding: 12px 16px 12px 12px;">
               <div class="order-card-header">
-                <span class="order-id" title="${order.ID || ''}">${order.ID || 'N/A'}</span>
+                <span class="order-id" title="${order.id || ''}">${order.id || 'N/A'}</span>
                 ${timeHtml}
               </div>
-              <div class="order-deliver-to">${truncatedDeliver}</div>
+              <div class="order-deliver-to">${deliverToVal}</div>
               <div class="order-card-footer" style="margin-top: 6px;">
                 <span class="order-badge zone-badge">${zoneName}</span>
                 ${smallOrderBadgeHtml}
@@ -918,10 +932,10 @@ function renderOrdersList() {
           <div class="mark-avatar" title="1:1 Mark Ratio">${markVal}</div>
           <div class="order-card-content" style="flex: 1; min-width: 0; padding: 14px 16px 14px 14px;">
             <div class="order-card-header">
-              <span class="order-id" title="${order.ID || ''}">${order.ID || 'N/A'}</span>
+              <span class="order-id" title="${order.id || ''}">${order.id || 'N/A'}</span>
               ${timeHtml}
             </div>
-            <div class="order-deliver-to">${truncatedDeliver}</div>
+            <div class="order-deliver-to">${deliverToVal}</div>
             <div class="order-card-footer">
               <span class="order-badge zone-badge">${zoneName}</span>
               ${smallOrderBadgeHtml}
@@ -937,7 +951,7 @@ function renderOrdersList() {
       if (waBtn) {
         waBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          sharePickerOrderToWhatsApp(order.ID);
+          sharePickerOrderToWhatsApp(order.id);
         });
       }
       const hoBtn = card.querySelector('.handover-btn');
@@ -954,13 +968,20 @@ function renderOrdersList() {
           confirmRevertOrder(order);
         });
       }
+      const logBtn = card.querySelector('.card-logs-btn');
+      if (logBtn) {
+        logBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openLogsPage(order);
+        });
+      }
     }
 
     if (activeTab === 'Pending') {
       card.addEventListener('click', () => {
         const loggedIn = getCachedAuth();
-        if (order.Status === 'Picking' && loggedIn && (order.Picker || '').trim() !== loggedIn) {
-          showToast(`This order is currently being picked by ${order.Picker}`, "warning");
+        if (order.status === 'Picking' && loggedIn && (order.picker || '').trim() !== loggedIn) {
+          showToast(`This order is currently being picked by ${order.picker}`, "warning");
           return;
         }
         openPickingPage(order);
@@ -1049,7 +1070,7 @@ function collapseSearch(shouldRender = true) {
 async function fetchSupportData() {
   const cachedProducts = localStorage.getItem('picker_products');
   const cachedBrands = localStorage.getItem('picker_brands');
-  const cachedUsers = localStorage.getItem('picker_users');
+  const cachedUsers = localStorage.getItem('picker_employees');
   
   if (cachedProducts) allProducts = JSON.parse(cachedProducts);
   if (cachedBrands) allBrands = JSON.parse(cachedBrands);
@@ -1057,9 +1078,9 @@ async function fetchSupportData() {
 
   try {
     const [prodRes, brandRes, userRes] = await Promise.all([
-      fetch(`${WORKER_URL}/api/app2/products?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app2/brands?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app2/users?t=${Date.now()}`)
+      fetch(`${WORKER_URL}/api/app2/products_db?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app2/brands_db?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app2/employees?t=${Date.now()}`)
     ]);
     
     if (prodRes.ok) {
@@ -1075,7 +1096,7 @@ async function fetchSupportData() {
     if (userRes.ok) {
       const userData = await userRes.json();
       allUsers = userData.value || userData;
-      localStorage.setItem('picker_users', JSON.stringify(allUsers));
+      localStorage.setItem('picker_employees', JSON.stringify(allUsers));
     }
   } catch (err) {
     console.error("Failed to fetch support metadata:", err);
@@ -1085,12 +1106,12 @@ async function fetchSupportData() {
 // Instantly update LocalStorage and silently sync updates to GAS proxy endpoint
 async function silentSyncOrderUpdate(orderId, fields) {
   // 1. Instantly update local state
-  const order = allOrders.find(o => o.ID === orderId);
+  const order = allOrders.find(o => o.id === orderId);
   if (order) {
     Object.assign(order, fields);
     localStorage.setItem('picker_orders', JSON.stringify(allOrders));
     renderOrdersList();
-    if (currentOrder && currentOrder.ID === orderId) {
+    if (currentOrder && currentOrder.id === orderId) {
       Object.assign(currentOrder, fields);
       renderPickingPage();
     }
@@ -1099,10 +1120,10 @@ async function silentSyncOrderUpdate(orderId, fields) {
   // 2. Silently POST update to Worker
   try {
     const payload = {
-      sheet: "Track_Orders",
+      table: "track_orders",
       action: "update",
       data: {
-        ID: orderId,
+        id: orderId,
         ...fields
       }
     };
@@ -1126,7 +1147,7 @@ async function silentSyncOrderUpdate(orderId, fields) {
 // Detail page opening and initialization
 function openPickingPage(order) {
   currentOrder = order;
-  const cachedChecked = localStorage.getItem(`picker_checked_${order.ID}`);
+  const cachedChecked = localStorage.getItem(`picker_checked_${order.id}`);
   if (cachedChecked) {
     try {
       checkedItems = JSON.parse(cachedChecked);
@@ -1145,14 +1166,14 @@ function openPickingPage(order) {
   const deliverValue = document.getElementById('picking-order-deliver');
   const zoneValue = document.getElementById('picking-order-zone');
 
-  if (markBox) markBox.textContent = order.Mark || '-';
-  if (idValue) idValue.textContent = order.ID || 'N/A';
-  if (deliverValue) deliverValue.textContent = order.Deliver_To || order.deliver_to || order.DeliverTo || '';
-  if (zoneValue) zoneValue.textContent = getZoneFromPostcode(order.Poscode || order.poscode);
+  if (markBox) markBox.textContent = order.mark || '-';
+  if (idValue) idValue.textContent = order.id || 'N/A';
+  if (deliverValue) deliverValue.textContent = order.deliver_to || order.deliver_to || order.DeliverTo || '';
+  if (zoneValue) zoneValue.textContent = getZoneFromPostcode(order.poscode || order.poscode);
 
   const doPaperBtn = document.getElementById('picking-do-paper-btn');
   if (doPaperBtn) {
-    const paperUrlRaw = order.Photo_DO_Paper || order.photo_do_paper || order.PhotoDoPaper || '';
+    const paperUrlRaw = order.photo_do_paper || order.photo_do_paper || order.PhotoDoPaper || '';
     const parsedUrls = parseDOImages(paperUrlRaw);
     if (parsedUrls.length > 0) {
       doPaperBtn.style.display = 'flex';
@@ -1173,7 +1194,7 @@ function renderPickingPage() {
   const backBtn = document.getElementById('picking-back-btn');
   const actionBtn = document.getElementById('picking-action-btn');
 
-  if (currentOrder.Status === 'Picking') {
+  if (currentOrder.status === 'Picking') {
     const isMe = isOrderPickedByMe(currentOrder);
     if (isMe) {
       if (backBtn) backBtn.style.display = 'none';
@@ -1183,7 +1204,7 @@ function renderPickingPage() {
       if (actionBtn) {
         let pickedBy = 'another picker';
         try {
-          const logs = JSON.parse(currentOrder.Logs || '[]');
+          const logs = JSON.parse(currentOrder.logs || '[]');
           const lastStartLog = logs.slice().reverse().find(l => l.action === "Start Picking");
           if (lastStartLog && lastStartLog.actionBy) pickedBy = lastStartLog.actionBy;
         } catch (_) {}
@@ -1210,7 +1231,7 @@ function renderPickingItems(order) {
   if (!container) return;
   container.innerHTML = '';
 
-  const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
+  const items = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
   if (items.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="empty-text">No Items to Pick</div></div>`;
     return;
@@ -1219,19 +1240,19 @@ function renderPickingItems(order) {
   // Map to products and brands, preserving original index
   const placeholderImg = "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2264%22%20height%3D%2264%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394A3B8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%20ry%3D%222%22%2F%3E%3Ccircle%20cx%3D%228.5%22%20cy%3D%228.5%22%20r%3D%221.5%22%2F%3E%3Cpolyline%20points%3D%2221%2015%2016%2010%205%2021%22%2F%3E%3C%2Fsvg%3E";
   const mapped = items.map((item, index) => {
-    const prod = allProducts.find(p => (p.SKU || p.sku || '').toUpperCase() === (item.sku || '').toUpperCase());
+    const prod = allProducts.find(p => (p.sku || p.sku || '').toUpperCase() === (item.sku || '').toUpperCase());
     let brandName = 'Other Brands';
     let prodName = item.sku;
     let imgUrl = '';
 
     if (prod) {
-      prodName = prod["Display Name"] || prod.name || item.sku;
+      prodName = prod.display_name || prod.name || item.sku;
       imgUrl = prod.Image || prod.image || '';
       const brandId = prod["Brands ID"] || prod.Brands_ID || prod.brandId;
       if (brandId) {
-        const brand = allBrands.find(b => b.ID === brandId || b.id === brandId);
+        const brand = allBrands.find(b => b.id === brandId || b.id === brandId);
         if (brand) {
-          brandName = brand["Display Name"] || brand.name || 'Other Brands';
+          brandName = brand.display_name || brand.name || 'Other Brands';
         }
       }
     }
@@ -1288,7 +1309,7 @@ function renderPickingItems(order) {
       imgContainer.appendChild(img);
 
       // 50% transparent overlay with A1 A2 markings
-      const mark = order.Mark || "A";
+      const mark = order.mark || "A";
       const seqText = `${mark}${item.originalIndex + 1}`;
 
       const overlay = document.createElement('div');
@@ -1365,7 +1386,7 @@ function renderPickingItems(order) {
 
       card.appendChild(qtyContainer);
 
-      if (order.Status === 'Picking') {
+      if (order.status === 'Picking') {
         const checkContainer = document.createElement('div');
         checkContainer.className = 'picking-item-check-container';
 
@@ -1381,7 +1402,7 @@ function renderPickingItems(order) {
         if (isMe) {
           checkbox.addEventListener('click', () => {
             checkedItems[item.sku] = !checkedItems[item.sku];
-            localStorage.setItem(`picker_checked_${order.ID}`, JSON.stringify(checkedItems));
+            localStorage.setItem(`picker_checked_${order.id}`, JSON.stringify(checkedItems));
             checkbox.className = `picking-item-checkbox ${checkedItems[item.sku] ? 'checked' : ''}`;
             checkbox.innerHTML = checkedItems[item.sku] ? `
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1408,7 +1429,7 @@ function renderPickingItems(order) {
 
   const photoSection = document.getElementById('picking-photo-section');
   if (photoSection) {
-    if (order.Status === 'Picking') {
+    if (order.status === 'Picking') {
       photoSection.classList.remove('hidden');
     } else {
       photoSection.classList.add('hidden');
@@ -1437,13 +1458,13 @@ function updatePickingButtonState(order) {
   if (!actionBtn) return;
   actionBtn.disabled = false;
 
-  if (order.Status !== 'Picking') {
+  if (order.status !== 'Picking') {
     actionBtn.className = 'picking-action-btn';
     actionBtn.textContent = 'Start Pick';
     return;
   }
 
-  const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
+  const items = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
   const allChecked = items.every(item => checkedItems[item.sku] === true);
   const photoSection = document.getElementById('picking-photo-section');
 
@@ -1559,7 +1580,7 @@ function bindAuthPinInputs() {
     // Update displays
     displays.forEach((display, idx) => {
       if (idx < val.length) {
-        display.textContent = '*'; // Masked character
+        display.textContent = '●'; // Masked character
         display.classList.remove('active');
       } else {
         display.textContent = '';
@@ -1742,10 +1763,10 @@ function updateDrawerLogoutButton() {
 
 function proceedToPicking(pickerName) {
   if (!currentOrder) return;
-  const order = allOrders.find(o => o.ID === currentOrder.ID);
+  const order = allOrders.find(o => o.id === currentOrder.id);
   let logs = [];
   try {
-    logs = JSON.parse((order && order.Logs) || '[]');
+    logs = JSON.parse((order && order.logs) || '[]');
     if (!Array.isArray(logs)) logs = [];
   } catch (e) {
     logs = [];
@@ -1756,10 +1777,10 @@ function proceedToPicking(pickerName) {
     remark: "Started picking items",
     timestamp: Date.now()
   });
-  silentSyncOrderUpdate(currentOrder.ID, { 
-    Status: "Picking",
-    Picker: pickerName,
-    Logs: JSON.stringify(logs)
+  silentSyncOrderUpdate(currentOrder.id, { 
+    status: "Picking",
+    picker: pickerName,
+    logs: JSON.stringify(logs)
   });
 }
 
@@ -1779,9 +1800,9 @@ async function proceedToSubmitProof(pickerName) {
       console.warn("Image compression failed, using original file:", compressErr);
     }
     
-    const doNumber = currentOrder.DO_Number || currentOrder.do_number || 'UNKNOWN';
+    const doNumber = currentOrder.do_number || currentOrder.do_number || 'UNKNOWN';
     const fileName = `Track_Orders/Picker_Proof/${doNumber}_${Date.now()}.jpg`;
-    const uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
+    const uploadUrl = `${WORKER_URL}/api/app2/upload?filename=${encodeURIComponent(fileName)}`;
     
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
@@ -1801,10 +1822,10 @@ async function proceedToSubmitProof(pickerName) {
       throw new Error(`Upload failed with status ${uploadRes.status}`);
     }
 
-    const order = allOrders.find(o => o.ID === currentOrder.ID);
+    const order = allOrders.find(o => o.id === currentOrder.id);
     let logs = [];
     try {
-      logs = JSON.parse((order && order.Logs) || '[]');
+      logs = JSON.parse((order && order.logs) || '[]');
       if (!Array.isArray(logs)) logs = [];
     } catch (e) {
       logs = [];
@@ -1817,12 +1838,12 @@ async function proceedToSubmitProof(pickerName) {
       photoUrl: photoUrl
     });
 
-    const submittedOrderId = currentOrder.ID;
+    const submittedOrderId = currentOrder.id;
 
     await silentSyncOrderUpdate(submittedOrderId, {
-      Status: "Ready to Deliver",
-      Photo_Picker_Proof: photoUrl,
-      Logs: JSON.stringify(logs)
+      status: "Ready to Deliver",
+      photo_picker_proof: photoUrl,
+      logs: JSON.stringify(logs)
     });
 
     showToast("Order submitted successfully!", "success");
@@ -1845,7 +1866,7 @@ async function proceedToSubmitProof(pickerName) {
 // Authenticate PIN, compress/upload proof photo, and advance order state to "Ready to Deliver"
 async function submitProofPIN(pin) {
   const enteredPin = parseInt(pin);
-  const matchedUser = allUsers.find(u => parseInt(u.PIN || u.pin) === enteredPin);
+  const matchedUser = allUsers.find(u => parseInt(u.pin || u.pin) === enteredPin);
   
   if (!matchedUser) {
     const hiddenInput = document.getElementById('auth-pin-hidden');
@@ -1863,7 +1884,7 @@ async function submitProofPIN(pin) {
     return;
   }
 
-  const pickerName = matchedUser.Name || matchedUser.name || 'Picker';
+  const pickerName = matchedUser.name || matchedUser.name || 'picker';
   
   // Cache for 30 minutes
   setCachedAuth(pickerName);
@@ -1904,17 +1925,17 @@ function closeRevertModal() {
 
 async function executeRevertOrder() {
   if (!orderToRevert) return;
-  const orderId = orderToRevert.ID;
+  const orderId = orderToRevert.id;
   
   closeRevertModal();
   showToast("Reverting order status...", "info");
 
   try {
-    const pickerName = getCachedAuth() || "Picker";
-    const order = allOrders.find(o => o.ID === orderId);
+    const pickerName = getCachedAuth() || 'picker';
+    const order = allOrders.find(o => o.id === orderId);
     let logs = [];
     try {
-      logs = JSON.parse((order && order.Logs) || '[]');
+      logs = JSON.parse((order && order.logs) || '[]');
       if (!Array.isArray(logs)) logs = [];
     } catch (e) {
       logs = [];
@@ -1927,10 +1948,10 @@ async function executeRevertOrder() {
     });
 
     await silentSyncOrderUpdate(orderId, {
-      Status: "Ready to Pick",
-      Photo_Picker_Proof: "",
+      status: "Ready to Pick",
+      photo_picker_proof: "",
       Picker_Photo: "",
-      Logs: JSON.stringify(logs)
+      logs: JSON.stringify(logs)
     });
 
     showToast("Order reverted back to picking!", "success");
@@ -1942,7 +1963,7 @@ async function executeRevertOrder() {
 
 function isOrderPickedByMe(order) {
   const me = getCachedAuth();
-  return me && (order.Picker || '').trim() === me;
+  return me && (order.picker || '').trim() === me;
 }
 
 // Option 4: Revert status to Ready to Pick if browser is closed/tab is hidden during picking
@@ -1950,12 +1971,12 @@ function isOrderPickedByMe(order) {
 
 // WhatsApp sharing modal and file downloader
 async function sharePickerOrderToWhatsApp(orderId) {
-  const order = allOrders.find(o => o.ID === orderId);
+  const order = allOrders.find(o => o.id === orderId);
   if (!order) return;
 
-  const id = order.ID || 'N/A';
-  const deliverTo = order.Deliver_To || order.deliver_to || order.DeliverTo || 'N/A';
-  const imgUrl = order.Photo_Handover_Proof || order.photo_handover_proof || order.Photo_Picker_Proof || order.photo_picker_proof || order.Picker_Photo || order.picker_photo || '';
+  const id = order.id || 'N/A';
+  const deliverTo = order.deliver_to || order.deliver_to || order.DeliverTo || 'N/A';
+  const imgUrl = order.photo_handover_proof || order.photo_handover_proof || order.photo_picker_proof || order.photo_picker_proof || order.Picker_Photo || order.picker_photo || '';
 
   // Setup UI components
   const overlay = document.getElementById('whatsapp-prep-overlay');
@@ -2037,7 +2058,7 @@ async function sharePickerOrderToWhatsApp(orderId) {
 
       let fetchUrl = imgUrl;
       if (!imgUrl.startsWith('data:') && !imgUrl.startsWith('blob:') && !imgUrl.startsWith(WORKER_URL)) {
-        fetchUrl = `${WORKER_URL}/api/proxy?url=${encodeURIComponent(imgUrl)}`;
+        fetchUrl = `${WORKER_URL}/api/app2/proxy?url=${encodeURIComponent(imgUrl)}`;
       }
 
       const res = await fetch(fetchUrl);
@@ -2046,7 +2067,7 @@ async function sharePickerOrderToWhatsApp(orderId) {
       const blob = await res.blob();
       if (isCancelled) return;
 
-      const doNumber = order.DO_Number || order.do_number || 'order';
+      const doNumber = order.do_number || order.do_number || 'order';
       downloadedFile = new File([blob], `${doNumber}_proof.jpg`, { type: 'image/jpeg' });
 
       statusText.textContent = "Complete";
@@ -2064,7 +2085,7 @@ async function sharePickerOrderToWhatsApp(orderId) {
     }
   }
 
-  const ts = Number(order.Timestamp || Date.now());
+  const ts = Number(order.timestamp || Date.now());
   const d = new Date(ts);
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -2076,11 +2097,11 @@ async function sharePickerOrderToWhatsApp(orderId) {
   let statusHeader = '';
   let statusRemark = '';
 
-  if (order.Status === 'Delivered') {
+  if (order.status === 'Delivered') {
     statusHeader = 'Goods Delivered';
     let handoverRemark = '';
     try {
-      const logs = JSON.parse(order.Logs || '[]');
+      const logs = JSON.parse(order.logs || '[]');
       const handoverLog = logs.find(l => l.action === "Handover Completed" || (l.action && l.action.toLowerCase().includes("handover")));
       if (handoverLog && handoverLog.remark) {
         handoverRemark = handoverLog.remark.replace("Handed over directly to", "Handover to");
@@ -2095,7 +2116,7 @@ async function sharePickerOrderToWhatsApp(orderId) {
     statusHeader = 'Goods Ready to Deliver';
     let pickerRemark = '';
     try {
-      const logs = JSON.parse(order.Logs || '[]');
+      const logs = JSON.parse(order.logs || '[]');
       const pickLog = logs.find(l => l.action === "Picked & Proof Submitted" || (l.action && l.action.toLowerCase().includes("picked")));
       if (pickLog && pickLog.remark) {
         pickerRemark = pickLog.remark;
@@ -2110,7 +2131,7 @@ async function sharePickerOrderToWhatsApp(orderId) {
 
   let itemsListText = '';
   try {
-    const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
+    const items = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
     if (Array.isArray(items) && items.length > 0) {
       itemsListText = `\n\nSKU........QTY\n` + items.map(item => {
         const skuRaw = String(item.sku || item.Sku || 'Unknown');
@@ -2178,10 +2199,10 @@ function openHandoverPage(order) {
   const idValue = document.getElementById('handover-order-id');
   const deliverValue = document.getElementById('handover-order-deliver');
   
-  if (markBox) markBox.textContent = order.Mark || order.mark || '-';
-  if (idValue) idValue.textContent = order.ID || 'N/A';
+  if (markBox) markBox.textContent = order.mark || order.mark || '-';
+  if (idValue) idValue.textContent = order.id || 'N/A';
   if (deliverValue) {
-    const deliverToVal = order.Deliver_To || order.deliver_to || order.DeliverTo || '';
+    const deliverToVal = order.deliver_to || order.deliver_to || order.DeliverTo || '';
     deliverValue.textContent = deliverToVal || 'No delivery destination specified';
   }
   
@@ -2314,9 +2335,9 @@ async function proceedToSubmitHandover(pickerName) {
       console.warn("Image compression failed, using original file:", compressErr);
     }
     
-    const doNumber = currentOrder.DO_Number || currentOrder.do_number || 'UNKNOWN';
+    const doNumber = currentOrder.do_number || currentOrder.do_number || 'UNKNOWN';
     const fileName = `Track_Orders/Handover_Proof/${doNumber}_${Date.now()}.jpg`;
-    const uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
+    const uploadUrl = `${WORKER_URL}/api/app2/upload?filename=${encodeURIComponent(fileName)}`;
     
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
@@ -2336,10 +2357,10 @@ async function proceedToSubmitHandover(pickerName) {
       throw new Error(`Upload failed with status ${uploadRes.status}`);
     }
 
-    const order = allOrders.find(o => o.ID === currentOrder.ID);
+    const order = allOrders.find(o => o.id === currentOrder.id);
     let logs = [];
     try {
-      logs = JSON.parse((order && order.Logs) || '[]');
+      logs = JSON.parse((order && order.logs) || '[]');
       if (!Array.isArray(logs)) logs = [];
     } catch (e) {
       logs = [];
@@ -2352,11 +2373,11 @@ async function proceedToSubmitHandover(pickerName) {
       photoUrl: photoUrl
     });
 
-    const submittedOrderId = currentOrder.ID;
+    const submittedOrderId = currentOrder.id;
     await silentSyncOrderUpdate(submittedOrderId, {
-      Status: "Delivered",
-      Photo_Handover_Proof: photoUrl,
-      Logs: JSON.stringify(logs)
+      status: "Delivered",
+      photo_handover_proof: photoUrl,
+      logs: JSON.stringify(logs)
     });
 
     showToast("Handover completed successfully!", "success");
@@ -2381,7 +2402,7 @@ function openLogsPage(order) {
   page.classList.add('active');
   
   const titleEl = document.getElementById('logs-page-title');
-  const doNum = order.DO_Number || order.do_number || 'Order';
+  const doNum = order.do_number || order.do_number || 'Order';
   if (titleEl) titleEl.textContent = `Logs - ${doNum}`;
   
   const container = document.getElementById('logs-timeline-container');
@@ -2391,7 +2412,7 @@ function openLogsPage(order) {
   
   let logs = [];
   try {
-    logs = JSON.parse(order.Logs || '[]');
+    logs = JSON.parse(order.logs || '[]');
   } catch (e) {
     logs = [];
   }
@@ -2420,19 +2441,19 @@ function openLogsPage(order) {
     } else {
       const act = (log.action || '').toLowerCase();
       if (act.includes("created") || act.includes("imported") || act.includes("sent")) {
-        const rawVal = order.Photo_DO_Paper || order.photo_do_paper || order.PhotoDoPaper || '';
+        const rawVal = order.photo_do_paper || order.photo_do_paper || order.PhotoDoPaper || '';
         imgUrls = parseDOImages(rawVal);
       } else if (act.includes("picked") || act.includes("proof")) {
-        const rawVal = order.Photo_Picker_Proof || order.photo_picker_proof || order.PhotoPickerProof || '';
+        const rawVal = order.photo_picker_proof || order.photo_picker_proof || order.PhotoPickerProof || '';
         imgUrls = parseDOImages(rawVal);
       } else if (act.includes("delivered")) {
-        const rawVal = order.Photo_Delivered_Proof || order.photo_delivered_proof || order.PhotoDeliveredProof || '';
+        const rawVal = order.photo_delivered_proof || order.photo_delivered_proof || order.PhotoDeliveredProof || '';
         imgUrls = parseDOImages(rawVal);
       } else if (act.includes("handover")) {
-        const rawVal = order.Photo_Handover_Proof || order.photo_handover_proof || order.PhotoHandoverProof || '';
+        const rawVal = order.photo_handover_proof || order.photo_handover_proof || order.PhotoHandoverProof || '';
         imgUrls = parseDOImages(rawVal);
       } else if (act.includes("signed")) {
-        const rawVal = order.Photo_DO_Paper_Signed || order.photo_do_paper_signed || order.PhotoDoPaperSigned || '';
+        const rawVal = order.photo_do_paper_signed || order.photo_do_paper_signed || order.PhotoDoPaperSigned || '';
         imgUrls = parseDOImages(rawVal);
       }
     }

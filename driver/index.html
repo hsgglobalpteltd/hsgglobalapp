@@ -76,7 +76,9 @@
         <span class="toggle-slider"></span>
       </label>
     </div>
+    <button id="resubmit-btn" class="header-resubmit-btn hidden">Re-Submit</button>
   </header>
+  <div id="failed-sync-list" class="failed-sync-container hidden"></div>
 
 
 
@@ -274,7 +276,7 @@
 
     <div class="auth-content">
       <!-- 4-digit PIN Masked Input -->
-      <div class="pin-entry-container" style="margin-top: 40px;">
+      <div id="auth-pin-container" class="pin-entry-container" style="margin-top: 40px;">
         <label class="pin-entry-label" style="font-size: 13px; color: #94A3B8; margin-bottom: 20px; font-weight: 700;">ENTER 4-DIGIT PIN</label>
         <div class="pin-digits-row" id="pin-digits-wrapper" style="position: relative; cursor: pointer;">
           <input type="tel" id="auth-pin-hidden" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;">
@@ -284,6 +286,42 @@
           <div class="pin-digit-display" data-index="3"></div>
         </div>
         <input type="hidden" id="auth-pin-input">
+
+        <!-- Or Outsource Button -->
+        <div style="margin-top: 30px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 15px; box-sizing: border-box; padding: 0 40px;">
+          <div style="display: flex; align-items: center; width: 100%; gap: 10px; margin: 10px 0;">
+            <hr style="flex: 1; border: none; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <span style="color: #64748B; font-size: 11px; font-weight: 700;">OR</span>
+            <hr style="flex: 1; border: none; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          </div>
+          
+          <button type="button" id="outsource-login-btn" class="modal-btn confirm" style="background-color: #3B82F6; border: none; color: white; width: 100%; font-weight: 750; border-radius: 8px; padding: 12px; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; font-family: 'Outfit', sans-serif;">Outsource Driver</button>
+        </div>
+      </div>
+
+      <!-- Outsource Details Form (initially hidden) -->
+      <div id="auth-outsource-container" class="pin-entry-container hidden" style="margin-top: 30px; width: 100%; display: flex; flex-direction: column; gap: 15px; box-sizing: border-box; padding: 0 24px; text-align: left;">
+        <label class="pin-entry-label" style="font-size: 13px; color: #94A3B8; font-weight: 700; text-align: center; display: block; margin-bottom: 5px;">OUTSOURCE DRIVER DETAILS</label>
+        
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; font-weight: 700; color: #64748B;">DRIVER NAME (MANDATORY)</span>
+          <input type="text" id="outsource-name-input" placeholder="Enter Full Name" class="outsource-input">
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; font-weight: 700; color: #64748B;">VEHICLE PLATE (MANDATORY)</span>
+          <input type="text" id="outsource-plate-input" placeholder="Enter Vehicle Plate (e.g. S1234X)" class="outsource-input" style="text-transform: uppercase;">
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; font-weight: 700; color: #64748B;">PHONE NUMBER (MANDATORY)</span>
+          <input type="tel" id="outsource-phone-input" placeholder="Enter Phone Number" class="outsource-input">
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 15px; width: 100%;">
+          <button type="button" id="outsource-confirm-btn" class="modal-btn confirm" style="background-color: #10B981; border: none; color: white; flex: 1; font-weight: 750; border-radius: 8px; padding: 12px 0; font-size: 13px; cursor: pointer; text-transform: uppercase; font-family: 'Outfit', sans-serif;">Confirm</button>
+          <button type="button" id="outsource-cancel-btn" class="modal-btn cancel" style="flex: 1; border-radius: 8px; padding: 12px 0; font-size: 13px; cursor: pointer; text-transform: uppercase; font-family: 'Outfit', sans-serif;">Cancel</button>
+        </div>
       </div>
     </div>
   </div>

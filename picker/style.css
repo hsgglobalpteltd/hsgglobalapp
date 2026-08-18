@@ -572,7 +572,9 @@ body {
   color: var(--text-secondary);
   line-height: 1.45;
   text-align: left;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Time Elapsed top right */
@@ -685,7 +687,7 @@ body {
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10000; /* Above modals and overlays */
+  z-index: 20000; /* Above modals and overlays */
   display: flex;
   flex-direction: column;
   align-items: center;
