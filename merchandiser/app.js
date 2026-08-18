@@ -4,7 +4,7 @@ if (window.innerWidth > 600) {
 }
 
 const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
-const APP_VERSION = "26.0.39";
+const APP_VERSION = "26.0.40";
 
 // Refresh and Auto-refresh State
 let lastRefreshTime = Date.now();
@@ -1049,8 +1049,8 @@ async function retryFailedSyncs() {
           sheet: "Store_Retailer_DB",
           action: "update",
           data: {
-            "ID": payload.storeId,
-            "Status": payload.status
+            id: payload.storeId,
+            status: payload.status
           }
         });
 
@@ -1058,12 +1058,12 @@ async function retryFailedSyncs() {
           sheet: "Merch_Visit_Product_Audit_Logs",
           action: "upsert",
           data: {
-            "ID": payload.auditId,
-            "Timestamp": item.timestamp,
-            "Merch ID": payload.merchId,
-            "Retailer Stores ID": payload.storeId,
-            "Remark": payload.remark,
-            "Audit JSON": JSON.stringify(payload.auditedSkus)
+            id: payload.auditId,
+            timestamp: item.timestamp,
+            merch_id: payload.merchId,
+            retailer_stores_id: payload.storeId,
+            remark: payload.remark,
+            audit_json: JSON.stringify(payload.auditedSkus)
           }
         });
 
@@ -1074,13 +1074,13 @@ async function retryFailedSyncs() {
               sheet: "Merch_Visit_Shelf_Audit_Logs",
               action: "upsert",
               data: {
-                "ID": shelfAuditId,
-                "Timestamp": item.timestamp,
-                "Merch ID": payload.merchId,
-                "Retailer Stores ID": payload.storeId,
-                "Brands ID": brand.id,
-                "Image Link": brand.imgUrl,
-                "Remark": brand.remark
+                id: shelfAuditId,
+                timestamp: item.timestamp,
+                merch_id: payload.merchId,
+                retailer_stores_id: payload.storeId,
+                brands_id: brand.id,
+                image_link: brand.imgUrl,
+                remark: brand.remark
               }
             });
           }
@@ -1091,9 +1091,9 @@ async function retryFailedSyncs() {
             sheet: "Stores_Task_Assigned",
             action: "update",
             data: {
-              "Created Date": payload.taskCreatedDate,
-              "Task Action": "Call",
-              "Task Log": JSON.stringify(payload.taskLogs)
+              created_date: payload.taskCreatedDate,
+              task_action: "Call",
+              task_log: JSON.stringify(payload.taskLogs)
             }
           });
         }
@@ -1104,9 +1104,9 @@ async function retryFailedSyncs() {
           sheet: "Stores_Task_Assigned",
           action: "update",
           data: {
-            "Created Date": payload.taskCreatedDate,
-            "Task Action": "Call",
-            "Task Log": JSON.stringify(payload.taskLogs)
+            created_date: payload.taskCreatedDate,
+            task_action: "Call",
+            task_log: JSON.stringify(payload.taskLogs)
           }
         });
 
@@ -1123,11 +1123,11 @@ async function retryFailedSyncs() {
           sheet: "Merch_PO_Request",
           action: "insert",
           data: {
-            "ID": payload.poRequestId,
-            "Timestamp": item.timestamp,
-            "Store ID": payload.storeId,
-            "Order": payload.orderString,
-            "Merch ID": payload.merchId
+            id: payload.poRequestId,
+            timestamp: item.timestamp,
+            store_id: payload.storeId,
+            order: payload.orderString,
+            merch_id: payload.merchId
           }
         });
       }
@@ -3985,8 +3985,8 @@ async function submitAudit() {
         sheet: "Store_Retailer_DB",
         action: "update",
         data: {
-          "ID": storeIdStr,
-          "Status": newStatus
+          id: storeIdStr,
+          status: newStatus
         }
       });
       
@@ -3995,12 +3995,12 @@ async function submitAudit() {
         sheet: "Merch_Visit_Product_Audit_Logs",
         action: "upsert",
         data: {
-          "ID": productAuditId,
-          "Timestamp": submitTime,
-          "Merch ID": merchId,
-          "Retailer Stores ID": storeIdStr,
-          "Remark": remark,
-          "Audit JSON": JSON.stringify(auditedSkus)
+          id: productAuditId,
+          timestamp: submitTime,
+          merch_id: merchId,
+          retailer_stores_id: storeIdStr,
+          remark: remark,
+          audit_json: JSON.stringify(auditedSkus)
         }
       });
       
@@ -4013,13 +4013,13 @@ async function submitAudit() {
             sheet: "Merch_Visit_Shelf_Audit_Logs",
             action: "upsert",
             data: {
-              "ID": shelfAuditId,
-              "Timestamp": submitTime,
-              "Merch ID": merchId,
-              "Retailer Stores ID": storeIdStr,
-              "Brands ID": brand.id,
-              "Image Link": brand.imgUrl,
-              "Remark": brand.remark
+              id: shelfAuditId,
+              timestamp: submitTime,
+              merch_id: merchId,
+              retailer_stores_id: storeIdStr,
+              brands_id: brand.id,
+              image_link: brand.imgUrl,
+              remark: brand.remark
             }
           });
         }
@@ -4031,9 +4031,9 @@ async function submitAudit() {
           sheet: "Stores_Task_Assigned",
           action: "update",
           data: {
-            "Created Date": taskCreatedDate,
-            "Task Action": "Call",
-            "Task Log": JSON.stringify(taskLogs)
+            created_date: taskCreatedDate,
+            task_action: "Call",
+            task_log: JSON.stringify(taskLogs)
           }
         });
       }
@@ -4779,11 +4779,11 @@ async function generatePoPdfAndShare(merchId) {
       sheet: "Merch_PO_Request",
       action: "insert",
       data: {
-        "ID": poRequestId,
-        "Timestamp": Date.now(),
-        "Store ID": storeId,
-        "Order": orderString,
-        "Merch ID": merchId
+        id: poRequestId,
+        timestamp: Date.now(),
+        store_id: storeId,
+        order: orderString,
+        merch_id: merchId
       }
     }).catch(err => {
       console.error("Failed to sync PO Request to Google Sheets:", err);
@@ -5136,13 +5136,13 @@ async function submitNewContact() {
   }
   
   const newContact = {
-    "Phone": phone,
-    "Position": position,
-    "Name": name,
-    "Email": email || "",
-    "Gender": gender,
-    "Group Link": "Stores",
-    "ID Link": storeId
+    phone: phone,
+    position: position,
+    name: name,
+    email: email || "",
+    gender: gender,
+    group_link: "Stores",
+    id_link: storeId
   };
   
   allContacts.push(newContact);
@@ -5314,9 +5314,9 @@ async function submitSpecialTask() {
         sheet: "Stores_Task_Assigned",
         action: "update",
         data: {
-          "Created Date": queueItem.payload.taskCreatedDate,
-          "Task Action": "Call",
-          "Task Log": JSON.stringify(queueItem.payload.taskLogs)
+          created_date: queueItem.payload.taskCreatedDate,
+          task_action: "Call",
+          task_log: JSON.stringify(queueItem.payload.taskLogs)
         }
       });
       failedSyncs = failedSyncs.filter(q => q.id !== queueItem.id);

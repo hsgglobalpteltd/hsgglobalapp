@@ -8,17 +8,20 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>iB - Tiktok Pending</title>
   
+  <!-- pdf-lib for in-browser AWB PDF merging on mobile -->
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
+
   <style>
     :root {
-      --bg-color: #F1F5F9; /* Light slate gray */
-      --card-bg: #FFFFFF; /* Pure White */
-      --text-primary: #0F172A; /* Dark midnight slate */
-      --text-secondary: #64748B; /* slate-500 */
-      --pack-color: #059669; /* Emerald Green */
-      --collect-color: #4F46E5; /* Indigo */
-      --btn-bg: #E2E8F0; /* slate-200 */
+      --bg-color: #F1F5F9;
+      --card-bg: #FFFFFF;
+      --text-primary: #0F172A;
+      --text-secondary: #64748B;
+      --pack-color: #059669;
+      --collect-color: #4F46E5;
+      --btn-bg: #E2E8F0;
       --border-color: rgba(0, 0, 0, 0.08);
-      --app-color: #EC4899; /* Pink to match the pending-status theme icon */
+      --app-color: #EC4899;
       --app-glow: rgba(236, 72, 153, 0.25);
     }
 
@@ -44,6 +47,7 @@
       height: 100%;
       display: flex;
       flex-direction: column;
+      position: relative;
     }
 
     .app-header {
@@ -87,7 +91,7 @@
     }
 
     .header-btn.btn-exit {
-      color: #DC2626; /* Red for Exit */
+      color: #DC2626;
     }
 
     .header-btn.btn-exit:active {
@@ -98,7 +102,7 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 16px 16px calc(16px + env(safe-area-inset-bottom)) 16px;
+      padding: 16px;
       gap: 16px;
       overflow: hidden;
     }
@@ -114,6 +118,7 @@
       justify-content: center;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
       transition: transform 0.2s ease, box-shadow 0.2s ease;
+      cursor: pointer;
     }
 
     .status-card:active {
@@ -161,7 +166,7 @@
       opacity: 0;
       pointer-events: none;
       transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 100;
+      z-index: 200;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     }
 
@@ -177,12 +182,12 @@
       border-bottom: 1px solid var(--border-color);
       padding: 8px 16px;
       overflow-x: auto;
-      scrollbar-width: none; /* Firefox */
-      -ms-overflow-style: none;  /* IE/Edge */
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
     
     .tabs-scroll-container::-webkit-scrollbar {
-      display: none; /* Safari/Chrome */
+      display: none;
     }
 
     .shop-tabs {
@@ -220,6 +225,7 @@
       background-color: #FFFFFF;
       border-top: 1px solid var(--border-color);
     }
+
     .footer-action-btn {
       display: flex;
       align-items: center;
@@ -229,20 +235,327 @@
       height: 48px;
       background-color: var(--app-color);
       color: #FFFFFF;
-      text-decoration: none;
+      border: none;
       font-size: 14px;
       font-weight: 700;
       border-radius: 14px;
       box-shadow: 0 4px 6px var(--app-glow);
+      cursor: pointer;
       transition: background-color 0.15s ease, transform 0.1s ease;
     }
+
     .footer-action-btn:active {
       background-color: #DB2777;
       transform: scale(0.98);
     }
+
+    /* Packed AWB Download Page Overlay */
+    #packed-page {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-color);
+      z-index: 50;
+      display: none;
+      flex-direction: column;
+    }
+
+    #packed-page.active {
+      display: flex;
+    }
+
+    .page-header {
+      height: calc(60px + env(safe-area-inset-top));
+      background-color: #FFFFFF;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: env(safe-area-inset-top) 16px 0 16px;
+      flex-shrink: 0;
+    }
+
+    .header-title-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .page-header-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-transform: uppercase;
+    }
+
+    .page-header-sub {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .select-all-btn {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--app-color);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .courier-scroll-container {
+      width: 100%;
+      background-color: #FFFFFF;
+      border-bottom: 1px solid var(--border-color);
+      padding: 8px 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
+    }
+
+    .courier-scroll-container::-webkit-scrollbar {
+      display: none;
+    }
+
+    .courier-tabs {
+      display: flex;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .courier-btn {
+      background-color: #F1F5F9;
+      border: none;
+      outline: none;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .courier-btn.active {
+      background-color: var(--collect-color);
+      color: #FFFFFF;
+      box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+    }
+
+    .orders-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .order-card {
+      background-color: #FFFFFF;
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      cursor: pointer;
+    }
+
+    .order-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+      overflow: hidden;
+      padding-right: 12px;
+    }
+
+    .order-id {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-primary);
+      font-family: monospace;
+    }
+
+    .order-tracking {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-family: monospace;
+    }
+
+    .order-badges {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      text-transform: uppercase;
+    }
+
+    .badge-shop {
+      background-color: #FCE7F3;
+      color: #BE185D;
+    }
+
+    .badge-courier {
+      background-color: #EEF2FF;
+      color: #4338CA;
+    }
+
+    .badge-batch {
+      background-color: #ECFDF5;
+      color: #047857;
+    }
+
+    .order-checkbox {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      border: 2px solid #CBD5E1;
+      background-color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+
+    .order-checkbox.checked {
+      background-color: var(--pack-color);
+      border-color: var(--pack-color);
+      color: #FFFFFF;
+    }
+
+    .download-footer {
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom)) 16px;
+      background-color: #FFFFFF;
+      border-top: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .download-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      height: 50px;
+      background-color: var(--pack-color);
+      color: #FFFFFF;
+      border: none;
+      font-size: 15px;
+      font-weight: 800;
+      border-radius: 14px;
+      box-shadow: 0 4px 10px rgba(5, 150, 105, 0.25);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .download-btn:disabled {
+      background-color: #94A3B8;
+      box-shadow: none;
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .download-btn:not(:disabled):active {
+      transform: scale(0.98);
+      background-color: #047857;
+    }
+
+    /* Progress Modal */
+    #progress-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    #progress-modal.active {
+      display: flex;
+    }
+
+    .progress-card {
+      background-color: #FFFFFF;
+      border-radius: 20px;
+      padding: 24px 20px;
+      width: 100%;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid #E2E8F0;
+      border-top-color: var(--app-color);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .progress-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .progress-status {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      gap: 8px;
+    }
   </style>
 </head>
 <body>
+
+  <!-- Desktop diversion check -->
+  <script>
+    if (window.innerWidth > 600) {
+      window.location.href = '../index.html';
+    }
+  </script>
 
   <div id="app-container">
     <header class="app-header">
@@ -270,26 +583,70 @@
         <span class="qty-label">Pending Pack</span>
       </div>
 
-      <div class="status-card" id="card-collect" onclick="fetchCounts()">
+      <div class="status-card" id="card-collect" onclick="openPackedPage()">
         <span class="qty-number collect" id="count-collect">--</span>
-        <span class="qty-label">Pending Collection</span>
+        <span class="qty-label">Pending Collection (Packed)</span>
       </div>
     </main>
 
     <div class="action-footer">
-      <a href="check-awb.html" class="footer-action-btn">
-        <svg style="width: 18px; height: 18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      <button class="footer-action-btn" onclick="openPackedPage()">
+        <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
         </svg>
-        Check AWB Printed
-      </a>
+        Download Packed AWB
+      </button>
+    </div>
+  </div>
+
+  <!-- Packed Orders & AWB Download View -->
+  <div id="packed-page">
+    <header class="page-header">
+      <button class="header-btn" onclick="closePackedPage()" title="Back">
+        <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+      </button>
+      <div class="header-title-box">
+        <span class="page-header-title">Packed AWBs</span>
+        <span class="page-header-sub" id="packed-header-count">0 Orders</span>
+      </div>
+      <button class="select-all-btn" id="toggle-all-btn" onclick="toggleSelectAll()">Select None</button>
+    </header>
+
+    <!-- Courier Selector Tabs -->
+    <div class="courier-scroll-container">
+      <div id="courier-tabs" class="courier-tabs"></div>
     </div>
 
+    <!-- Orders Checklist -->
+    <div class="orders-list" id="orders-list"></div>
+
+    <!-- Sticky Download Action Footer -->
+    <div class="download-footer">
+      <button class="download-btn" id="download-btn" onclick="downloadSelectedAwbs()">
+        <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        <span id="download-btn-text">Download AWB (0)</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress Modal -->
+  <div id="progress-modal">
+    <div class="progress-card">
+      <div class="spinner"></div>
+      <div class="progress-title">Preparing Combined AWB</div>
+      <div class="progress-status" id="progress-status-text">Fetching AWB documents...</div>
+    </div>
   </div>
 
   <div id="toast">Refreshing...</div>
 
   <script>
+    const WORKER_URL = "https://ib-v2.hsgglobalpteltd.workers.dev";
+
     // iOS Safari zoom gestures prevention
     document.addEventListener('gesturestart', (e) => e.preventDefault());
     document.addEventListener('touchstart', (e) => {
@@ -302,11 +659,13 @@
       toast.classList.add('visible');
       setTimeout(() => {
         toast.classList.remove('visible');
-      }, 1200);
+      }, 1500);
     }
 
     let allTrackingIds = [];
     let activeShop = "All";
+    let activeCourier = "All";
+    let selectedOrderIds = new Set();
 
     function formatShopName(name) {
       if (!name || name.trim() === "" || name === "Unknown") return "Unknown";
@@ -334,12 +693,9 @@
       let pendingCollection = 0;
 
       filtered.forEach(item => {
-        // Calculate Pending Pack (batch_id_packed is empty)
         if (!item.batch_id_packed || item.batch_id_packed.trim() === "") {
           pendingPack++;
-        }
-        // Calculate Pending Collection (batch_id_packed is NOT empty)
-        if (item.batch_id_packed && item.batch_id_packed.trim() !== "") {
+        } else {
           pendingCollection++;
         }
       });
@@ -374,11 +730,7 @@
         btn.onclick = () => {
           activeShop = shop;
           container.querySelectorAll('.tab-btn').forEach(b => {
-            if (b.textContent === shop) {
-              b.classList.add('active');
-            } else {
-              b.classList.remove('active');
-            }
+            b.classList.toggle('active', b.textContent === shop);
           });
           updateCounts();
         };
@@ -392,7 +744,7 @@
       const collectEl = document.getElementById('count-collect');
       
       try {
-        const res = await fetch("https://ib-v2.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids?_t=" + Date.now(), { cache: "no-store" });
+        const res = await fetch(`${WORKER_URL}/api/tiktok/orders/pending-tracking-ids?_t=` + Date.now(), { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.tracking_ids) {
@@ -412,6 +764,260 @@
 
     function exitApp() {
       window.location.href = "../index.html";
+    }
+
+    // ==========================================
+    // PACKED ORDERS & AWB DOWNLOAD VIEW
+    // ==========================================
+
+    function getPackedOrders() {
+      return allTrackingIds.filter(item => item.batch_id_packed && item.batch_id_packed.trim() !== "");
+    }
+
+    function openPackedPage() {
+      const packedOrders = getPackedOrders();
+      if (packedOrders.length === 0) {
+        showToast("No packed orders ready for AWB download.");
+      }
+
+      activeCourier = "All";
+      // Default: select all packed order IDs
+      selectedOrderIds = new Set(packedOrders.map(o => String(o.order_id)));
+
+      renderCourierTabs();
+      renderPackedOrdersList();
+      updateDownloadBtn();
+
+      document.getElementById('packed-page').classList.add('active');
+    }
+
+    function closePackedPage() {
+      document.getElementById('packed-page').classList.remove('active');
+      fetchCounts();
+    }
+
+    function renderCourierTabs() {
+      const container = document.getElementById('courier-tabs');
+      if (!container) return;
+
+      const couriersSet = new Set();
+      const packedOrders = getPackedOrders();
+
+      packedOrders.forEach(item => {
+        const c = (item.courier || "Others").trim();
+        couriersSet.add(c);
+      });
+
+      const sortedCouriers = Array.from(couriersSet).sort();
+      const tabs = ["All", ...sortedCouriers];
+
+      if (!tabs.includes(activeCourier)) {
+        activeCourier = "All";
+      }
+
+      container.innerHTML = '';
+      tabs.forEach(courier => {
+        const btn = document.createElement('button');
+        btn.className = `courier-btn ${activeCourier === courier ? 'active' : ''}`;
+        btn.textContent = courier;
+        btn.onclick = () => {
+          activeCourier = courier;
+          container.querySelectorAll('.courier-btn').forEach(b => {
+            b.classList.toggle('active', b.textContent === courier);
+          });
+          renderPackedOrdersList();
+          updateDownloadBtn();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function getFilteredPackedOrders() {
+      let packed = getPackedOrders();
+      if (activeCourier !== "All") {
+        packed = packed.filter(o => (o.courier || "Others").trim() === activeCourier);
+      }
+      return packed;
+    }
+
+    function renderPackedOrdersList() {
+      const listContainer = document.getElementById('orders-list');
+      const filtered = getFilteredPackedOrders();
+
+      document.getElementById('packed-header-count').textContent = `${filtered.length} Orders (${activeCourier})`;
+
+      if (filtered.length === 0) {
+        listContainer.innerHTML = `
+          <div class="empty-state">
+            <svg style="width: 40px; height: 40px; color: #94A3B8;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>No packed orders for ${activeCourier}</span>
+          </div>
+        `;
+        return;
+      }
+
+      listContainer.innerHTML = '';
+      filtered.forEach(order => {
+        const orderIdStr = String(order.order_id);
+        const isChecked = selectedOrderIds.has(orderIdStr);
+
+        const card = document.createElement('div');
+        card.className = 'order-card';
+        card.onclick = () => toggleOrderCheck(orderIdStr);
+
+        card.innerHTML = `
+          <div class="order-info">
+            <span class="order-id">${order.order_id}</span>
+            <span class="order-tracking">${order.tracking_number || 'No Tracking'}</span>
+            <div class="order-badges">
+              <span class="badge badge-shop">${formatShopName(order.shop_name)}</span>
+              <span class="badge badge-courier">${order.courier || 'Courier'}</span>
+              <span class="badge badge-batch">${order.batch_id_packed}</span>
+            </div>
+          </div>
+          <div class="order-checkbox ${isChecked ? 'checked' : ''}" id="chk-${orderIdStr}">
+            ${isChecked ? '<svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>' : ''}
+          </div>
+        `;
+        listContainer.appendChild(card);
+      });
+
+      updateToggleAllBtn();
+    }
+
+    function toggleOrderCheck(orderId) {
+      if (selectedOrderIds.has(orderId)) {
+        selectedOrderIds.delete(orderId);
+      } else {
+        selectedOrderIds.add(orderId);
+      }
+
+      const chkEl = document.getElementById(`chk-${orderId}`);
+      if (chkEl) {
+        const isChecked = selectedOrderIds.has(orderId);
+        chkEl.className = `order-checkbox ${isChecked ? 'checked' : ''}`;
+        chkEl.innerHTML = isChecked ? '<svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>' : '';
+      }
+
+      updateDownloadBtn();
+      updateToggleAllBtn();
+    }
+
+    function toggleSelectAll() {
+      const filtered = getFilteredPackedOrders();
+      const allFilteredSelected = filtered.every(o => selectedOrderIds.has(String(o.order_id)));
+
+      if (allFilteredSelected) {
+        filtered.forEach(o => selectedOrderIds.delete(String(o.order_id)));
+      } else {
+        filtered.forEach(o => selectedOrderIds.add(String(o.order_id)));
+      }
+
+      renderPackedOrdersList();
+      updateDownloadBtn();
+    }
+
+    function updateToggleAllBtn() {
+      const btn = document.getElementById('toggle-all-btn');
+      const filtered = getFilteredPackedOrders();
+      if (filtered.length === 0) {
+        btn.textContent = "Select All";
+        return;
+      }
+      const allFilteredSelected = filtered.every(o => selectedOrderIds.has(String(o.order_id)));
+      btn.textContent = allFilteredSelected ? "Select None" : "Select All";
+    }
+
+    function updateDownloadBtn() {
+      const filtered = getFilteredPackedOrders();
+      const count = filtered.filter(o => selectedOrderIds.has(String(o.order_id))).length;
+
+      const btn = document.getElementById('download-btn');
+      const btnText = document.getElementById('download-btn-text');
+
+      btnText.textContent = `Download AWB (${count})`;
+      btn.disabled = (count === 0);
+    }
+
+    // ==========================================
+    // DOWNLOAD & MERGE AWB LOGIC VIA PDF-LIB
+    // ==========================================
+
+    async function downloadSelectedAwbs() {
+      const filtered = getFilteredPackedOrders();
+      const selectedOrders = filtered.filter(o => selectedOrderIds.has(String(o.order_id)));
+
+      if (selectedOrders.length === 0) {
+        showToast("No orders selected for download.");
+        return;
+      }
+
+      const modal = document.getElementById('progress-modal');
+      const statusText = document.getElementById('progress-status-text');
+      modal.classList.add('active');
+
+      try {
+        const mergedDoc = await PDFLib.PDFDocument.create();
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < selectedOrders.length; i++) {
+          const ord = selectedOrders[i];
+          statusText.textContent = `Fetching AWB ${i + 1} of ${selectedOrders.length} (${ord.order_id})...`;
+
+          try {
+            const fetchUrl = `${WORKER_URL}/api/tiktok/orders/single-awb-pdf?order_id=${encodeURIComponent(ord.order_id)}&shop_id=${encodeURIComponent(ord.shop_id || '')}`;
+            const pdfRes = await fetch(fetchUrl);
+
+            if (pdfRes.ok) {
+              const arrayBuffer = await pdfRes.arrayBuffer();
+              const pdf = await PDFLib.PDFDocument.load(arrayBuffer);
+              const copiedPages = await mergedDoc.copyPages(pdf, pdf.getPageIndices());
+              copiedPages.forEach(page => mergedDoc.addPage(page));
+              successCount++;
+            } else {
+              console.warn(`Failed to fetch AWB for order ${ord.order_id}: status ${pdfRes.status}`);
+              failCount++;
+            }
+          } catch (itemErr) {
+            console.error(`Error processing AWB for order ${ord.order_id}:`, itemErr);
+            failCount++;
+          }
+        }
+
+        if (mergedDoc.getPageCount() === 0) {
+          throw new Error("No AWB documents could be fetched from Secure Storage or TikTok.");
+        }
+
+        statusText.textContent = `Merging ${successCount} documents...`;
+        const mergedBytes = await mergedDoc.save();
+        const blob = new Blob([mergedBytes], { type: "application/pdf" });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const cleanCourier = (activeCourier || "ALL").replace(/[^a-zA-Z0-9]/g, "_");
+        const downloadDate = new Date().toISOString().slice(0, 10);
+        const fileName = `AWB_Packed_${cleanCourier}_${downloadDate}_${Date.now()}.pdf`;
+
+        // Direct mobile browser trigger
+        const downloadLink = document.createElement("a");
+        downloadLink.href = blobUrl;
+        downloadLink.download = fileName;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+        modal.classList.remove('active');
+        showToast(`Downloaded ${successCount} AWB(s) successfully!`);
+
+      } catch (err) {
+        console.error("AWB download/merge failed:", err);
+        modal.classList.remove('active');
+        alert("Download Failed: " + (err.message || "Could not generate combined AWB PDF"));
+      }
     }
 
     // Auto load on open

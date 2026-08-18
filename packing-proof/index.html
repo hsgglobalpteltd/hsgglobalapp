@@ -1048,16 +1048,7 @@
     });
 
     // Session Init & Offline Target List Sync
-    async function initSession() {
-      sessionBatchId = "BATCH_" + Date.now();
-      scannedBarcodes.clear();
-      document.getElementById('batch-id-display').textContent = "Downloading targets...";
-
-      localStorage.removeItem('tiktok_pending_tracking_ids');
-      localStorage.removeItem('tiktok_intransit_tracking_ids');
-      pendingTrackingIds.clear();
-      intransitTrackingIds.clear();
-
+    async function syncPendingTrackingIdsSilently() {
       try {
         const res = await fetch("https://ib-v2.hsgglobalpteltd.workers.dev/api/tiktok/orders/pending-tracking-ids?_t=" + Date.now(), { cache: "no-store" });
         if (res.ok) {
@@ -1065,6 +1056,7 @@
           if (data.success) {
             if (data.tracking_ids) {
               localStorage.setItem('tiktok_pending_tracking_ids', JSON.stringify(data.tracking_ids));
+              pendingTrackingIds.clear();
               data.tracking_ids.forEach(item => {
                 const orderIdKey = String(item.order_id).trim().toUpperCase();
                 pendingTrackingIds.set(orderIdKey, item);
@@ -1076,6 +1068,7 @@
             }
             if (data.intransit_ids) {
               localStorage.setItem('tiktok_intransit_tracking_ids', JSON.stringify(data.intransit_ids));
+              intransitTrackingIds.clear();
               data.intransit_ids.forEach(item => {
                 const orderIdKey = String(item.order_id).trim().toUpperCase();
                 intransitTrackingIds.add(orderIdKey);
@@ -1085,16 +1078,38 @@
                 }
               });
             }
+            const batchEl = document.getElementById('batch-id-display');
+            if (batchEl && sessionBatchId) {
+              batchEl.textContent = sessionBatchId + " (" + getPendingCount() + " left)";
+            }
+            updateListBadges();
           }
         }
       } catch (err) {
         console.warn("Failed to download pending list:", err);
       }
+    }
+
+    async function initSession() {
+      sessionBatchId = "BATCH_" + Date.now();
+      scannedBarcodes.clear();
+      document.getElementById('batch-id-display').textContent = "Downloading targets...";
+
+      localStorage.removeItem('tiktok_pending_tracking_ids');
+      localStorage.removeItem('tiktok_intransit_tracking_ids');
+      pendingTrackingIds.clear();
+      intransitTrackingIds.clear();
+
+      await syncPendingTrackingIdsSilently();
 
       document.getElementById('batch-id-display').textContent = sessionBatchId + " (" + getPendingCount() + " left)";
       updateListBadges();
       startCamera();
       setWorkflowStep(1);
+
+      // Multi-operator live sync: refresh pending list every 15s
+      if (window._pendingSyncInterval) clearInterval(window._pendingSyncInterval);
+      window._pendingSyncInterval = setInterval(syncPendingTrackingIdsSilently, 15000);
     }
 
     function exitApp() {
@@ -1466,6 +1481,9 @@
         const updatedQueue = currentQueue.filter(q => q.id !== item.id);
         saveSyncQueue(updatedQueue);
         updateSyncQueueUI();
+
+        // Resync local list from Tiktok_Pending to keep in sync with all operators
+        syncPendingTrackingIdsSilently();
 
         isSyncing = false;
         // Process next item in queue
