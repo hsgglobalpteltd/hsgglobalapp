@@ -542,7 +542,11 @@ function renderDeliverOrderPage() {
       if (isReturnOrder(o)) return false;
       const driverClean = (o.Driver || "").trim();
       const statusClean = (o.Status || "").trim().toLowerCase();
-      return driverClean === driverName && (statusClean === "load" || statusClean === "out for delivery");
+      const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+      const isCorrectMethod = isOutsource 
+        ? deliverMethodClean === 'external delivery' 
+        : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
+      return isCorrectMethod && driverClean === driverName && (statusClean === "load" || statusClean === "out for delivery");
     });
   } else {
     filtered = allOrders.filter(o => {
@@ -556,7 +560,8 @@ function renderDeliverOrderPage() {
                driverClean === "" && 
                statusClean === 'ready to deliver';
       } else {
-        return (statusClean === "ready to pick" || statusClean === "picking" || statusClean === "ready to deliver");
+        const isCorrectMethod = deliverMethodClean === 'company delivery' || deliverMethodClean === '';
+        return isCorrectMethod && (statusClean === "ready to pick" || statusClean === "picking" || statusClean === "ready to deliver");
       }
     });
   }
@@ -2159,13 +2164,20 @@ function renderMapPins() {
 
   if (activeJobId) {
     // ON Job Mode: Only show active Out for Delivery / Pending Return assigned to current driver
-    deliveryOrders = allOrders.filter(o => 
-      !isReturnOrder(o) &&
-      (o.Status || "").trim().toLowerCase() === "out for delivery" &&
-      (o.Driver || "").trim() === driverName &&
-      o.Poscode && 
-      validatePoscode(o.Poscode)
-    );
+    deliveryOrders = allOrders.filter(o => {
+      if (isReturnOrder(o)) return false;
+      const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+      const isCorrectMethod = isOutsource 
+        ? deliverMethodClean === 'external delivery' 
+        : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
+      return (
+        isCorrectMethod &&
+        (o.Status || "").trim().toLowerCase() === "out for delivery" &&
+        (o.Driver || "").trim() === driverName &&
+        o.Poscode && 
+        validatePoscode(o.Poscode)
+      );
+    });
 
     returnOrders = isOutsource ? [] : allOrders.filter(o => 
       isReturnOrder(o) &&
@@ -2187,7 +2199,8 @@ function renderMapPins() {
         const isReadyStatus = ["ready to deliver", "load"].includes(statusClean);
         return isCorrectMethod && isUnassignedOrMine && isReadyStatus && o.Poscode && validatePoscode(o.Poscode);
       } else {
-        return ["ready to pick", "picking", "ready to deliver", "load"].includes(statusClean) && o.Poscode && validatePoscode(o.Poscode);
+        const isCorrectMethod = deliverMethodClean === 'company delivery' || deliverMethodClean === '';
+        return isCorrectMethod && ["ready to pick", "picking", "ready to deliver", "load"].includes(statusClean) && o.Poscode && validatePoscode(o.Poscode);
       }
     });
 
@@ -3873,11 +3886,18 @@ function renderOnModeList() {
   };
 
   // Find all active Out for Delivery / Pending Return assigned to current driver
-  const activeDeliverOrders = allOrders.filter(o => 
-    !isReturnOrder(o) &&
-    (o.Status || "").trim().toLowerCase() === "out for delivery" &&
-    (o.Driver || "").trim() === driverName
-  );
+  const activeDeliverOrders = allOrders.filter(o => {
+    if (isReturnOrder(o)) return false;
+    const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+    const isCorrectMethod = isOutsource 
+      ? deliverMethodClean === 'external delivery' 
+      : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
+    return (
+      isCorrectMethod &&
+      (o.Status || "").trim().toLowerCase() === "out for delivery" &&
+      (o.Driver || "").trim() === driverName
+    );
+  });
 
   const isOutsource = localStorage.getItem('is_outsource') === 'true';
 
