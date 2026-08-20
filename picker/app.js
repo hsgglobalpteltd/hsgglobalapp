@@ -361,9 +361,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Enforce mandatory login on app open
   const currentPickerName = getCachedAuth();
   if (!currentPickerName) {
-    setTimeout(() => {
-      openAuthPage(true);
-    }, 500);
+    openAuthPage(true);
   }
 });
 
@@ -686,12 +684,23 @@ function renderOrdersList() {
       }
     }
 
-    // 2. Search query matches ID or Deliver_To
+    // 2. Search query matches
     if (searchQuery.trim() !== '') {
-      const query = searchQuery.toLowerCase().trim();
+      const rawQuery = searchQuery.trim();
+      const mark = (order.mark || order.Mark || '').toLowerCase().trim();
+      
+      // If user typed {mark}. (e.g. "A." or "S1."), search MARK ONLY
+      if (rawQuery.endsWith('.')) {
+        const markTarget = rawQuery.slice(0, -1).toLowerCase().trim();
+        if (markTarget === '') return mark !== '';
+        return mark === markTarget;
+      }
+
+      const query = rawQuery.toLowerCase();
       const idMatch = (order.id || '').toLowerCase().includes(query);
       const deliverMatch = (order.deliver_to || '').toLowerCase().includes(query);
-      return idMatch || deliverMatch;
+      const markExactMatch = mark === query;
+      return idMatch || deliverMatch || markExactMatch;
     }
     return true;
   });

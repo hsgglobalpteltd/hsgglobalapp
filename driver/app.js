@@ -27,6 +27,7 @@ let mapInstance = null;
 let markersGroup = null;
 let selectedOrderOnMap = null;
 let isMapFullscreen = false;
+let currentRenderedMapPins = [];
 
 let allUsers = [];
 let currentOrder = null;
@@ -237,6 +238,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // Update drawer logout button state on boot
   updateDrawerLogoutButton();
 
+  // Initialize Route Map Search Bar
+  initMapSearch();
+
   // Bind Lightbox modal
   const lightboxModal = document.getElementById('lightbox-modal');
   if (lightboxModal) {
@@ -310,9 +314,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Enforce mandatory login on app open
   if (!isSessionAuthenticated()) {
-    setTimeout(() => {
-      openAuthPage(true);
-    }, 500);
+    openAuthPage(true);
   } else {
     enforceNavigationRestrictions();
   }
@@ -548,6 +550,12 @@ function renderDeliverOrderPage() {
       const driverClean = (o.Driver || "").trim();
       const statusClean = (o.Status || "").trim().toLowerCase();
       const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+
+      // Guardrail: External delivery orders must only show if ready / picked
+      if (deliverMethodClean === 'external delivery' && (statusClean === 'ready to pick' || statusClean === 'picking')) {
+        return false;
+      }
+
       const isCorrectMethod = isOutsource 
         ? deliverMethodClean === 'external delivery' 
         : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
@@ -559,6 +567,11 @@ function renderDeliverOrderPage() {
       const statusClean = (o.Status || "").trim().toLowerCase();
       const driverClean = (o.Driver || "").trim();
       const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+
+      // Guardrail: External delivery orders must only show after picker has finished picking
+      if (deliverMethodClean === 'external delivery' && (statusClean === 'ready to pick' || statusClean === 'picking')) {
+        return false;
+      }
       
       if (isOutsource) {
         return deliverMethodClean === 'external delivery' && 
@@ -1147,6 +1160,27 @@ function updateDrawerLogoutButton() {
   updateJobToggleDisabledState();
 }
 
+function autofillOutsourceInputs() {
+  const outsourceName = document.getElementById('outsource-name-input');
+  const outsourcePlate = document.getElementById('outsource-plate-input');
+  const outsourcePhone = document.getElementById('outsource-phone-input');
+  if (!outsourceName || !outsourcePlate || !outsourcePhone) return;
+
+  const savedRaw = localStorage.getItem('saved_outsource_details') || localStorage.getItem('outsource_details');
+  if (savedRaw) {
+    try {
+      const saved = JSON.parse(savedRaw);
+      outsourceName.value = saved.name || '';
+      outsourcePlate.value = saved.plate || '';
+      outsourcePhone.value = saved.phone || '';
+    } catch (_) {}
+  } else {
+    outsourceName.value = '';
+    outsourcePlate.value = '';
+    outsourcePhone.value = '';
+  }
+}
+
 // Auth Page View Controllers
 function openAuthPage(isMandatory = false) {
   const authPage = document.getElementById('auth-page');
@@ -1158,13 +1192,8 @@ function openAuthPage(isMandatory = false) {
   if (pinContainer) pinContainer.classList.remove('hidden');
   if (outsourceContainer) outsourceContainer.classList.add('hidden');
 
-  // Clear outsource inputs
-  const outsourceName = document.getElementById('outsource-name-input');
-  const outsourcePlate = document.getElementById('outsource-plate-input');
-  const outsourcePhone = document.getElementById('outsource-phone-input');
-  if (outsourceName) outsourceName.value = '';
-  if (outsourcePlate) outsourcePlate.value = '';
-  if (outsourcePhone) outsourcePhone.value = '';
+  // Autofill outsource inputs if previously keyed
+  autofillOutsourceInputs();
 
   clearAuthPin();
   authPage.classList.add('active');
@@ -1198,6 +1227,7 @@ function initOutsourceDriverLogin() {
     outsourceBtn.addEventListener('click', () => {
       pinContainer.classList.add('hidden');
       outsourceContainer.classList.remove('hidden');
+      autofillOutsourceInputs();
     });
   }
 
@@ -1232,6 +1262,7 @@ function initOutsourceDriverLogin() {
       localStorage.setItem('auth_driver_name', combinedName);
       localStorage.setItem('is_outsource', 'true');
       localStorage.setItem('outsource_details', JSON.stringify({ name, plate, phone }));
+      localStorage.setItem('saved_outsource_details', JSON.stringify({ name, plate, phone }));
       localStorage.setItem('auth_timestamp', String(Date.now()));
 
       updateDrawerLogoutButton();
@@ -2124,7 +2155,7 @@ function initMap() {
 
   if (!mapInstance) {
     mapInstance = L.map("leaflet-map", {
-      zoomControl: true,
+      zoomControl: false,
       attributionControl: false
     }).setView([1.3521, 103.8198], 11);
 
@@ -2246,6 +2277,11 @@ function renderMapPins() {
       const statusClean = (o.Status || "").trim().toLowerCase();
       const driverClean = (o.Driver || "").trim();
       const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+
+      // Guardrail: External delivery orders must NEVER show a pin when still picking / preparing
+      if (deliverMethodClean === 'external delivery' && (statusClean === 'ready to pick' || statusClean === 'picking')) {
+        return false;
+      }
       
       if (isOutsource) {
         const isCorrectMethod = deliverMethodClean === 'external delivery';
@@ -2344,6 +2380,7 @@ function renderMapPins() {
   });
 
   const activePins = [...deliveryPins, ...returnPins];
+  currentRenderedMapPins = activePins;
 
   // Group pins by postcode or lat-lng to detect overlapping
   const keyGroups = {};
@@ -2376,29 +2413,160 @@ function renderMapPins() {
 
       // Bind custom click handler
       marker.on('click', () => {
-        const activeJobId = localStorage.getItem('active_job_id');
-        if (activeJobId) {
-          if (pin.isReturn) {
-            const card = document.getElementById(`on-mode-card-${pin.order.ID}`);
-            if (card) {
-              card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              const origBg = card.style.backgroundColor;
-              card.style.backgroundColor = '#FEF3C7'; // Amber flash
-              setTimeout(() => {
-                card.style.backgroundColor = origBg || '';
-              }, 1000);
-            }
-          } else {
-            openDeliverPage(pin.order);
-          }
-          mapInstance.setView([pin.lat, pin.lng], Math.max(mapInstance.getZoom(), 13));
-          return;
-        }
-        selectedOrderOnMap = pin.order.ID;
-        renderMapOrderDetails(pin.order, pin);
-        mapInstance.setView([pin.lat, pin.lng], Math.max(mapInstance.getZoom(), 13));
+        navigateToMapPin(pin);
       });
     });
+  });
+}
+
+function navigateToMapPin(pin) {
+  if (!mapInstance || !pin) return;
+
+  // Directly pan and zoom to the pin location
+  mapInstance.setView([pin.lat, pin.lng], Math.max(mapInstance.getZoom(), 16), { animate: true });
+
+  const activeJobId = localStorage.getItem('active_job_id');
+  if (activeJobId) {
+    if (pin.isReturn) {
+      const card = document.getElementById(`on-mode-card-${pin.order.ID}`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const origBg = card.style.backgroundColor;
+        card.style.backgroundColor = '#FEF3C7'; // Amber flash
+        setTimeout(() => {
+          card.style.backgroundColor = origBg || '';
+        }, 1000);
+      }
+    } else {
+      openDeliverPage(pin.order);
+    }
+  } else {
+    selectedOrderOnMap = pin.order.ID;
+    renderMapOrderDetails(pin.order, pin);
+    const detailsContainer = document.getElementById('map-details-container');
+    if (detailsContainer) {
+      detailsContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+}
+
+function initMapSearch() {
+  const searchInput = document.getElementById('map-search-input');
+  const searchClear = document.getElementById('map-search-clear');
+  const searchDropdown = document.getElementById('map-search-dropdown');
+  const searchBar = document.getElementById('map-search-bar');
+
+  if (!searchInput || !searchDropdown) return;
+
+  function renderDropdown(matches) {
+    if (!matches || matches.length === 0) {
+      searchDropdown.innerHTML = '<div style="padding: 10px; font-size: 11px; color: var(--text-muted); text-align: center;">No matching mark or order found on map</div>';
+      searchDropdown.classList.remove('hidden');
+      return;
+    }
+
+    searchDropdown.innerHTML = matches.map(pin => {
+      const deliverTo = pin.order.Deliver_To || pin.order.deliver_to || 'N/A';
+      const orderId = pin.order.ID || pin.order.id || '';
+      return `
+        <div class="map-search-dropdown-item" data-id="${orderId}">
+          <div class="map-search-item-mark" style="background-color: ${pin.color}; color: ${pin.textColor};">
+            ${pin.mark}
+          </div>
+          <div class="map-search-item-info">
+            <div class="map-search-item-title">${pin.mark} - ${orderId}</div>
+            <div class="map-search-item-subtitle">${deliverTo}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    searchDropdown.classList.remove('hidden');
+
+    searchDropdown.querySelectorAll('.map-search-dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const oId = item.getAttribute('data-id');
+        const targetPin = currentRenderedMapPins.find(p => (p.order.ID || p.order.id) === oId);
+        if (targetPin) {
+          searchInput.value = targetPin.mark;
+          if (searchClear) searchClear.classList.remove('hidden');
+          searchDropdown.classList.add('hidden');
+          navigateToMapPin(targetPin);
+        }
+      });
+    });
+  }
+
+  searchInput.addEventListener('input', (e) => {
+    const rawQ = (e.target.value || '').trim();
+    if (rawQ.length > 0) {
+      if (searchClear) searchClear.classList.remove('hidden');
+      
+      let matches = [];
+      if (rawQ.endsWith('.')) {
+        const markTarget = rawQ.slice(0, -1).toLowerCase().trim();
+        matches = currentRenderedMapPins.filter(p => {
+          const mark = String(p.mark || '').toLowerCase();
+          return markTarget === '' ? true : mark === markTarget;
+        });
+      } else {
+        const q = rawQ.toLowerCase();
+        matches = currentRenderedMapPins.filter(p => {
+          const mark = String(p.mark || '').toLowerCase();
+          const oId = String(p.order.ID || p.order.id || '').toLowerCase();
+          const delTo = String(p.order.Deliver_To || p.order.deliver_to || '').toLowerCase();
+          return mark === q || mark.startsWith(q) || oId.includes(q) || delTo.includes(q);
+        });
+      }
+      renderDropdown(matches);
+    } else {
+      if (searchClear) searchClear.classList.add('hidden');
+      searchDropdown.classList.add('hidden');
+    }
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const rawQ = (searchInput.value || '').trim();
+      if (!rawQ) return;
+      
+      let target = null;
+      if (rawQ.endsWith('.')) {
+        const markTarget = rawQ.slice(0, -1).toLowerCase().trim();
+        target = currentRenderedMapPins.find(p => String(p.mark || '').toLowerCase() === markTarget);
+      } else {
+        const q = rawQ.toLowerCase();
+        const exactMatch = currentRenderedMapPins.find(p => String(p.mark || '').toLowerCase() === q);
+        target = exactMatch || currentRenderedMapPins.find(p => {
+          const mark = String(p.mark || '').toLowerCase();
+          const oId = String(p.order.ID || p.order.id || '').toLowerCase();
+          return mark.includes(q) || oId.includes(q);
+        });
+      }
+
+      if (target) {
+        searchDropdown.classList.add('hidden');
+        searchInput.blur();
+        navigateToMapPin(target);
+      }
+    }
+  });
+
+  if (searchClear) {
+    searchClear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      searchInput.value = '';
+      searchClear.classList.add('hidden');
+      searchDropdown.classList.add('hidden');
+      searchInput.focus();
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (searchBar && !searchBar.contains(e.target)) {
+      searchDropdown.classList.add('hidden');
+    }
   });
 }
 
@@ -3940,6 +4108,8 @@ function renderOnModeList() {
     return m.startsWith('R');
   };
 
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+
   // Find all active Out for Delivery / Pending Return assigned to current driver
   const activeDeliverOrders = allOrders.filter(o => {
     if (isReturnOrder(o)) return false;
@@ -3953,8 +4123,6 @@ function renderOnModeList() {
       (o.Driver || "").trim() === driverName
     );
   });
-
-  const isOutsource = localStorage.getItem('is_outsource') === 'true';
 
   const activeReturnOrders = isOutsource ? [] : allOrders.filter(o => 
     isReturnOrder(o) &&
