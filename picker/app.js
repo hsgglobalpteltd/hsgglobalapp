@@ -2133,7 +2133,7 @@ async function sharePickerOrderToWhatsApp(orderId) {
   try {
     const items = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
     if (Array.isArray(items) && items.length > 0) {
-      itemsListText = `\n\nSKU........QTY\n` + items.map(item => {
+      itemsListText = `\n\n*SKU*........*QTY*\n` + items.map(item => {
         const skuRaw = String(item.sku || item.Sku || 'Unknown');
         const qty = item.qty || item.Qty || 0;
         return `${skuRaw}........${qty}`;
@@ -2143,7 +2143,8 @@ async function sharePickerOrderToWhatsApp(orderId) {
     console.warn("Failed to parse items for WhatsApp share:", e);
   }
 
-  const shareText = `\`${statusHeader}\`\nD - ${id}\n${deliverTo}\n${formattedDateTime}\n${statusRemark}${itemsListText}`;
+  const mark = (order.mark || order.Mark || 'D').trim();
+  const shareText = `\`${statusHeader}\`\n*${mark} - ${id}*\n${deliverTo}\n${formattedDateTime}\n${statusRemark}${itemsListText}`;
 
   sendBtn.onclick = async () => {
     if (isCancelled) return;

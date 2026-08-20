@@ -242,6 +242,16 @@ body {
   color: var(--app-color);
 }
 
+.footer-item.disabled-btn {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+}
+
+.footer-item.disabled-btn:hover {
+  background-color: transparent !important;
+  color: var(--text-secondary) !important;
+}
+
 .footer-item.active .footer-menu-icon {
   stroke: var(--app-color);
 }

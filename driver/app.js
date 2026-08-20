@@ -221,6 +221,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
+      if (hasDriverLoadedOrders()) {
+        showToast("Cannot log out while you have loaded or in-progress orders", "error");
+        return;
+      }
       clearCachedAuth();
       showToast("Logged out successfully", "success");
       toggleDrawer();
@@ -426,6 +430,7 @@ function renderActivePage() {
     renderReturnOrderPage();
   }
   updateJobToggleDisabledState();
+  updateDrawerLogoutButton();
 }
 
 function setDeliverOrderTab(tab) {
@@ -1046,7 +1051,7 @@ function isSessionAuthenticated() {
   const name = localStorage.getItem('auth_driver_name');
   if (!authTime || !name) return false;
   const elapsed = Date.now() - parseInt(authTime);
-  return elapsed < (24 * 60 * 60 * 1000); // 24 hours
+  return elapsed < (30 * 24 * 60 * 60 * 1000); // 30 days
 }
 
 function getCachedAuth() {
@@ -1054,6 +1059,44 @@ function getCachedAuth() {
     return null;
   }
   return localStorage.getItem('auth_driver_name');
+}
+
+function hasDriverLoadedOrders() {
+  const driverName = getCachedAuth();
+  if (!driverName) return false;
+
+  // 1. Check if active job/shift is currently active
+  const hasActiveJob = localStorage.getItem('active_job_id') !== null;
+  if (hasActiveJob) return true;
+
+  const isReturnOrder = (order) => {
+    const m = (order.Mark || '').trim().toUpperCase();
+    return m.startsWith('R');
+  };
+
+  // 2. Check delivery orders loaded or out for delivery by this driver
+  const hasLoadedDeliveries = allOrders.some(o => {
+    if (isReturnOrder(o)) return false;
+    const statusClean = (o.Status || '').trim().toLowerCase();
+    const driverClean = (o.Driver || '').trim();
+    return driverClean === driverName && (statusClean === 'load' || statusClean === 'out for delivery');
+  });
+  if (hasLoadedDeliveries) return true;
+
+  // 3. Check return orders in progress by this regular driver
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  if (!isOutsource) {
+    const hasActiveReturns = allOrders.some(o => {
+      if (!isReturnOrder(o)) return false;
+      const statusClean = (o.Status || '').trim().toLowerCase();
+      const driverClean = (o.Driver || '').trim();
+      const hasPhoto = !!o.Photo_Return_Paper;
+      return driverClean === driverName && (statusClean === 'load' || (statusClean === 'pending' && hasPhoto));
+    });
+    if (hasActiveReturns) return true;
+  }
+
+  return false;
 }
 
 function setCachedAuth(matchedUser) {
@@ -1087,7 +1130,17 @@ function updateDrawerLogoutButton() {
   
   if (name) {
     if (nameSpan) nameSpan.textContent = name;
-    if (logoutBtn) logoutBtn.classList.remove('hidden');
+    if (logoutBtn) {
+      logoutBtn.classList.remove('hidden');
+      const hasActive = hasDriverLoadedOrders();
+      if (hasActive) {
+        logoutBtn.classList.add('disabled-btn');
+        logoutBtn.setAttribute('title', 'Cannot logout while orders are loaded or in progress');
+      } else {
+        logoutBtn.classList.remove('disabled-btn');
+        logoutBtn.removeAttribute('title');
+      }
+    }
   } else {
     if (logoutBtn) logoutBtn.classList.add('hidden');
   }
@@ -1728,8 +1781,9 @@ function showWhatsAppShare(order, isReturn, items, itemQtys) {
                        (order.Status || '').trim().toUpperCase() === 'COLLECTED';
 
   let text = "";
+  const mark = (order.Mark || order.mark || 'D').trim();
   const prefix = isReturnOrder ? "`Return Collected`" : "`Goods Delivered`";
-  text = `${prefix}\n*D - ${order.ID}*\n${deliverTo}\n${formattedDateTime}`;
+  text = `${prefix}\n*${mark} - ${order.ID}*\n${deliverTo}\n${formattedDateTime}`;
   if (!isReturnOrder) {
     text += `\n\n*SKU*........*QTY*\n`;
     items.forEach(item => {
@@ -2356,6 +2410,7 @@ async function silentSyncOrderUpdate(orderId, fields) {
     Object.assign(order, fields);
     localStorage.setItem('driver_orders', JSON.stringify(allOrders));
     updateJobToggleDisabledState();
+    updateDrawerLogoutButton();
     
     // Refresh map pins if tab is Route Map
     if (activeTab === 'Route Map') {
