@@ -547,9 +547,9 @@ function renderDeliverOrderPage() {
   if (activeDeliverOrderTab === "inprogress") {
     filtered = allOrders.filter(o => {
       if (isReturnOrder(o)) return false;
-      const driverClean = (o.Driver || "").trim();
       const statusClean = (o.Status || "").trim().toLowerCase();
       const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+      const isAssignedToMe = isOrderAssignedToDriver(o.Driver, driverName);
 
       // Guardrail: External delivery orders must only show if ready / picked
       if (deliverMethodClean === 'external delivery' && (statusClean === 'ready to pick' || statusClean === 'picking')) {
@@ -557,9 +557,9 @@ function renderDeliverOrderPage() {
       }
 
       const isCorrectMethod = isOutsource 
-        ? deliverMethodClean === 'external delivery' 
+        ? (deliverMethodClean === 'external delivery' || isAssignedToMe) 
         : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
-      return isCorrectMethod && driverClean === driverName && (statusClean === "load" || statusClean === "out for delivery");
+      return isCorrectMethod && isAssignedToMe && (statusClean === "load" || statusClean === "out for delivery");
     });
   } else {
     filtered = allOrders.filter(o => {
@@ -687,42 +687,68 @@ async function checkActiveJobFromDatabase() {
   const driverName = getCachedAuth();
   if (!driverName) return;
 
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  const outsourceDetailsRaw = localStorage.getItem('outsource_details') || localStorage.getItem('saved_outsource_details');
+  let outsourceDetails = null;
+  if (outsourceDetailsRaw) {
+    try { outsourceDetails = JSON.parse(outsourceDetailsRaw); } catch (_) {}
+  }
+
   try {
     const res = await fetch(`${WORKER_URL}/api/app3/Driver_Log?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data && Array.isArray(data.value) ? data.value : []);
       
-      const activeJob = list.find(j => 
-        (j.Driver || "").trim() === driverName && 
-        (j.Status || "").trim().toUpperCase() === "ON"
-      );
+      const activeJob = list.find(j => {
+        const status = (j.Status || j.status || "").trim().toUpperCase();
+        if (status !== "ON") return false;
+        const jDriver = (j.Driver || j.driver || "").trim();
+        if (jDriver.toLowerCase() === driverName.toLowerCase()) return true;
+        if (isOutsource) {
+          const jOutsourceRaw = j.Outsource_Driver_Details || j.outsource_driver_details || "";
+          if (jOutsourceRaw) {
+            try {
+              const jOutsource = typeof jOutsourceRaw === 'string' ? JSON.parse(jOutsourceRaw) : jOutsourceRaw;
+              if (outsourceDetails && jOutsource.plate && outsourceDetails.plate) {
+                if (jOutsource.plate.trim().toUpperCase() === outsourceDetails.plate.trim().toUpperCase()) return true;
+              }
+              if (outsourceDetails && jOutsource.phone && outsourceDetails.phone) {
+                if (jOutsource.phone.trim() === outsourceDetails.phone.trim()) return true;
+              }
+            } catch (_) {}
+          }
+          if (outsourceDetails && outsourceDetails.plate && (jDriver.toUpperCase().includes(outsourceDetails.plate.trim().toUpperCase()) || (typeof jOutsourceRaw === 'string' && jOutsourceRaw.toUpperCase().includes(outsourceDetails.plate.trim().toUpperCase())))) {
+            return true;
+          }
+          if (outsourceDetails && outsourceDetails.phone && (jDriver.includes(outsourceDetails.phone.trim()) || (typeof jOutsourceRaw === 'string' && jOutsourceRaw.includes(outsourceDetails.phone.trim())))) {
+            return true;
+          }
+        }
+        return false;
+      });
 
       if (activeJob) {
         const jobId = activeJob.ID || activeJob.id;
-        const currentLocalJobId = localStorage.getItem('active_job_id');
+        console.log("Restoring active job from database:", jobId);
+        localStorage.setItem('active_job_id', jobId);
         
-        if (currentLocalJobId !== jobId) {
-          console.log("Restoring active job from database:", jobId);
-          localStorage.setItem('active_job_id', jobId);
-          
-          let driverLogs = [];
-          const rawDelivered = activeJob.Driver_Logs;
-          if (rawDelivered) {
-            try {
-              driverLogs = typeof rawDelivered === "string" ? JSON.parse(rawDelivered) : rawDelivered;
-            } catch (_) {}
-          }
-          localStorage.setItem('active_job_driver_logs', JSON.stringify(driverLogs));
-          
-          const jobToggle = document.getElementById('job-toggle-input');
-          if (jobToggle) {
-            jobToggle.checked = true;
-          }
-          updateOnModeUI(true);
-          renderMapPins();
-          renderOnModeList();
+        let driverLogs = [];
+        const rawDelivered = activeJob.Driver_Logs || activeJob.driver_logs;
+        if (rawDelivered) {
+          try {
+            driverLogs = typeof rawDelivered === "string" ? JSON.parse(rawDelivered) : rawDelivered;
+          } catch (_) {}
         }
+        localStorage.setItem('active_job_driver_logs', JSON.stringify(driverLogs));
+        
+        const jobToggle = document.getElementById('job-toggle-input');
+        if (jobToggle) {
+          jobToggle.checked = true;
+        }
+        updateOnModeUI(true);
+        renderMapPins();
+        renderOnModeList();
       }
     }
   } catch (err) {
@@ -1058,6 +1084,37 @@ async function fetchSupportData() {
   }
 }
 
+// Driver Matching Helper Functions
+function isOrderAssignedToDriver(orderDriver, currentDriverName) {
+  if (!orderDriver || !currentDriverName) return false;
+  const oDrv = String(orderDriver).trim().toLowerCase();
+  const cDrv = String(currentDriverName).trim().toLowerCase();
+  if (oDrv === cDrv) return true;
+
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  if (isOutsource) {
+    const outsourceDetailsRaw = localStorage.getItem('outsource_details') || localStorage.getItem('saved_outsource_details');
+    if (outsourceDetailsRaw) {
+      try {
+        const details = JSON.parse(outsourceDetailsRaw);
+        if (details.plate && details.plate.trim() && oDrv.includes(details.plate.trim().toLowerCase())) {
+          return true;
+        }
+        if (details.phone && details.phone.trim() && oDrv.includes(details.phone.trim().toLowerCase())) {
+          return true;
+        }
+      } catch (_) {}
+    }
+  }
+  return false;
+}
+
+function isOrderUnassignedOrMine(orderDriver, currentDriverName) {
+  const oDrv = (orderDriver || "").trim();
+  if (!oDrv) return true;
+  return isOrderAssignedToDriver(oDrv, currentDriverName);
+}
+
 // Cache Authentication functions
 function isSessionAuthenticated() {
   const authTime = localStorage.getItem('auth_timestamp');
@@ -1091,8 +1148,7 @@ function hasDriverLoadedOrders() {
   const hasLoadedDeliveries = allOrders.some(o => {
     if (isReturnOrder(o)) return false;
     const statusClean = (o.Status || '').trim().toLowerCase();
-    const driverClean = (o.Driver || '').trim();
-    return driverClean === driverName && (statusClean === 'load' || statusClean === 'out for delivery');
+    return isOrderAssignedToDriver(o.Driver, driverName) && (statusClean === 'load' || statusClean === 'out for delivery');
   });
   if (hasLoadedDeliveries) return true;
 
@@ -1102,9 +1158,8 @@ function hasDriverLoadedOrders() {
     const hasActiveReturns = allOrders.some(o => {
       if (!isReturnOrder(o)) return false;
       const statusClean = (o.Status || '').trim().toLowerCase();
-      const driverClean = (o.Driver || '').trim();
       const hasPhoto = !!o.Photo_Return_Paper;
-      return driverClean === driverName && (statusClean === 'load' || (statusClean === 'pending' && hasPhoto));
+      return isOrderAssignedToDriver(o.Driver, driverName) && (statusClean === 'load' || (statusClean === 'pending' && hasPhoto));
     });
     if (hasActiveReturns) return true;
   }
@@ -1126,6 +1181,13 @@ function clearCachedAuth() {
   localStorage.removeItem('auth_timestamp');
   localStorage.removeItem('is_outsource');
   localStorage.removeItem('outsource_details');
+  localStorage.removeItem('active_job_id');
+  localStorage.removeItem('active_job_driver_logs');
+  const jobToggle = document.getElementById('job-toggle-input');
+  if (jobToggle) {
+    jobToggle.checked = false;
+  }
+  updateOnModeUI(false);
   updateDrawerLogoutButton();
   
   const drawerItems = document.querySelectorAll('.drawer-item');
@@ -1267,11 +1329,10 @@ function initOutsourceDriverLogin() {
 
       updateDrawerLogoutButton();
       closeAuthPage();
+      enforceNavigationRestrictions();
 
-      if (!authPendingAction) {
-        fetchSupportData();
-        fetchData();
-      }
+      fetchSupportData();
+      fetchData();
 
       if (authPendingAction) {
         const order = allOrders.find(o => o.ID === authPendingAction.orderId);
@@ -1303,8 +1364,6 @@ function initOutsourceDriverLogin() {
         }
         authPendingAction = null;
       }
-
-      enforceNavigationRestrictions();
     });
   }
 }
@@ -1768,12 +1827,12 @@ async function saveJobAndRemoveOrder(jobId, orderId, driverLogs) {
   const activeDeliverOrders = allOrders.filter(o => 
     (String(o.Mark || '').trim().toUpperCase().startsWith('R') === false) &&
     (o.Status || "").trim().toLowerCase() === "out for delivery" &&
-    (o.Driver || "").trim() === driverName
+    isOrderAssignedToDriver(o.Driver, driverName)
   );
   const activeReturnOrders = allOrders.filter(o => 
     (String(o.Mark || '').trim().toUpperCase().startsWith('R') === true) &&
     (o.Status || "").trim().toLowerCase() === "pending" && 
-    (o.Driver || "").trim() === driverName
+    isOrderAssignedToDriver(o.Driver, driverName)
   );
   const activeOrderIds = [
     ...activeDeliverOrders.map(o => o.ID),
@@ -2264,13 +2323,14 @@ function renderMapPins() {
     deliveryOrders = allOrders.filter(o => {
       if (isReturnOrder(o)) return false;
       const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+      const isAssignedToMe = isOrderAssignedToDriver(o.Driver, driverName);
       const isCorrectMethod = isOutsource 
-        ? deliverMethodClean === 'external delivery' 
+        ? (deliverMethodClean === 'external delivery' || isAssignedToMe) 
         : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
       return (
         isCorrectMethod &&
         (o.Status || "").trim().toLowerCase() === "out for delivery" &&
-        (o.Driver || "").trim() === driverName &&
+        isAssignedToMe &&
         o.Poscode && 
         validatePoscode(o.Poscode)
       );
@@ -2279,7 +2339,7 @@ function renderMapPins() {
     returnOrders = isOutsource ? [] : allOrders.filter(o => 
       isReturnOrder(o) &&
       (o.Status || "").trim().toLowerCase() === "pending" && 
-      (o.Driver || "").trim() === driverName &&
+      isOrderAssignedToDriver(o.Driver, driverName) &&
       o.Poscode
     );
   } else {
@@ -2287,8 +2347,8 @@ function renderMapPins() {
     deliveryOrders = allOrders.filter(o => {
       if (isReturnOrder(o)) return false;
       const statusClean = (o.Status || "").trim().toLowerCase();
-      const driverClean = (o.Driver || "").trim();
       const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+      const isAssignedToMe = isOrderAssignedToDriver(o.Driver, driverName);
 
       // Guardrail: External delivery orders must NEVER show a pin when still picking / preparing
       if (deliverMethodClean === 'external delivery' && (statusClean === 'ready to pick' || statusClean === 'picking')) {
@@ -2296,13 +2356,13 @@ function renderMapPins() {
       }
       
       if (isOutsource) {
-        const isCorrectMethod = deliverMethodClean === 'external delivery';
-        const isUnassignedOrMine = driverClean === "" || driverClean === driverName;
-        const isReadyStatus = ["ready to deliver", "load"].includes(statusClean);
+        const isCorrectMethod = deliverMethodClean === 'external delivery' || isAssignedToMe;
+        const isUnassignedOrMine = isOrderUnassignedOrMine(o.Driver, driverName);
+        const isReadyStatus = ["ready to deliver", "load", "out for delivery"].includes(statusClean);
         return isCorrectMethod && isUnassignedOrMine && isReadyStatus && o.Poscode && validatePoscode(o.Poscode);
       } else {
         const isCorrectMethod = deliverMethodClean === 'company delivery' || deliverMethodClean === '';
-        return isCorrectMethod && ["ready to pick", "picking", "ready to deliver", "load"].includes(statusClean) && o.Poscode && validatePoscode(o.Poscode);
+        return isCorrectMethod && ["ready to pick", "picking", "ready to deliver", "load", "out for delivery"].includes(statusClean) && o.Poscode && validatePoscode(o.Poscode);
       }
     });
 
@@ -3507,7 +3567,7 @@ function renderMapOrderDetails(order, pin) {
           };
         }
       }
-    } else if (statusClean === "load" && (!driverClean || (userClean && driverClean === userClean))) {
+    } else if (statusClean === "load" && (!driverClean || isOrderAssignedToDriver(order.Driver, currentUser))) {
       // Unload Goods slider
       if (actionBar && actionBtn) {
         actionBar.classList.remove('hidden');
@@ -3816,18 +3876,18 @@ function updateJobToggleDisabledState() {
     return m.startsWith('R');
   };
 
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+
   const hasLoadedOrders = allOrders.some(o => {
     const statusClean = (o.Status || '').trim().toLowerCase();
-    const driverClean = (o.Driver || '').trim();
-    return !isReturnOrder(o) && statusClean === 'load' && driverClean === driverName;
+    return !isReturnOrder(o) && statusClean === 'load' && isOrderAssignedToDriver(o.Driver, driverName);
   });
 
-  const hasPickedReturns = allOrders.some(o => {
+  const hasPickedReturns = isOutsource ? false : allOrders.some(o => {
     const isReturn = isReturnOrder(o);
-    const driverClean = (o.Driver || '').trim();
     const hasPhoto = !!o.Photo_Return_Paper;
     const statusClean = (o.Status || '').trim().toLowerCase();
-    return isReturn && driverClean === driverName && hasPhoto && statusClean === 'pending';
+    return isReturn && isOrderAssignedToDriver(o.Driver, driverName) && hasPhoto && statusClean === 'pending';
   });
 
   if (!hasLoadedOrders && !hasPickedReturns) {
@@ -3892,8 +3952,7 @@ function initJobToggle() {
         // 1. Transition loaded orders (status = Load) to "Out for Delivery"
         const loadedOrders = allOrders.filter(o => {
           const statusClean = (o.Status || '').trim().toLowerCase();
-          const driverClean = (o.Driver || '').trim();
-          return statusClean === 'load' && driverClean === driverName;
+          return statusClean === 'load' && isOrderAssignedToDriver(o.Driver, driverName);
         });
 
         for (const order of loadedOrders) {
@@ -3905,14 +3964,12 @@ function initJobToggle() {
         // 2. Gather active order IDs (Out for Delivery + Pending returns)
         const activeDeliverOrders = allOrders.filter(o => {
           const statusClean = (o.Status || '').trim().toLowerCase();
-          const driverClean = (o.Driver || '').trim();
-          return statusClean === 'out for delivery' && driverClean === driverName;
+          return statusClean === 'out for delivery' && isOrderAssignedToDriver(o.Driver, driverName);
         });
         const activeReturnOrders = allOrders.filter(o => {
           const statusClean = (o.Status || '').trim().toLowerCase();
-          const driverClean = (o.Driver || '').trim();
           const isReturn = String(o.Mark || '').startsWith('R');
-          return isReturn && statusClean === 'pending' && driverClean === driverName;
+          return isReturn && statusClean === 'pending' && isOrderAssignedToDriver(o.Driver, driverName);
         });
         
         const activeOrderIds = [
@@ -3925,7 +3982,7 @@ function initJobToggle() {
 
         // 3. Write Driver_Log record
         await syncDeliverJob(jobId, "insert", {
-          Driver: isOutsource ? "Outsource Driver" : driverName,
+          Driver: driverName,
           Status: "ON",
           Start_Time: Date.now(),
           End_Time: "",
@@ -3949,8 +4006,7 @@ function initJobToggle() {
           // 1. Restore Out for Delivery back to Load status
           const activeUndelivered = allOrders.filter(o => {
             const statusClean = (o.Status || '').trim().toLowerCase();
-            const driverClean = (o.Driver || '').trim();
-            return statusClean === 'out for delivery' && driverClean === driverName;
+            return statusClean === 'out for delivery' && isOrderAssignedToDriver(o.Driver, driverName);
           });
 
           for (const order of activeUndelivered) {
@@ -3964,9 +4020,8 @@ function initJobToggle() {
           const isOutsource = localStorage.getItem('is_outsource') === 'true';
           const remainingReturnIds = isOutsource ? [] : allOrders.filter(o => {
             const statusClean = (o.Status || '').trim().toLowerCase();
-            const driverClean = (o.Driver || '').trim();
             const isReturn = String(o.Mark || '').startsWith('R');
-            return isReturn && statusClean === 'pending' && driverClean === driverName;
+            return isReturn && statusClean === 'pending' && isOrderAssignedToDriver(o.Driver, driverName);
           }).map(o => o.ID);
           
           const remainingOrderIds = [...remainingDeliverIds, ...remainingReturnIds];
@@ -4130,20 +4185,21 @@ function renderOnModeList() {
   const activeDeliverOrders = allOrders.filter(o => {
     if (isReturnOrder(o)) return false;
     const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
+    const isAssignedToMe = isOrderAssignedToDriver(o.Driver, driverName);
     const isCorrectMethod = isOutsource 
-      ? deliverMethodClean === 'external delivery' 
+      ? (deliverMethodClean === 'external delivery' || isAssignedToMe) 
       : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
     return (
       isCorrectMethod &&
       (o.Status || "").trim().toLowerCase() === "out for delivery" &&
-      (o.Driver || "").trim() === driverName
+      isAssignedToMe
     );
   });
 
   const activeReturnOrders = isOutsource ? [] : allOrders.filter(o => 
     isReturnOrder(o) &&
     (o.Status || "").trim().toLowerCase() === "pending" && 
-    (o.Driver || "").trim() === driverName
+    isOrderAssignedToDriver(o.Driver, driverName)
   );
 
   const activeOrders = [...activeDeliverOrders, ...activeReturnOrders];
