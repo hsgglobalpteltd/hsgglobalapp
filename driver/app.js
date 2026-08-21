@@ -4,7 +4,7 @@ if (window.innerWidth > 600) {
 }
 
 const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
-const APP_VERSION = "26.0.3";
+const APP_VERSION = "26.0.4";
 
 // Sync Queue / Failed submissions State
 let failedSyncs = [];
@@ -1287,6 +1287,18 @@ function initOutsourceDriverLogin() {
             performGoToDestination(order, combinedName);
           } else if (authPendingAction.type === 'complete_delivery') {
             performCompleteDelivery(order, combinedName);
+          } else if (authPendingAction.type === 'deliver_goods') {
+            performDeliverGoods(
+              order,
+              combinedName,
+              authPendingAction.isReturn,
+              authPendingAction.signedFile,
+              authPendingAction.supportingFiles,
+              authPendingAction.itemQtys,
+              authPendingAction.itemRemarks
+            );
+          } else if (authPendingAction.type === 'pick_return') {
+            performPickReturnPaper(order, combinedName, authPendingAction.photoFile);
           }
         }
         authPendingAction = null;
@@ -2860,21 +2872,23 @@ async function retryFailedSyncs() {
           });
 
           // Update Driver_Log
-          const jobDelivered = [...payload.driverLogs];
+          const jobDelivered = [...(payload.driverLogs || [])];
           jobDelivered.push({
             id: payload.orderId,
             timestamp: item.timestamp,
             signed_paper_img: signedUrl
           });
 
-          await writeWithRetry({
-            sheet: "Driver_Log",
-            action: "update",
-            data: {
-              ID: payload.activeJobId,
-              Driver_Logs: JSON.stringify(jobDelivered)
-            }
-          });
+          if (payload.activeJobId) {
+            await writeWithRetry({
+              sheet: "Driver_Log",
+              action: "update",
+              data: {
+                ID: payload.activeJobId,
+                Driver_Logs: JSON.stringify(jobDelivered)
+              }
+            });
+          }
 
           // Save local memory state
           if (order) {
@@ -2889,13 +2903,13 @@ async function retryFailedSyncs() {
           const discrepancies = [];
           const items = order ? (typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || [])) : [];
           items.forEach(item => {
-            const currentQty = payload.itemQtys[item.sku] !== undefined ? payload.itemQtys[item.sku] : item.qty;
+            const currentQty = (payload.itemQtys && payload.itemQtys[item.sku] !== undefined) ? payload.itemQtys[item.sku] : item.qty;
             if (currentQty < item.qty) {
               discrepancies.push({
                 sku: item.sku,
                 qty_ordered: item.qty,
                 qty_delivered: currentQty,
-                remark: itemRemarks[item.sku] || ''
+                remark: (payload.itemRemarks && payload.itemRemarks[item.sku]) ? payload.itemRemarks[item.sku] : ''
               });
             }
           });
@@ -2925,7 +2939,7 @@ async function retryFailedSyncs() {
           });
 
           // Update Driver_Log
-          const jobDelivered = [...payload.driverLogs];
+          const jobDelivered = [...(payload.driverLogs || [])];
           jobDelivered.push({
             id: payload.orderId,
             timestamp: item.timestamp,
@@ -2933,32 +2947,34 @@ async function retryFailedSyncs() {
             discrepancies: discrepancies
           });
 
-          await writeWithRetry({
-            sheet: "Driver_Log",
-            action: "update",
-            data: {
-              ID: payload.activeJobId,
-              Driver_Logs: JSON.stringify(jobDelivered),
-              Active_Orders: JSON.stringify(
-                allOrders
-                  .filter(o => {
-                    const statusClean = (o.Status || '').trim().toLowerCase();
-                    const driverClean = (o.Driver || '').trim();
-                    const isRet = String(o.Mark || '').startsWith('R');
-                    const isMatchedDriver = driverClean === payload.driverName;
-                    
-                    const isCompleted = o.ID === payload.orderId || statusClean === 'delivered' || statusClean === 'collected';
-                    if (isCompleted) return false;
-                    
-                    const isOutForDelivery = statusClean === 'out for delivery';
-                    const isPendingReturn = isRet && statusClean === 'pending';
-                    
-                    return isMatchedDriver && (isOutForDelivery || isPendingReturn);
-                  })
-                  .map(o => o.ID)
-              )
-            }
-          });
+          if (payload.activeJobId) {
+            await writeWithRetry({
+              sheet: "Driver_Log",
+              action: "update",
+              data: {
+                ID: payload.activeJobId,
+                Driver_Logs: JSON.stringify(jobDelivered),
+                Active_Orders: JSON.stringify(
+                  allOrders
+                    .filter(o => {
+                      const statusClean = (o.Status || '').trim().toLowerCase();
+                      const driverClean = (o.Driver || '').trim();
+                      const isRet = String(o.Mark || '').startsWith('R');
+                      const isMatchedDriver = driverClean === payload.driverName;
+                      
+                      const isCompleted = o.ID === payload.orderId || statusClean === 'delivered' || statusClean === 'collected';
+                      if (isCompleted) return false;
+                      
+                      const isOutForDelivery = statusClean === 'out for delivery';
+                      const isPendingReturn = isRet && statusClean === 'pending';
+                      
+                      return isMatchedDriver && (isOutForDelivery || isPendingReturn);
+                    })
+                    .map(o => o.ID)
+                )
+              }
+            });
+          }
 
           // Save local memory state
           if (order) {
@@ -5043,6 +5059,7 @@ function showJobConfirmModal(toOn) {
 }
 
 async function syncDeliverJob(jobId, action, fields) {
+  if (!jobId) return;
   try {
     const payload = {
       sheet: "Driver_Log",
@@ -5109,7 +5126,15 @@ function openUnloadModal() {
 
   const cameraBox = document.getElementById('unload-camera-box');
   if (cameraBox) cameraBox.style.display = 'block';
-  if (desc) desc.style.display = 'block';
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  const pinWrapper = document.getElementById('unload-pin-digits-wrapper');
+  if (isOutsource) {
+    if (pinLabel) pinLabel.style.display = 'none';
+    if (pinWrapper) pinWrapper.style.display = 'none';
+  } else {
+    if (pinLabel) pinLabel.style.display = '';
+    if (pinWrapper) pinWrapper.style.display = '';
+  }
 
   if (unloadModalMode === "unload") {
     if (title) title.textContent = "Unload Goods Proof";
@@ -5242,42 +5267,47 @@ function bindUnloadProofModal() {
   const confirmBtn = document.getElementById('unload-modal-confirm-btn');
   if (confirmBtn) {
     confirmBtn.onclick = async () => {
+      const isOutsource = localStorage.getItem('is_outsource') === 'true';
       const pinInput = document.getElementById('unload-pin-input');
       const pinVal = pinInput ? pinInput.value : '';
-      if (!unloadPhotoFile || pinVal.length !== 4) {
-        showToast("Please capture a photo and enter your PIN", "error");
+      if (!unloadPhotoFile || (!isOutsource && pinVal.length !== 4)) {
+        showToast(isOutsource ? "Please capture a photo first" : "Please capture a photo and enter your PIN", "error");
         return;
       }
 
-      // Verify PIN
-      const enteredPin = parseInt(pinVal);
-      const matchedUser = allUsers.find(u => parseInt(u.PIN || u.pin) === enteredPin);
-      if (!matchedUser) {
-        const hiddenInput = document.getElementById('unload-pin-hidden');
-        if (hiddenInput) hiddenInput.classList.add('error');
-        const displays = document.querySelectorAll('#unload-proof-modal .pin-digit-display');
-        displays.forEach(display => display.classList.add('error'));
-        showToast("Incorrect PIN. Please try again.", "error");
-        
-        setTimeout(() => {
-          if (hiddenInput) {
-            hiddenInput.value = '';
-            hiddenInput.classList.remove('error');
-          }
-          if (pinInput) pinInput.value = '';
-          displays.forEach((display, idx) => {
-            display.textContent = '';
-            display.classList.remove('error');
-            if (idx === 0) display.classList.add('active');
-            else display.classList.remove('active');
-          });
-          validateUnloadForm();
-        }, 600);
-        return;
+      let driverName = getCachedAuth() || "Driver";
+      if (!isOutsource) {
+        // Verify PIN
+        const enteredPin = parseInt(pinVal);
+        const matchedUser = allUsers.find(u => parseInt(u.PIN || u.pin) === enteredPin);
+        if (!matchedUser) {
+          const hiddenInput = document.getElementById('unload-pin-hidden');
+          if (hiddenInput) hiddenInput.classList.add('error');
+          const displays = document.querySelectorAll('#unload-proof-modal .pin-digit-display');
+          displays.forEach(display => display.classList.add('error'));
+          showToast("Incorrect PIN. Please try again.", "error");
+          
+          setTimeout(() => {
+            if (hiddenInput) {
+              hiddenInput.value = '';
+              hiddenInput.classList.remove('error');
+            }
+            if (pinInput) pinInput.value = '';
+            displays.forEach((display, idx) => {
+              display.textContent = '';
+              display.classList.remove('error');
+              if (idx === 0) display.classList.add('active');
+              else display.classList.remove('active');
+            });
+            validateUnloadForm();
+          }, 600);
+          return;
+        }
+
+        // PIN validated successfully! Send uploads
+        driverName = matchedUser.Name || matchedUser.name || 'Driver';
       }
 
-      // PIN validated successfully! Send uploads
-      const driverName = matchedUser.Name || matchedUser.name || 'Driver';
       showToast("Uploading proof and syncing...", "info");
 
       try {
@@ -5437,11 +5467,12 @@ function clearUnloadForm() {
 }
 
 function validateUnloadForm() {
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
   const pinInput = document.getElementById('unload-pin-input');
   const pinVal = pinInput ? pinInput.value : '';
   const confirmBtn = document.getElementById('unload-modal-confirm-btn');
 
-  const isValid = unloadPhotoFile !== null && pinVal.length === 4;
+  const isValid = unloadPhotoFile !== null && (isOutsource || pinVal.length === 4);
 
   if (confirmBtn) {
     if (isValid) {

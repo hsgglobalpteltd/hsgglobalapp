@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F172A">
+  <title>iB - Promoter App</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Prevent zooming gestures
+    document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+    document.addEventListener('touchstart', function (event) {
+      if (event.touches.length > 1) event.preventDefault();
+    }, { passive: false });
+  </script>
+</head>
+<body>
+
+  <!-- ==========================================
+       LOGIN VIEW (4-Digit PIN)
+       ========================================== -->
+  <div id="login-view" class="app-screen active">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="app-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </div>
+        <h1>iB Promoter</h1>
+        <p>Enter your 4-digit PIN to access your activations</p>
+      </div>
+
+      <!-- PIN Dots Display -->
+      <div class="pin-display">
+        <div class="pin-dot" id="dot-0"></div>
+        <div class="pin-dot" id="dot-1"></div>
+        <div class="pin-dot" id="dot-2"></div>
+        <div class="pin-dot" id="dot-3"></div>
+      </div>
+
+      <!-- Keypad -->
+      <div class="keypad">
+        <button type="button" class="key-btn" onclick="handleKeyPress('1')">1</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('2')">2</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('3')">3</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('4')">4</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('5')">5</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('6')">6</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('7')">7</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('8')">8</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('9')">9</button>
+        <button type="button" class="key-btn clear-btn" onclick="handleClearPIN()">C</button>
+        <button type="button" class="key-btn" onclick="handleKeyPress('0')">0</button>
+        <button type="button" class="key-btn back-btn" onclick="handleBackspace()">⌫</button>
+      </div>
+
+      <div class="back-to-portal">
+        <a href="../index.html">← Back to Apps Portal</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MAIN APP VIEW (DASHBOARD)
+       ========================================== -->
+  <div id="main-view" class="app-screen">
+    
+    <!-- Top App Bar -->
+    <header class="app-header">
+      <div class="user-info">
+        <div class="avatar-icon">
+          <span id="header-avatar-initial">P</span>
+        </div>
+        <div class="user-details">
+          <span class="user-name" id="header-promoter-name">Promoter</span>
+          <span class="user-id" id="header-promoter-id">ID: —</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" class="btn-icon" onclick="refreshData()" title="Refresh">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+        <button type="button" class="btn-icon logout" onclick="handleLogout()" title="Logout">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="app-content">
+      
+      <!-- Date Banner -->
+      <div class="today-banner">
+        <div class="date-label">Today's Schedule</div>
+        <div class="date-value" id="current-date-display">Loading...</div>
+      </div>
+
+      <!-- Shift Sections -->
+      <div class="shifts-container">
+        
+        <!-- Today Activations -->
+        <div class="section-block">
+          <div class="section-title">
+            <span>Today's Activations</span>
+            <span class="badge" id="today-shifts-count">0</span>
+          </div>
+          <div id="today-shifts-list" class="cards-list">
+            <!-- Dynamic shift cards -->
+          </div>
+        </div>
+
+        <!-- Upcoming Activations -->
+        <div class="section-block">
+          <div class="section-title">
+            <span>Upcoming Activations</span>
+            <span class="badge secondary" id="upcoming-shifts-count">0</span>
+          </div>
+          <div id="upcoming-shifts-list" class="cards-list">
+            <!-- Dynamic shift cards -->
+          </div>
+        </div>
+
+        <!-- Past Activations -->
+        <div class="section-block">
+          <div class="section-title">
+            <span>Completed Activations</span>
+            <span class="badge secondary" id="past-shifts-count">0</span>
+          </div>
+          <div id="past-shifts-list" class="cards-list">
+            <!-- Dynamic shift cards -->
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ==========================================
+       MODAL 1: CHECK-IN WORKFLOW
+       ========================================== -->
+  <div id="checkin-modal" class="modal-overlay">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <div>
+          <h2>Shift Check-In</h2>
+          <p id="checkin-store-sub">Store Name</p>
+        </div>
+        <button type="button" class="btn-close" onclick="closeModal('checkin-modal')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Step 1: Selfie Proof -->
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-num">1</span>
+            <span>Check-In Selfie Proof <span class="required">*</span></span>
+          </div>
+          <p class="step-desc">Take a clear selfie at the activation location to proof your attendance.</p>
+          
+          <div class="photo-upload-area" id="checkin-selfie-preview-box" onclick="triggerCameraInput('checkin-selfie-file')">
+            <input type="file" id="checkin-selfie-file" accept="image/*" capture="user" style="display: none;" onchange="handleImageSelected(event, 'checkin-selfie-preview-box', 'checkin-selfie-data')">
+            <div class="upload-placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <span>Tap to take Selfie</span>
+            </div>
+            <img class="preview-img" style="display: none;" alt="Selfie Preview">
+          </div>
+        </div>
+
+        <!-- Step 2: Opening Shelf Photo -->
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-num">2</span>
+            <span>Opening Shelf Photo <span class="required">*</span></span>
+          </div>
+          <p class="step-desc">Take a clear photo of the store display shelf before starting.</p>
+          
+          <div class="photo-upload-area" id="checkin-shelf-preview-box" onclick="triggerCameraInput('checkin-shelf-file')">
+            <input type="file" id="checkin-shelf-file" accept="image/*" capture="environment" style="display: none;" onchange="handleImageSelected(event, 'checkin-shelf-preview-box', 'checkin-shelf-data')">
+            <div class="upload-placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Tap to take Shelf Photo</span>
+            </div>
+            <img class="preview-img" style="display: none;" alt="Shelf Preview">
+          </div>
+        </div>
+
+        <!-- Step 3: Initial Shelf Stock Count -->
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-num">3</span>
+            <span>Initial Shelf Stock (Starting Qty)</span>
+          </div>
+          <p class="step-desc">Count the current items on shelf for this campaign's products.</p>
+          
+          <div id="checkin-products-list" class="products-counter-list">
+            <!-- Dynamic campaign SKUs -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('checkin-modal')">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-submit-checkin" onclick="submitCheckIn()">Complete Check-In</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL 2: CHECK-OUT WORKFLOW
+       ========================================== -->
+  <div id="checkout-modal" class="modal-overlay">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <div>
+          <h2>Shift Check-Out</h2>
+          <p id="checkout-store-sub">Store Name</p>
+        </div>
+        <button type="button" class="btn-close" onclick="closeModal('checkout-modal')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Step 1: Closing Shelf Photo -->
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-num">1</span>
+            <span>Closing Shelf Photo <span class="required">*</span></span>
+          </div>
+          <p class="step-desc">Take a photo of the shelf at the end of the shift.</p>
+          
+          <div class="photo-upload-area" id="checkout-shelf-preview-box" onclick="triggerCameraInput('checkout-shelf-file')">
+            <input type="file" id="checkout-shelf-file" accept="image/*" capture="environment" style="display: none;" onchange="handleImageSelected(event, 'checkout-shelf-preview-box', 'checkout-shelf-data')">
+            <div class="upload-placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Tap to take Shelf Photo</span>
+            </div>
+            <img class="preview-img" style="display: none;" alt="Shelf Preview">
+          </div>
+        </div>
+
+        <!-- Step 2: Final Shelf Stock Count -->
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-num">2</span>
+            <span>Final Remaining Shelf Stock</span>
+          </div>
+          <p class="step-desc">Count the final remaining items left on shelf.</p>
+          
+          <div id="checkout-products-list" class="products-counter-list">
+            <!-- Dynamic campaign SKUs with start and end diff -->
+          </div>
+        </div>
+
+        <!-- Step 3: Check-Out Selfie -->
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-num">3</span>
+            <span>Check-Out Selfie Proof <span class="required">*</span></span>
+          </div>
+          <p class="step-desc">Take a final selfie to confirm completion of your shift.</p>
+          
+          <div class="photo-upload-area" id="checkout-selfie-preview-box" onclick="triggerCameraInput('checkout-selfie-file')">
+            <input type="file" id="checkout-selfie-file" accept="image/*" capture="user" style="display: none;" onchange="handleImageSelected(event, 'checkout-selfie-preview-box', 'checkout-selfie-data')">
+            <div class="upload-placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <span>Tap to take Selfie</span>
+            </div>
+            <img class="preview-img" style="display: none;" alt="Selfie Preview">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('checkout-modal')">Cancel</button>
+        <button type="button" class="btn btn-success" id="btn-submit-checkout" onclick="submitCheckOut()">Complete Check-Out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL 3: ADD EXPENSE / RECEIPT (ANYTIME)
+       ========================================== -->
+  <div id="expense-modal" class="modal-overlay">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <div>
+          <h2>Add Activation Expense</h2>
+          <p>Ice, cups, sampling supplies, or transport</p>
+        </div>
+        <button type="button" class="btn-close" onclick="closeModal('expense-modal')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="notice-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span><strong>Important:</strong> Please keep the physical receipt with you for claim submission verification.</span>
+        </div>
+
+        <div class="form-group">
+          <label>Expense Description <span class="required">*</span></label>
+          <input type="text" id="expense-item-name" placeholder="e.g. Ice bag, Plastic cups, Sampling items" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label>Amount Spent ($ SGD) <span class="required">*</span></label>
+          <input type="number" id="expense-item-amount" step="0.01" min="0" placeholder="0.00" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label>Receipt Photo <span class="required">*</span></label>
+          <div class="photo-upload-area" id="expense-receipt-preview-box" onclick="triggerCameraInput('expense-receipt-file')">
+            <input type="file" id="expense-receipt-file" accept="image/*" capture="environment" style="display: none;" onchange="handleImageSelected(event, 'expense-receipt-preview-box', 'expense-receipt-data')">
+            <div class="upload-placeholder">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Tap to snap Receipt photo</span>
+            </div>
+            <img class="preview-img" style="display: none;" alt="Receipt Preview">
+          </div>
+        </div>
+
+        <!-- Existing Logged Expenses on this shift -->
+        <div class="logged-expenses-section">
+          <label>Logged Expenses on this Shift:</label>
+          <div id="logged-expenses-list" class="logged-list">
+            <!-- Dynamic items -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('expense-modal')">Close</button>
+        <button type="button" class="btn btn-primary" id="btn-submit-expense" onclick="submitAddExpense()">Add Expense</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL 4: DIGITAL SUMMARY CARD (SCREENSHOT PAGE)
+       ========================================== -->
+  <!-- ==========================================
+       MODAL 4: DIGITAL SUMMARY CARD (FULLSCREEN TEXT VIEW)
+       ========================================== -->
+  <div id="summary-modal" class="modal-overlay summary-fullscreen-overlay">
+    <div class="summary-fullscreen-container">
+      <div class="summary-fullscreen-nav">
+        <div class="summary-nav-title">
+          <h2>Activation Summary</h2>
+          <p>Shift Completion Receipt</p>
+        </div>
+        <button type="button" class="btn-close-fullscreen" onclick="closeModal('summary-modal')">&times;</button>
+      </div>
+
+      <div class="summary-fullscreen-body" id="summary-card-content">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Message -->
+  <div id="app-toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
