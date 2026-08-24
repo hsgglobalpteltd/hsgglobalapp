@@ -52,134 +52,105 @@ body {
 }
 
 /* ==========================================================================
-   LOGIN SCREEN (4-Digit PIN)
+   LOGIN SCREEN (Universal Gatekeeper PIN)
    ========================================================================== */
 #login-view {
-  background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%);
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
+  background: #F8FAFC;
+  padding: 0;
+  width: 100%;
+  height: 100dvh;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
 }
 
-.login-card {
+#login-view.active {
+  display: flex;
+}
+
+.auth-header {
+  height: 48px;
   width: 100%;
-  max-width: 360px;
+  background-color: #0F172A;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  user-select: none;
+}
+
+.auth-content {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.pin-entry-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
-}
-
-.app-badge {
-  width: 56px;
-  height: 56px;
-  background: var(--primary);
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFF;
-  margin: 0 auto 16px;
-  box-shadow: 0 10px 25px -5px rgba(2, 132, 199, 0.3);
-}
-
-.login-header h1 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #FFF;
-  letter-spacing: -0.3px;
-}
-
-.login-header p {
-  font-size: 13px;
-  color: var(--text-sub);
-  margin-top: 6px;
-  max-width: 260px;
-  line-height: 1.4;
-  font-weight: 400;
-}
-
-/* PIN Dots */
-.pin-display {
-  display: flex;
-  gap: 16px;
-  margin: 32px 0 28px;
-}
-
-.pin-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1.5px solid #475569;
-  background: transparent;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.pin-dot.filled {
-  background: var(--primary);
-  border-color: var(--primary);
-  box-shadow: 0 0 10px var(--primary);
-  transform: scale(1.15);
-}
-
-/* Keypad */
-.keypad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  gap: 12px;
   width: 100%;
-  max-width: 290px;
 }
 
-.key-btn {
-  height: 60px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 50%;
-  color: #FFF;
-  font-size: 22px;
-  font-weight: 500;
+.pin-entry-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pin-digits-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+}
+
+.pin-digit-display {
+  width: 52px;
+  height: 52px;
+  font-size: 24px;
+  font-weight: 800;
+  text-align: center;
+  border: 2px solid #E2E8F0;
+  border-radius: 12px;
+  background-color: #FFFFFF;
+  color: #0F172A;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  aspect-ratio: 1/1;
-  margin: 0 auto;
-  width: 60px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
 }
 
-.key-btn:active {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(0.92);
+.pin-digit-display.active {
+  border-color: var(--primary, #0284C7);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
-.key-btn.clear-btn {
-  font-size: 15px;
-  font-weight: 500;
-  color: #94A3B8;
+.pin-digit-display.error {
+  border-color: #EF4444 !important;
+  animation: shake 0.3s ease-in-out;
 }
 
-.key-btn.back-btn {
-  font-size: 18px;
-  color: #94A3B8;
-  font-weight: 400;
-}
-
-.back-to-portal {
-  margin-top: 32px;
-}
-
-.back-to-portal a {
-  color: #64748B;
-  font-size: 13px;
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.back-to-portal a:hover {
-  color: #94A3B8;
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
 }
 
 /* ==========================================================================

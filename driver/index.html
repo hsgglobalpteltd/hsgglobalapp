@@ -285,19 +285,14 @@
   <!-- Authentication Page view -->
   <div id="auth-page" class="auth-page-overlay">
     <header class="auth-header">
-      <button id="auth-back-btn" class="preview-back-btn" aria-label="Back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
-          <polyline points="15 18 9 12 15 6"></polyline>
-        </svg>
-        <span>Back</span>
-      </button>
-      <span class="mobile-header-title">Authentication</span>
+      <span class="mobile-header-title">iB - Driver</span>
     </header>
 
-    <div class="auth-content">
-      <!-- 4-digit PIN Masked Input -->
-      <div id="auth-pin-container" class="pin-entry-container" style="margin-top: 40px;">
-        <label class="pin-entry-label" style="font-size: 13px; color: #94A3B8; margin-bottom: 20px; font-weight: 700;">ENTER 4-DIGIT PIN</label>
+    <div class="auth-content" style="display: flex; flex-direction: column; justify-content: space-between; align-items: center; height: calc(100% - 48px); padding: 0 24px; box-sizing: border-box;">
+      
+      <!-- 4-digit PIN Masked Input (30% from top) -->
+      <div id="auth-pin-container" class="pin-entry-container" style="margin-top: 25vh;">
+        <label class="pin-entry-label" style="font-size: 13px; color: #64748B; margin-bottom: 16px; font-weight: 700; letter-spacing: 0.05em;">ENTER 4-DIGIT PIN</label>
         <div class="pin-digits-row" id="pin-digits-wrapper" style="position: relative; cursor: pointer;">
           <input type="tel" id="auth-pin-hidden" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;">
           <div class="pin-digit-display" data-index="0"></div>
@@ -308,15 +303,27 @@
         <input type="hidden" id="auth-pin-input">
 
         <!-- Or Outsource Button -->
-        <div style="margin-top: 30px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 15px; box-sizing: border-box; padding: 0 40px;">
-          <div style="display: flex; align-items: center; width: 100%; gap: 10px; margin: 10px 0;">
-            <hr style="flex: 1; border: none; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="margin-top: 20px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; box-sizing: border-box; padding: 0 20px;">
+          <div style="display: flex; align-items: center; width: 100%; gap: 10px; margin: 6px 0;">
+            <hr style="flex: 1; border: none; border-top: 1px solid #E2E8F0;">
             <span style="color: #64748B; font-size: 11px; font-weight: 700;">OR</span>
-            <hr style="flex: 1; border: none; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <hr style="flex: 1; border: none; border-top: 1px solid #E2E8F0;">
           </div>
           
-          <button type="button" id="outsource-login-btn" class="modal-btn confirm" style="background-color: #3B82F6; border: none; color: white; width: 100%; font-weight: 750; border-radius: 8px; padding: 12px; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; font-family: 'Outfit', sans-serif;">Outsource Driver</button>
+          <button type="button" id="outsource-login-btn" class="modal-btn confirm" style="background-color: #3B82F6; border: none; color: white; width: 100%; font-weight: 750; border-radius: 8px; padding: 10px; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; font-family: 'Outfit', sans-serif;">Outsource Driver</button>
         </div>
+      </div>
+
+      <!-- Exit App Button (Bottom 30%) -->
+      <div style="margin-bottom: 22vh; width: 100%; display: flex; justify-content: center;">
+        <a href="../index.html" class="auth-exit-btn" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; background-color: #F1F5F9; border: 1.5px solid var(--border-color); border-radius: 24px; color: #475569; font-size: 13px; font-weight: 700; text-decoration: none; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Exit Driver</span>
+        </a>
       </div>
 
       <!-- Outsource Details Form (initially hidden) -->

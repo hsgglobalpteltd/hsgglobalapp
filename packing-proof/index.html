@@ -43,105 +43,101 @@
       touch-action: none;
     }
 
-    /* Keypad Entry Overlay */
+    /* Keypad Entry Overlay - Universal Gatekeeper Standard */
     #pin-overlay {
       position: fixed;
       inset: 0;
-      background-color: var(--bg-color);
-      z-index: 50;
+      background-color: #F8FAFC;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    #pin-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-100%);
+    }
+
+    .auth-header {
+      height: 48px;
+      width: 100%;
+      background-color: #0F172A;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      top: 0;
+      left: 0;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      user-select: none;
+    }
+
+    .auth-content {
+      flex: 1;
+      width: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 24px;
-      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      box-sizing: border-box;
     }
 
-    #pin-overlay.hidden {
-      transform: translateY(-100%);
-      pointer-events: none;
-    }
-
-    .pin-header {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .pin-title {
-      font-size: 22px;
-      font-weight: bold;
-      letter-spacing: -0.02em;
-      margin-bottom: 8px;
-    }
-
-    .pin-subtitle {
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-
-    .pin-indicators {
+    .pin-entry-container {
       display: flex;
-      gap: 16px;
-      margin-bottom: 40px;
-    }
-
-    .pin-dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: 2px solid var(--text-secondary);
-      transition: all 0.15s ease;
-    }
-
-    .pin-dot.active {
-      background-color: var(--accent-color);
-      border-color: var(--accent-color);
-      box-shadow: 0 0 10px var(--accent-color);
-    }
-
-    .pin-dot.error {
-      background-color: var(--danger-color);
-      border-color: var(--danger-color);
-      box-shadow: 0 0 10px var(--danger-color);
-    }
-
-    .keypad {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      max-width: 280px;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
       width: 100%;
     }
 
-    .key {
-      aspect-ratio: 1;
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background-color: var(--card-bg);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      color: var(--text-primary);
+    .pin-entry-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748B;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pin-digits-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .pin-digit-display {
+      width: 52px;
+      height: 52px;
       font-size: 24px;
-      font-weight: 600;
+      font-weight: 800;
+      text-align: center;
+      border: 2px solid #E2E8F0;
+      border-radius: 12px;
+      background-color: #FFFFFF;
+      color: #0F172A;
       display: flex;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
-      user-select: none;
-      transition: background-color 0.15s ease, transform 0.1s ease;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
     }
 
-    .key:active {
-      background-color: rgba(255, 255, 255, 0.15);
-      transform: scale(0.92);
+    .pin-digit-display.active {
+      border-color: var(--accent-color, #0D9488);
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
     }
 
-    .key.special {
-      background-color: transparent;
-      border: none;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-secondary);
+    .pin-digit-display.error {
+      border-color: #EF4444 !important;
+      animation: shake 0.3s ease-in-out;
     }
 
     /* Main Scanner Layout */
@@ -701,44 +697,39 @@
 </head>
 <body>
 
-  <!-- 1. Passcode Overlay -->
+  <!-- 1. Universal Gatekeeper Overlay -->
   <div id="pin-overlay">
-    <header class="app-header" style="width: 100%; position: absolute; top: 0; left: 0;">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <button onclick="exitApp()" style="background: transparent; border: none; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; outline: none;" title="Exit App">
-          <svg style="width: 20px; height: 20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-        </button>
-        <span class="app-main-title">Tiktok Packing</span>
-      </div>
+    <header class="auth-header">
+      <span style="font-size: 15px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.02em;">iB - Tiktok Packing</span>
     </header>
 
-    <div class="pin-header" style="margin-top: 40px;">
-      <h2 class="pin-title">Operator Passcode</h2>
-      <p class="pin-subtitle">Enter your 4-digit PIN to login</p>
-    </div>
+    <div class="auth-content" style="display: flex; flex-direction: column; justify-content: space-between; align-items: center; height: 100%; padding-top: 48px; box-sizing: border-box;">
+      
+      <!-- 4-digit PIN Masked Input (30% from top) -->
+      <div class="pin-entry-container" style="margin-top: 25vh;">
+        <label class="pin-entry-label">ENTER 4-DIGIT PIN</label>
+        
+        <div class="pin-digits-row" id="pin-digits-wrapper" style="position: relative; cursor: pointer;">
+          <input type="tel" id="auth-pin-hidden" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;">
+          <div class="pin-digit-display" data-index="0"></div>
+          <div class="pin-digit-display" data-index="1"></div>
+          <div class="pin-digit-display" data-index="2"></div>
+          <div class="pin-digit-display" data-index="3"></div>
+        </div>
+      </div>
 
-    <div class="pin-indicators" id="pin-indicators">
-      <div class="pin-dot"></div>
-      <div class="pin-dot"></div>
-      <div class="pin-dot"></div>
-      <div class="pin-dot"></div>
-    </div>
+      <!-- Exit App Button (Bottom 30%) -->
+      <div style="margin-bottom: 22vh; width: 100%; display: flex; justify-content: center;">
+        <a href="../index.html" class="auth-exit-btn" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; background-color: #F1F5F9; border: 1.5px solid #E2E8F0; border-radius: 24px; color: #475569; font-size: 13px; font-weight: 700; text-decoration: none; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Exit Tiktok Packing</span>
+        </a>
+      </div>
 
-    <div class="keypad" id="keypad">
-      <div class="key" data-val="1">1</div>
-      <div class="key" data-val="2">2</div>
-      <div class="key" data-val="3">3</div>
-      <div class="key" data-val="4">4</div>
-      <div class="key" data-val="5">5</div>
-      <div class="key" data-val="6">6</div>
-      <div class="key" data-val="7">7</div>
-      <div class="key" data-val="8">8</div>
-      <div class="key" data-val="9">9</div>
-      <div class="key special" id="key-clear">CLEAR</div>
-      <div class="key" data-val="0">0</div>
-      <div class="key special" id="key-del">DEL</div>
     </div>
   </div>
 
@@ -919,22 +910,57 @@
 
     let enteredPin = "";
     const pinOverlay = document.getElementById('pin-overlay');
-    const pinDots = document.querySelectorAll('.pin-dot');
-    const keypad = document.getElementById('keypad');
+    const pinHiddenInput = document.getElementById('auth-pin-hidden');
+    const pinWrapper = document.getElementById('pin-digits-wrapper');
+    const pinDisplays = document.querySelectorAll('#pin-overlay .pin-digit-display');
 
-    function updatePinDots() {
-      pinDots.forEach((dot, idx) => {
-        if (idx < enteredPin.length) {
-          dot.classList.add('active');
-        } else {
-          dot.classList.remove('active');
-        }
-        dot.classList.remove('error');
+    if (pinWrapper && pinHiddenInput) {
+      pinWrapper.addEventListener('click', () => {
+        pinHiddenInput.focus();
       });
     }
 
-    function validatePin() {
-      const match = operatorsCache.find(op => op.pin === enteredPin);
+    if (pinHiddenInput) {
+      pinHiddenInput.addEventListener('input', () => {
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const val = pinHiddenInput.value.replace(/\D/g, '').substring(0, 4);
+        pinHiddenInput.value = val;
+        enteredPin = val;
+
+        pinDisplays.forEach((d, idx) => {
+          if (idx < val.length) {
+            d.textContent = '•';
+            d.classList.add('active');
+          } else {
+            d.textContent = '';
+            d.classList.remove('active');
+          }
+          d.classList.remove('error');
+        });
+
+        if (val.length === 4) {
+          validatePin(val);
+        }
+      });
+    }
+
+    function clearAuthPin() {
+      enteredPin = "";
+      if (pinHiddenInput) {
+        pinHiddenInput.value = "";
+        pinHiddenInput.focus();
+      }
+      pinDisplays.forEach(d => {
+        d.textContent = "";
+        d.classList.remove('active', 'error');
+      });
+    }
+
+    function validatePin(pinToTest) {
+      const pinStr = pinToTest || enteredPin;
+      const match = operatorsCache.find(op => String(op.pin) === String(pinStr));
       if (match) {
         loggedOperator = match.name;
         try {
@@ -946,12 +972,9 @@
         initSession();
       } else {
         playErrorBeep();
-        pinDots.forEach(dot => dot.classList.add('error'));
-        document.getElementById('pin-indicators').classList.add('shake');
+        pinDisplays.forEach(dot => dot.classList.add('error'));
         setTimeout(() => {
-          document.getElementById('pin-indicators').classList.remove('shake');
-          enteredPin = "";
-          updatePinDots();
+          clearAuthPin();
         }, 400);
       }
     }
@@ -975,75 +998,7 @@
         }
         
         pinOverlay.classList.remove('hidden');
-        enteredPin = "";
-        updatePinDots();
-      }
-    });
-    
-    let loggedOperator = "";
-    // Auto-login from cache (valid for 1 hour)
-    try {
-      const cachedOperator = localStorage.getItem('tiktok_login_operator');
-      const cachedLoginTime = localStorage.getItem('tiktok_login_time');
-      if (cachedOperator && cachedLoginTime && (Date.now() - Number(cachedLoginTime) < 3600000)) {
-        loggedOperator = cachedOperator;
-        document.getElementById('operator-display').textContent = loggedOperator;
-        pinOverlay.classList.add('hidden');
-        // Defer session initialization slightly to ensure all structures are ready
-        setTimeout(() => {
-          initSession();
-        }, 100);
-      }
-    } catch (_) {}
-    let sessionBatchId = "";
-    let scannedBarcodes = new Set();
-    let pendingTrackingIds = new Map();
-    let intransitTrackingIds = new Set();
-
-    function getPendingCount() {
-      let count = 0;
-      const uniqueItems = new Set(pendingTrackingIds.values());
-      uniqueItems.forEach(item => {
-        const val = item.batch_id_packing;
-        if (!val || val.trim() === "") {
-          count++;
-        }
-      });
-      return count;
-    }
-
-    // Native BarcodeDetector API Instantiation
-    let barcodeDetector = null;
-    if ('BarcodeDetector' in window) {
-      barcodeDetector = new BarcodeDetector({
-        formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'itf', 'pdf417']
-      });
-    }
-
-    // Quagga2 operates automatically without WASM binaries
-
-    keypad.addEventListener('click', (e) => {
-      const target = e.target;
-      if (!target.classList.contains('key')) return;
-
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-
-      if (target.id === 'key-clear') {
-        enteredPin = "";
-      } else if (target.id === 'key-del') {
-        enteredPin = enteredPin.slice(0, -1);
-      } else if (target.getAttribute('data-val')) {
-        if (enteredPin.length < 4) {
-          enteredPin += target.getAttribute('data-val');
-        }
-      }
-
-      updatePinDots();
-
-      if (enteredPin.length === 4) {
-        validatePin();
+        clearAuthPin();
       }
     });
 

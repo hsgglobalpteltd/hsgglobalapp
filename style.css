@@ -276,6 +276,12 @@ body {
   --app-glow: rgba(2, 132, 199, 0.15);
 }
 
+.app-card.staff-claims {
+  --app-color: #10B981; /* Emerald */
+  --app-bg-light: #ECFDF5; /* Emerald 50 */
+  --app-glow: rgba(16, 185, 129, 0.15);
+}
+
 
 
 /* App Icon Container circle */

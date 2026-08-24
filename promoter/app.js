@@ -45,8 +45,21 @@ async function initApp() {
     }
   }
 
+  bindPinInput();
   showLoginScreen();
   await loadEmployees();
+}
+
+async function loadEmployees() {
+  try {
+    const res = await fetch(`${WORKER_URL}/api/promoter?table=Employees`);
+    if (res.ok) {
+      const data = await res.json();
+      employeesData = Array.isArray(data) ? data : [];
+    }
+  } catch (err) {
+    console.error("Failed to load employees:", err);
+  }
 }
 
 function updateCurrentDateDisplay() {
@@ -61,55 +74,53 @@ function updateCurrentDateDisplay() {
   if (el) el.innerText = dateStr;
 }
 
-// ============================================================================
-// AUTHENTICATION (4-DIGIT PIN)
-// ============================================================================
-async function loadEmployees() {
-  try {
-    const res = await fetch(`${WORKER_URL}/api/promoter?table=Employees`);
-    if (res.ok) {
-      const data = await res.json();
-      employeesData = Array.isArray(data) ? data : [];
-    }
-  } catch (err) {
-    console.error("Failed to load employees:", err);
+function bindPinInput() {
+  const hiddenInput = document.getElementById("auth-pin-hidden");
+  const wrapper = document.getElementById("pin-digits-wrapper");
+  const displays = document.querySelectorAll("#login-view .pin-digit-display");
+
+  if (wrapper && hiddenInput) {
+    wrapper.addEventListener("click", () => {
+      hiddenInput.focus();
+    });
   }
-}
 
-function handleKeyPress(num) {
-  if (enteredPIN.length < 4) {
-    enteredPIN += num;
-    updatePINDots();
+  if (hiddenInput) {
+    hiddenInput.addEventListener("input", () => {
+      const val = hiddenInput.value.replace(/\D/g, "").substring(0, 4);
+      hiddenInput.value = val;
+      enteredPIN = val;
 
-    if (enteredPIN.length === 4) {
-      setTimeout(() => verifyPIN(), 150);
-    }
-  }
-}
+      displays.forEach((d, idx) => {
+        if (idx < val.length) {
+          d.textContent = "•";
+          d.classList.add("active");
+        } else {
+          d.textContent = "";
+          d.classList.remove("active");
+        }
+        d.classList.remove("error");
+      });
 
-function handleBackspace() {
-  if (enteredPIN.length > 0) {
-    enteredPIN = enteredPIN.slice(0, -1);
-    updatePINDots();
+      if (val.length === 4) {
+        verifyPIN();
+      }
+    });
   }
 }
 
 function handleClearPIN() {
   enteredPIN = "";
-  updatePINDots();
-}
-
-function updatePINDots() {
-  for (let i = 0; i < 4; i++) {
-    const dot = document.getElementById(`dot-${i}`);
-    if (dot) {
-      if (i < enteredPIN.length) {
-        dot.classList.add("filled");
-      } else {
-        dot.classList.remove("filled");
-      }
-    }
+  const hiddenInput = document.getElementById("auth-pin-hidden");
+  const displays = document.querySelectorAll("#login-view .pin-digit-display");
+  if (hiddenInput) {
+    hiddenInput.value = "";
+    hiddenInput.focus();
   }
+  displays.forEach(d => {
+    d.textContent = "";
+    d.classList.remove("active", "error");
+  });
 }
 
 async function verifyPIN() {

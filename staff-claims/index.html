@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F172A">
+  <title>iB - Staff Claims</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // iOS Safari gesture zoom prevention
+    document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+    document.addEventListener('touchstart', function (event) {
+      if (event.touches.length > 1) event.preventDefault();
+    }, { passive: false });
+  </script>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       1. UNIVERSAL GATEKEEPER (AUTH / PIN PAGE)
+       ========================================================================== -->
+  <div id="auth-page" class="auth-page-overlay">
+    <header class="auth-header">
+      <span class="mobile-header-title">iB - Staff Claims</span>
+    </header>
+
+    <div class="auth-content" style="display: flex; flex-direction: column; justify-content: space-between; align-items: center; height: calc(100% - 48px); padding: 0 24px; box-sizing: border-box;">
+      
+      <!-- 4-digit PIN Masked Input (30% from top) -->
+      <div class="pin-entry-container" style="margin-top: 25vh;">
+        <label class="pin-entry-label" style="font-size: 13px; color: #64748B; margin-bottom: 16px; font-weight: 700; letter-spacing: 0.05em;">ENTER 4-DIGIT PIN</label>
+        
+        <div class="pin-digits-row" id="pin-digits-wrapper" style="position: relative; cursor: pointer;">
+          <input type="tel" id="auth-pin-hidden" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;">
+          <div class="pin-digit-display" data-index="0"></div>
+          <div class="pin-digit-display" data-index="1"></div>
+          <div class="pin-digit-display" data-index="2"></div>
+          <div class="pin-digit-display" data-index="3"></div>
+        </div>
+      </div>
+
+      <!-- Exit App Button (Bottom 30%) -->
+      <div style="margin-bottom: 22vh; width: 100%; display: flex; justify-content: center;">
+        <a href="../index.html" class="auth-exit-btn" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; background-color: #F1F5F9; border: 1.5px solid var(--border-color, #E2E8F0); border-radius: 24px; color: #475569; font-size: 13px; font-weight: 700; text-decoration: none; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Exit Staff Claims</span>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       2. MAIN APP SCREEN
+       ========================================================================== -->
+  <div id="main-app" class="app-screen">
+    
+    <!-- Top Navigation Header -->
+    <header class="mobile-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="mobile-header-title">iB - Staff Claims</span>
+      </div>
+      
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button id="header-paynow-btn" class="header-icon-btn" title="Edit PayNow" style="font-size: 11px; font-weight: 700; background: rgba(255,255,255,0.12); padding: 4px 8px; border-radius: 6px;">
+          PayNow
+        </button>
+        <button id="logout-btn" class="header-icon-btn" title="Logout">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px;">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Subheader Segment Navigation Tabs -->
+    <div class="subheader-tabs">
+      <button class="tab-btn active" id="tab-log" onclick="switchTab('log')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+          <path d="M12 5v14M5 12h14"></path>
+        </svg>
+        Log Expense
+      </button>
+
+      <button class="tab-btn" id="tab-ledger" onclick="switchTab('ledger')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        </svg>
+        Ledger <span class="tab-badge" id="ledger-count-badge">0</span>
+      </button>
+
+      <button class="tab-btn" id="tab-batches" onclick="switchTab('batches')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        Submitted
+      </button>
+    </div>
+
+    <!-- Missing PayNow Alert Banner (if empty) -->
+    <div id="paynow-missing-banner" style="display: none; background-color: #FEF3C7; border-bottom: 1px solid #FDE68A; padding: 8px 14px; font-size: 11px; color: #92400E; align-items: center; justify-content: space-between;">
+      <span>⚠️ <strong>PayNow required:</strong> Tap to register number for payout.</span>
+      <button onclick="openPayNowModal()" style="padding: 2px 8px; font-size: 10px; font-weight: 700; background-color: #D97706; color: #FFF; border: none; border-radius: 4px; cursor: pointer;">Update</button>
+    </div>
+
+    <!-- ==========================================
+         VIEW 1: LOG EXPENSE (CAMERA & FORM)
+         ========================================== -->
+    <main id="view-log" class="mobile-content">
+      <form id="log-expense-form" class="form-card" onsubmit="handleSaveExpense(event)">
+        
+        <!-- Receipt Camera Upload -->
+        <div class="form-group">
+          <label class="form-label">Receipt Photo (Mandatory) *</label>
+          <div class="camera-upload-box" id="camera-box" onclick="triggerCamera()">
+            <div class="camera-placeholder" id="camera-placeholder">
+              <svg class="camera-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <span style="font-size: 12px; font-weight: 700;">Tap to Snap / Upload Receipt</span>
+            </div>
+            <img id="receipt-preview-img" class="camera-preview-img" style="display: none;" alt="Receipt Preview">
+            <input type="file" id="receipt-file-input" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelected(event)">
+          </div>
+        </div>
+
+        <!-- Amount -->
+        <div class="form-group">
+          <label class="form-label">Amount ($ SGD) *</label>
+          <div class="amount-input-wrapper">
+            <span class="amount-prefix">$</span>
+            <input type="number" id="input-amount" step="0.01" min="0.01" required placeholder="0.00" class="form-input amount-input">
+          </div>
+        </div>
+
+        <!-- Quick Chips for Description -->
+        <div class="form-group">
+          <label class="form-label">Quick Description</label>
+          <div class="quick-chips-row">
+            <button type="button" class="quick-chip" onclick="setQuickDesc('Parking fee')">Parking fee</button>
+            <button type="button" class="quick-chip" onclick="setQuickDesc('Petrol / Fuel')">Petrol / Fuel</button>
+            <button type="button" class="quick-chip" onclick="setQuickDesc('Public Transport / Grab')">Transport / Grab</button>
+            <button type="button" class="quick-chip" onclick="setQuickDesc('Store consumables & materials')">Store Materials</button>
+            <button type="button" class="quick-chip" onclick="setQuickDesc('Meals / Refreshment')">Meals</button>
+          </div>
+        </div>
+
+        <!-- Description Input -->
+        <div class="form-group">
+          <label class="form-label">Description / Particulars *</label>
+          <input type="text" id="input-description" required placeholder="e.g. Parking at FairPrice Hub" class="form-input">
+        </div>
+
+        <!-- Expense Date -->
+        <div class="form-group">
+          <label class="form-label">Expense Date *</label>
+          <input type="date" id="input-date" required class="form-input">
+        </div>
+
+        <!-- Remarks (Optional) -->
+        <div class="form-group">
+          <label class="form-label">Remarks (Optional)</label>
+          <input type="text" id="input-remarks" placeholder="Optional notes..." class="form-input">
+        </div>
+
+        <!-- Save Button -->
+        <button type="submit" id="btn-save-expense" class="action-btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px;">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+          Save to Ledger
+        </button>
+
+      </form>
+    </main>
+
+    <!-- ==========================================
+         VIEW 2: MY LEDGER (SELECTION & BATCHING <= $100)
+         ========================================== -->
+    <main id="view-ledger" class="mobile-content" style="display: none; padding-bottom: 120px;">
+      <div id="ledger-list-container" style="display: flex; flex-direction: column; gap: 10px;">
+        <!-- Injected dynamically via JS -->
+      </div>
+    </main>
+
+    <!-- Sticky Bottom Bar for Ledger -->
+    <div id="ledger-footer-bar" class="sticky-footer-bar" style="display: none;">
+      <div class="calc-summary-row">
+        <span class="calc-selected-count" id="calc-selected-count">0 items selected</span>
+        <div class="calc-total-box">
+          <span class="calc-total-label">Total:</span>
+          <span class="calc-total-val" id="calc-total-val">$0.00</span>
+          <span style="font-size: 11px; color: #94A3B8;">/ $100 max</span>
+        </div>
+      </div>
+
+      <button id="btn-submit-batch" class="action-btn-primary" onclick="openSubmitBatchModal()" disabled>
+        Submit Claim Batch
+      </button>
+    </div>
+
+    <!-- ==========================================
+         VIEW 3: CLAIM SUBMITTED (HISTORY & STATUS)
+         ========================================== -->
+    <main id="view-batches" class="mobile-content" style="display: none;">
+      <div id="batches-list-container" style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Injected dynamically via JS -->
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ==========================================================================
+       SUBMIT BATCH MODAL (ADMIN SELECTION & PAYNOW REVIEW)
+       ========================================================================== -->
+  <div id="submit-batch-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">Submit Claim Batch</span>
+        <button onclick="closeSubmitBatchModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #94A3B8;">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div style="background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px; padding: 10px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="font-size: 10px; font-weight: 700; color: #065F46; text-transform: uppercase; display: block;">Reimbursement Target</span>
+            <span style="font-size: 13px; font-weight: 800; color: #064E3B;" id="modal-employee-name">Staff</span>
+            <span style="font-size: 11px; font-weight: 700; color: #047857; font-family: monospace; display: block;" id="modal-paynow-num">PayNow: -</span>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 10px; font-weight: 700; color: #065F46; text-transform: uppercase; display: block;">Batch Total</span>
+            <span style="font-size: 16px; font-weight: 800; color: #064E3B; font-family: monospace;" id="modal-batch-total">$0.00</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Select Administrator / Supervisor *</label>
+          <select id="modal-admin-select" class="form-input" style="font-size: 13px; font-weight: 700;">
+            <!-- Injected dynamically via JS -->
+          </select>
+        </div>
+
+        <p style="font-size: 11px; color: #64748B;">
+          ⚠️ Claim items will be locked and routed directly to the selected manager's review queue.
+        </p>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeSubmitBatchModal()">Cancel</button>
+        <button class="btn-primary" id="btn-confirm-batch-submit" onclick="executeBatchSubmit()">Confirm & Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       PAYNOW UPDATE MODAL
+       ========================================================================== -->
+  <div id="paynow-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">Update PayNow Details</span>
+        <button onclick="closePayNowModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #94A3B8;">&times;</button>
+      </div>
+
+      <form onsubmit="handleSavePayNow(event)" class="modal-body">
+        <p style="font-size: 12px; color: #64748B;">
+          Enter your 8-digit Singapore mobile number or business UEN for PayNow reimbursements.
+        </p>
+
+        <div class="form-group">
+          <label class="form-label">PayNow Mobile / UEN *</label>
+          <input type="text" id="modal-paynow-input" required placeholder="e.g. 91234567" class="form-input" style="font-family: monospace; font-size: 16px; font-weight: 800;">
+        </div>
+
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
+          <button type="button" class="btn-secondary" onclick="closePayNowModal()">Cancel</button>
+          <button type="submit" class="btn-primary" id="btn-save-paynow">Save Number</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       IMAGE LIGHTBOX
+       ========================================================================== -->
+  <div id="lightbox-modal" class="modal-overlay" onclick="closeLightbox()">
+    <img id="lightbox-img" style="max-width: 90%; max-height: 80vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" alt="Receipt Full Preview">
+  </div>
+
+  <!-- Toast Popup -->
+  <div id="toast-popup" class="toast-popup">Notification</div>
+
+  <script src="app.js"></script>
+</body>
+</html>
