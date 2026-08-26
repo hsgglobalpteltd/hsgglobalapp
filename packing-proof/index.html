@@ -1001,6 +1001,48 @@
         clearAuthPin();
       }
     });
+    
+    let loggedOperator = "";
+    // Auto-login from cache (valid for 1 hour)
+    try {
+      const cachedOperator = localStorage.getItem('tiktok_login_operator');
+      const cachedLoginTime = localStorage.getItem('tiktok_login_time');
+      if (cachedOperator && cachedLoginTime && (Date.now() - Number(cachedLoginTime) < 3600000)) {
+        loggedOperator = cachedOperator;
+        document.getElementById('operator-display').textContent = loggedOperator;
+        pinOverlay.classList.add('hidden');
+        // Defer session initialization slightly to ensure all structures are ready
+        setTimeout(() => {
+          initSession();
+        }, 100);
+      }
+    } catch (_) {}
+    let sessionBatchId = "";
+    let scannedBarcodes = new Set();
+    let pendingTrackingIds = new Map();
+    let intransitTrackingIds = new Set();
+
+    function getPendingCount() {
+      let count = 0;
+      const uniqueItems = new Set(pendingTrackingIds.values());
+      uniqueItems.forEach(item => {
+        const val = item.batch_id_packing;
+        if (!val || val.trim() === "") {
+          count++;
+        }
+      });
+      return count;
+    }
+
+    // Native BarcodeDetector API Instantiation
+    let barcodeDetector = null;
+    if ('BarcodeDetector' in window) {
+      barcodeDetector = new BarcodeDetector({
+        formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'itf', 'pdf417']
+      });
+    }
+
+    // Quagga2 operates automatically without WASM binaries
 
     // Session Init & Offline Target List Sync
     async function syncPendingTrackingIdsSilently() {
