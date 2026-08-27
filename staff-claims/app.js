@@ -309,7 +309,10 @@ function switchTab(tabId) {
 // ============================================================================
 function triggerCamera() {
   const input = document.getElementById("receipt-file-input");
-  if (input) input.click();
+  if (input) {
+    input.value = "";
+    input.click();
+  }
 }
 
 function setQuickDesc(text) {
@@ -460,6 +463,8 @@ async function handleSaveExpense(event) {
     document.getElementById("input-amount").value = "";
     document.getElementById("input-description").value = "";
     document.getElementById("input-remarks").value = "";
+    const receiptFileInput = document.getElementById("receipt-file-input");
+    if (receiptFileInput) receiptFileInput.value = "";
     capturedReceiptData = null;
 
     const previewImg = document.getElementById("receipt-preview-img");
