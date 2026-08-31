@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F172A">
+  <title>iB - Outsource Driver Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: #F8FAFC;
+      color: #0F172A;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom)) 20px;
+    }
+
+    .portal-container {
+      width: 100%;
+      max-width: 380px;
+      margin: auto 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .portal-logo {
+      width: 76px;
+      height: 76px;
+      object-fit: contain;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.06));
+    }
+
+    .portal-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #0F172A;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .portal-subtitle {
+      font-size: 13px;
+      color: #64748B;
+      font-weight: 500;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .portal-card {
+      width: 100%;
+      background: #FFFFFF;
+      border-radius: 16px;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      padding: 20px;
+    }
+
+    .modal-tabs {
+      display: flex;
+      background: #F1F5F9;
+      padding: 4px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      gap: 4px;
+    }
+
+    .modal-tab-btn {
+      flex: 1;
+      padding: 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #64748B;
+      transition: all 0.2s ease;
+    }
+
+    .modal-tab-btn.active {
+      background: #FFFFFF;
+      color: #0F172A;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .modal-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .modal-input {
+      height: 44px;
+      border-radius: 10px;
+      border: 1.5px solid #E2E8F0;
+      padding: 0 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0F172A;
+      outline: none;
+      transition: border-color 0.2s ease;
+      background: #FFFFFF;
+    }
+
+    .modal-input:focus {
+      border-color: #3B82F6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+
+    .modal-action-btn {
+      width: 100%;
+      height: 46px;
+      border-radius: 10px;
+      border: none;
+      background-color: #2563EB;
+      color: #FFFFFF;
+      font-size: 13.5px;
+      font-weight: 750;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .modal-action-btn:active {
+      transform: scale(0.98);
+      background-color: #1D4ED8;
+    }
+
+    .modal-action-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .portal-footer {
+      text-align: center;
+      font-size: 10.5px;
+      color: #94A3B8;
+      font-weight: 500;
+      line-height: 1.5;
+      margin-top: 24px;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: max(24px, calc(16px + env(safe-area-inset-bottom)));
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #0F172A;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1000;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="portal-container">
+    <img src="../logo.png" alt="HSG Global" class="portal-logo">
+    <h1 class="portal-title">Outsource Driver Portal</h1>
+    <p class="portal-subtitle">iB Driver Direct Job Access</p>
+
+    <div class="portal-card">
+      <div class="modal-tabs">
+        <button id="tab-os-new" class="modal-tab-btn active">New Job</button>
+        <button id="tab-os-restore" class="modal-tab-btn">Restore By Phone</button>
+      </div>
+
+      <!-- Form 1: New Job -->
+      <form id="os-form-new" onsubmit="return false;">
+        <div class="modal-input-group">
+          <label class="modal-label">Driver Name</label>
+          <input type="text" id="os-name-input" class="modal-input" placeholder="e.g. John Tan" autocomplete="name" required>
+        </div>
+        <div class="modal-input-group">
+          <label class="modal-label">Car / Vehicle Plate</label>
+          <input type="text" id="os-plate-input" class="modal-input" placeholder="e.g. SBA1234A" style="text-transform: uppercase;" required>
+        </div>
+        <div class="modal-input-group">
+          <label class="modal-label">Phone Number</label>
+          <input type="tel" id="os-phone-input" class="modal-input" placeholder="e.g. 91234567" autocomplete="tel" required>
+        </div>
+
+        <button type="submit" id="os-submit-btn" class="modal-action-btn">
+          <span>Enter Driver App</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </form>
+
+      <!-- Form 2: Restore Job by Phone -->
+      <form id="os-form-restore" style="display: none;" onsubmit="return false;">
+        <p style="font-size: 12px; color: #64748B; line-height: 1.45; margin-bottom: 14px;">
+          Accidentally cleared browser cache? Enter your phone number below to resume your active delivery job.
+        </p>
+        <div class="modal-input-group">
+          <label class="modal-label">Phone Number</label>
+          <input type="tel" id="os-restore-phone-input" class="modal-input" placeholder="e.g. 91234567" required>
+        </div>
+
+        <button type="submit" id="os-restore-btn" class="modal-action-btn" style="background-color: #10B981;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+          </svg>
+          <span>Restore Active Job</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="portal-footer">
+    internal Bridge Apps<br>
+    Copyright &copy; 2026 HSG Global. All rights reserved.<br>
+    <span style="opacity: 0.6;">v1.3.2</span>
+  </div>
+
+  <div id="toast">Notification</div>
+
+  <script>
+    const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
+
+    function showToast(msg, type = 'info') {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.backgroundColor = type === 'error' ? '#EF4444' : type === 'success' ? '#10B981' : '#0F172A';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    const tabNew = document.getElementById('tab-os-new');
+    const tabRestore = document.getElementById('tab-os-restore');
+    const formNew = document.getElementById('os-form-new');
+    const formRestore = document.getElementById('os-form-restore');
+
+    tabNew.addEventListener('click', () => {
+      tabNew.classList.add('active');
+      tabRestore.classList.remove('active');
+      formNew.style.display = 'block';
+      formRestore.style.display = 'none';
+    });
+
+    tabRestore.addEventListener('click', () => {
+      tabRestore.classList.add('active');
+      tabNew.classList.remove('active');
+      formRestore.style.display = 'block';
+      formNew.style.display = 'none';
+    });
+
+    // Handle New Shift Submit
+    const submitBtn = document.getElementById('os-submit-btn');
+    submitBtn.addEventListener('click', async () => {
+      const name = (document.getElementById('os-name-input').value || '').trim();
+      const plate = (document.getElementById('os-plate-input').value || '').trim().toUpperCase();
+      const phone = (document.getElementById('os-phone-input').value || '').trim();
+
+      if (!name || !plate || !phone) {
+        showToast("Please enter Name, Car Plate, and Phone", "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<span>Creating Session...</span>`;
+
+      try {
+        const res = await fetch(`${WORKER_URL}/api/app-auth/outsource-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, plate, phone })
+        });
+
+        const data = await res.json();
+        if (data.success && data.session_id) {
+          const combinedName = `Outsource - ${name} (${plate}) - ${phone}`;
+          localStorage.setItem('auth_driver_name', combinedName);
+          localStorage.setItem('is_outsource', 'true');
+          localStorage.setItem('outsource_details', JSON.stringify({ name, plate, phone }));
+          localStorage.setItem('ib_os_session_id', data.session_id);
+          localStorage.setItem('auth_timestamp', String(Date.now()));
+
+          showToast("Outsource session created!", "success");
+          window.location.href = `index.html?os_session=${encodeURIComponent(data.session_id)}`;
+        } else {
+          showToast(data.error || "Failed to create outsource session", "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Network error. Please try again.", "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>Enter Driver App</span>`;
+      }
+    });
+
+    // Handle Restore Shift Submit
+    const restoreBtn = document.getElementById('os-restore-btn');
+    restoreBtn.addEventListener('click', async () => {
+      const phone = (document.getElementById('os-restore-phone-input').value || '').trim();
+      if (!phone) {
+        showToast("Please enter your Phone Number", "error");
+        return;
+      }
+
+      restoreBtn.disabled = true;
+      restoreBtn.innerHTML = `<span>Searching Session...</span>`;
+
+      try {
+        const res = await fetch(`${WORKER_URL}/api/app-auth/outsource-session?phone=${encodeURIComponent(phone)}`);
+        const data = await res.json();
+
+        if (data.success && data.session_id) {
+          localStorage.setItem('auth_driver_name', data.driver || `Outsource Driver - ${phone}`);
+          localStorage.setItem('is_outsource', 'true');
+          if (data.outsource_details) {
+            localStorage.setItem('outsource_details', JSON.stringify(data.outsource_details));
+          }
+          localStorage.setItem('ib_os_session_id', data.session_id);
+          localStorage.setItem('auth_timestamp', String(Date.now()));
+
+          showToast("Session recovered successfully!", "success");
+          window.location.href = `index.html?os_session=${encodeURIComponent(data.session_id)}`;
+        } else {
+          showToast("No active session found for this phone number", "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Network error searching session", "error");
+      } finally {
+        restoreBtn.disabled = false;
+        restoreBtn.innerHTML = `<span>Restore Active Job</span>`;
+      }
+    });
+  </script>
+</body>
+</html>

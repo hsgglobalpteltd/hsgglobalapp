@@ -979,44 +979,31 @@
       }
     }
 
-    // Operator Badge click handler (Manual Logout)
-    document.getElementById('operator-display').addEventListener('click', () => {
-      if (loggedOperator && confirm(`Log out operator ${loggedOperator}?`)) {
-        try {
-          localStorage.removeItem('tiktok_login_operator');
-          localStorage.removeItem('tiktok_login_time');
-        } catch (_) {}
-        loggedOperator = "";
-        document.getElementById('operator-display').textContent = "Not logged in";
-        
-        // Stop camera stream if active
-        if (localStream) {
-          localStream.getTracks().forEach(track => {
-            try { track.stop(); } catch (_) {}
-          });
-          localStream = null;
-        }
-        
-        pinOverlay.classList.remove('hidden');
-        clearAuthPin();
-      }
-    });
-    
     let loggedOperator = "";
-    // Auto-login from cache (valid for 1 hour)
+    // Auto-login from Centralized Portal session
     try {
-      const cachedOperator = localStorage.getItem('tiktok_login_operator');
-      const cachedLoginTime = localStorage.getItem('tiktok_login_time');
-      if (cachedOperator && cachedLoginTime && (Date.now() - Number(cachedLoginTime) < 3600000)) {
-        loggedOperator = cachedOperator;
+      const portalUserStr = localStorage.getItem('ib_auth_user');
+      const portalExpiryStr = localStorage.getItem('ib_session_expiry');
+      if (portalUserStr && portalExpiryStr && Date.now() < Number(portalExpiryStr)) {
+        const pUser = JSON.parse(portalUserStr);
+        loggedOperator = pUser.name || "Operator";
         document.getElementById('operator-display').textContent = loggedOperator;
         pinOverlay.classList.add('hidden');
-        // Defer session initialization slightly to ensure all structures are ready
-        setTimeout(() => {
-          initSession();
-        }, 100);
+        setTimeout(() => initSession(), 100);
+      } else {
+        const cachedOperator = localStorage.getItem('tiktok_login_operator');
+        if (cachedOperator) {
+          loggedOperator = cachedOperator;
+          document.getElementById('operator-display').textContent = loggedOperator;
+          pinOverlay.classList.add('hidden');
+          setTimeout(() => initSession(), 100);
+        } else {
+          window.location.href = '../index.html';
+        }
       }
-    } catch (_) {}
+    } catch (_) {
+      window.location.href = '../index.html';
+    }
     let sessionBatchId = "";
     let scannedBarcodes = new Set();
     let pendingTrackingIds = new Map();

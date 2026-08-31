@@ -209,17 +209,10 @@ window.addEventListener('DOMContentLoaded', () => {
       if (!currentOrder) return;
       
       const label = pickingActionBtn.textContent;
+      const cachedName = getCachedAuth() || 'Picker';
+
       if (label === 'Start Pick') {
-        const cachedName = getCachedAuth();
-        if (cachedName) {
-          proceedToPicking(cachedName);
-        } else {
-          authPendingAction = {
-            type: 'start_pick',
-            orderId: currentOrder.id
-          };
-          openAuthPage();
-        }
+        proceedToPicking(cachedName);
       } else if (label === 'Cancel') {
         const order = allOrders.find(o => o.id === currentOrder.id);
         let logs = [];
@@ -231,7 +224,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         logs.push({
           action: "Picking Cancelled",
-          actionBy: getCachedAuth() || "Picker App",
+          actionBy: cachedName,
           remark: "Reverted back to Ready to Pick",
           timestamp: Date.now()
         });
@@ -247,44 +240,13 @@ window.addEventListener('DOMContentLoaded', () => {
           logs: JSON.stringify(logs)
         });
       } else if (label === 'Submit') {
-        const cachedName = getCachedAuth();
-        if (cachedName) {
-          proceedToSubmitProof(cachedName);
-        } else {
-          authPendingAction = {
-            type: 'submit_proof',
-            orderId: currentOrder.id
-          };
-          openAuthPage();
-        }
+        proceedToSubmitProof(cachedName);
       }
-    });
-  }
-
-  // Bind Auth Page Back Button
-  const authBackBtn = document.getElementById('auth-back-btn');
-  if (authBackBtn) {
-    authBackBtn.addEventListener('click', closeAuthPage);
-  }
-
-  // Bind Logout Button
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      clearCachedAuth();
-      showToast("Logged out successfully", "success");
-      toggleDrawer();
     });
   }
 
   // Bind Camera upload triggers
   bindCameraUpload();
-
-  // Bind PIN inputs digit behavior
-  bindAuthPinInputs();
-
-  // Update drawer logout button state on boot
-  updateDrawerLogoutButton();
 
   // Bind Revert Confirmation modal
   const revertCancelBtn = document.getElementById('revert-modal-cancel-btn');
@@ -304,17 +266,8 @@ window.addEventListener('DOMContentLoaded', () => {
   const handoverSubmitBtn = document.getElementById('handover-page-submit-btn');
   if (handoverSubmitBtn) {
     handoverSubmitBtn.addEventListener('click', () => {
-      // Trigger PIN verification
-      const cachedName = getCachedAuth();
-      if (cachedName) {
-        proceedToSubmitHandover(cachedName);
-      } else {
-        authPendingAction = {
-          type: 'submit_handover',
-          orderId: currentOrder.id
-        };
-        openAuthPage();
-      }
+      const cachedName = getCachedAuth() || 'Picker';
+      proceedToSubmitHandover(cachedName);
     });
   }
   bindHandoverCamera();
@@ -358,10 +311,10 @@ window.addEventListener('DOMContentLoaded', () => {
   fetchSupportData();
   fetchData();
 
-  // Enforce mandatory login on app open
+  // Validate session on app open
   const currentPickerName = getCachedAuth();
   if (!currentPickerName) {
-    openAuthPage(true);
+    window.location.href = "../index.html";
   }
 });
 
@@ -1729,45 +1682,41 @@ async function compressImageToMax250kb(file) {
   return result.file;
 }
 
-// Cache Authentication functions
+// Cache Authentication functions (Centralized Session)
 function getCachedAuth() {
-  const name = localStorage.getItem('auth_picker_name');
-  const expireStr = localStorage.getItem('auth_picker_expire');
-  if (!name || !expireStr) return null;
+  // 1. Check Centralized 30-day Main Portal session
+  try {
+    const portalUserStr = localStorage.getItem('ib_auth_user');
+    const portalExpiryStr = localStorage.getItem('ib_session_expiry');
+    if (portalUserStr && portalExpiryStr) {
+      if (Date.now() < Number(portalExpiryStr)) {
+        const pUser = JSON.parse(portalUserStr);
+        return pUser.name || 'Picker';
+      }
+    }
+  } catch (_) {}
 
-  const expire = parseInt(expireStr);
-  if (Date.now() > expire) {
-    clearCachedAuth();
-    return null;
-  }
-  return name;
+  // 2. Fallback to auth_picker_name
+  const name = localStorage.getItem('auth_picker_name');
+  if (name) return name;
+
+  return null;
 }
 
 function setCachedAuth(name) {
-  const expire = Date.now() + 30 * 60 * 1000; // 30 minutes
   localStorage.setItem('auth_picker_name', name);
-  localStorage.setItem('auth_picker_expire', expire.toString());
-  updateDrawerLogoutButton();
 }
 
 function clearCachedAuth() {
   localStorage.removeItem('auth_picker_name');
   localStorage.removeItem('auth_picker_expire');
-  updateDrawerLogoutButton();
-  openAuthPage(true); // Force login again
+  localStorage.removeItem('ib_auth_user');
+  localStorage.removeItem('ib_session_expiry');
+  window.location.href = "../index.html";
 }
 
 function updateDrawerLogoutButton() {
-  const name = getCachedAuth();
-  const logoutBtn = document.getElementById('logout-btn');
-  const nameSpan = document.getElementById('logout-picker-name');
-
-  if (name) {
-    if (nameSpan) nameSpan.textContent = name;
-    if (logoutBtn) logoutBtn.classList.remove('hidden');
-  } else {
-    if (logoutBtn) logoutBtn.classList.add('hidden');
-  }
+  // No-op (centralized logout on main portal)
 }
 
 function proceedToPicking(pickerName) {

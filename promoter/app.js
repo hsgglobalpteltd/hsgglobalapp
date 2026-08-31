@@ -32,7 +32,28 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initApp() {
   updateCurrentDateDisplay();
 
-  // Check saved session in localStorage
+  // 1. Check Centralized 30-day Main Portal session
+  try {
+    const portalUserStr = localStorage.getItem("ib_auth_user");
+    const portalExpiryStr = localStorage.getItem("ib_session_expiry");
+    if (portalUserStr && portalExpiryStr) {
+      if (Date.now() < Number(portalExpiryStr)) {
+        const pUser = JSON.parse(portalUserStr);
+        currentUser = {
+          id: pUser.id || "",
+          name: pUser.name || "Promoter",
+          full_name: pUser.full_name || pUser.name || "",
+          phone: pUser.phone || "",
+          role: pUser.role || "Promoter"
+        };
+        showMainScreen();
+        await refreshData();
+        return;
+      }
+    }
+  } catch (_) {}
+
+  // 2. Fallback to saved local session
   const savedUser = localStorage.getItem("ib_promoter_app_user");
   if (savedUser) {
     try {
@@ -45,9 +66,8 @@ async function initApp() {
     }
   }
 
-  bindPinInput();
-  showLoginScreen();
-  await loadEmployees();
+  // Unauthenticated: Redirect to Main Portal PIN Gate
+  window.location.href = "../index.html";
 }
 
 async function loadEmployees() {
@@ -74,111 +94,25 @@ function updateCurrentDateDisplay() {
   if (el) el.innerText = dateStr;
 }
 
-function bindPinInput() {
-  const hiddenInput = document.getElementById("auth-pin-hidden");
-  const wrapper = document.getElementById("pin-digits-wrapper");
-  const displays = document.querySelectorAll("#login-view .pin-digit-display");
-
-  if (wrapper && hiddenInput) {
-    wrapper.addEventListener("click", () => {
-      hiddenInput.focus();
-    });
-  }
-
-  if (hiddenInput) {
-    hiddenInput.addEventListener("input", () => {
-      const val = hiddenInput.value.replace(/\D/g, "").substring(0, 4);
-      hiddenInput.value = val;
-      enteredPIN = val;
-
-      displays.forEach((d, idx) => {
-        if (idx < val.length) {
-          d.textContent = "•";
-          d.classList.add("active");
-        } else {
-          d.textContent = "";
-          d.classList.remove("active");
-        }
-        d.classList.remove("error");
-      });
-
-      if (val.length === 4) {
-        verifyPIN();
-      }
-    });
-  }
-}
-
-function handleClearPIN() {
-  enteredPIN = "";
-  const hiddenInput = document.getElementById("auth-pin-hidden");
-  const displays = document.querySelectorAll("#login-view .pin-digit-display");
-  if (hiddenInput) {
-    hiddenInput.value = "";
-    hiddenInput.focus();
-  }
-  displays.forEach(d => {
-    d.textContent = "";
-    d.classList.remove("active", "error");
-  });
-}
-
-async function verifyPIN() {
-  showToast("Verifying PIN...", "info");
-
-  if (employeesData.length === 0) {
-    await loadEmployees();
-  }
-
-  const promoter = employeesData.find(emp => {
-    const empPin = String(emp.pin || emp.login_pin || "");
-    const empRole = String(emp.role || "").toLowerCase();
-    const isPromoter = empRole.includes("promoter");
-    const isNotArchived = !(emp.archived && (String(emp.archived) === "1" || String(emp.archived) === "true"));
-    return empPin === enteredPIN && isPromoter && isNotArchived;
-  });
-
-  if (promoter) {
-    currentUser = {
-      id: promoter.id,
-      name: promoter.nickname || promoter.name || "Promoter",
-      full_name: promoter.full_name || promoter.name || "",
-      phone: promoter.phone || "",
-      role: promoter.role || "Promoter"
-    };
-
-    localStorage.setItem("ib_promoter_app_user", JSON.stringify(currentUser));
-    handleClearPIN();
-    showToast(`Welcome, ${currentUser.name}!`, "success");
-    showMainScreen();
-    await refreshData();
-  } else {
-    handleClearPIN();
-    showToast("Invalid PIN. Please try again.", "error");
-  }
-}
-
 function handleLogout() {
   currentUser = null;
   localStorage.removeItem("ib_promoter_app_user");
-  showLoginScreen();
-  showToast("Logged out successfully.", "info");
-}
-
-function showLoginScreen() {
-  document.getElementById("login-view").classList.add("active");
-  document.getElementById("main-view").classList.remove("active");
-  handleClearPIN();
+  localStorage.removeItem("ib_auth_user");
+  localStorage.removeItem("ib_session_expiry");
+  window.location.href = "../index.html";
 }
 
 function showMainScreen() {
-  document.getElementById("login-view").classList.remove("active");
-  document.getElementById("main-view").classList.add("active");
+  const mainView = document.getElementById("main-view");
+  if (mainView) mainView.classList.add("active");
 
   if (currentUser) {
-    document.getElementById("header-promoter-name").innerText = currentUser.name;
-    document.getElementById("header-promoter-id").innerText = `ID: ${currentUser.id}`;
-    document.getElementById("header-avatar-initial").innerText = (currentUser.name[0] || "P").toUpperCase();
+    const nameEl = document.getElementById("header-promoter-name");
+    const idEl = document.getElementById("header-promoter-id");
+    const avatarEl = document.getElementById("header-avatar-initial");
+    if (nameEl) nameEl.innerText = currentUser.name;
+    if (idEl) idEl.innerText = currentUser.id ? `ID: ${currentUser.id}` : "";
+    if (avatarEl) avatarEl.innerText = (currentUser.name[0] || "P").toUpperCase();
   }
 }
 

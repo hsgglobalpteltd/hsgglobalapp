@@ -318,7 +318,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (osSessionId) {
     restoreOutsourceSessionFromUrl(osSessionId);
   } else if (!isSessionAuthenticated()) {
-    openAuthPage(true);
+    window.location.href = '../index.html';
   } else {
     enforceNavigationRestrictions();
   }
@@ -1119,13 +1119,34 @@ function isOrderUnassignedOrMine(orderDriver, currentDriverName) {
   return isOrderAssignedToDriver(oDrv, currentDriverName);
 }
 
-// Cache Authentication functions
+// Cache Authentication functions (Centralized Session)
 function isSessionAuthenticated() {
+  // 1. Check Outsource Driver Session
+  if (localStorage.getItem('is_outsource') === 'true' && localStorage.getItem('auth_driver_name')) {
+    return true;
+  }
+
+  // 2. Check Centralized 30-day Main Portal session
+  try {
+    const portalUserStr = localStorage.getItem('ib_auth_user');
+    const portalExpiryStr = localStorage.getItem('ib_session_expiry');
+    if (portalUserStr && portalExpiryStr) {
+      if (Date.now() < Number(portalExpiryStr)) {
+        const pUser = JSON.parse(portalUserStr);
+        if (!localStorage.getItem('auth_driver_name')) {
+          localStorage.setItem('auth_driver_name', pUser.name || 'Driver');
+        }
+        return true;
+      }
+    }
+  } catch (_) {}
+
+  // 3. Fallback auth timestamp
   const authTime = localStorage.getItem('auth_timestamp');
   const name = localStorage.getItem('auth_driver_name');
   if (!authTime || !name) return false;
   const elapsed = Date.now() - parseInt(authTime);
-  return elapsed < (30 * 24 * 60 * 60 * 1000); // 30 days
+  return elapsed < (30 * 24 * 60 * 60 * 1000);
 }
 
 // Restore Outsource Session from Supabase URL parameter
@@ -1143,7 +1164,6 @@ async function restoreOutsourceSessionFromUrl(sessionId) {
         }
         localStorage.setItem('ib_os_session_id', data.session_id);
         localStorage.setItem('auth_timestamp', String(Date.now()));
-        closeAuthPage();
         enforceNavigationRestrictions();
         showToast("Outsource session restored!", "success");
         return;
@@ -1153,9 +1173,9 @@ async function restoreOutsourceSessionFromUrl(sessionId) {
     console.warn("Could not restore outsource session from URL:", err);
   }
 
-  // If restore failed, fallback to normal auth check
+  // If restore failed, fallback to main portal
   if (!isSessionAuthenticated()) {
-    openAuthPage(true);
+    window.location.href = '../index.html';
   } else {
     enforceNavigationRestrictions();
   }

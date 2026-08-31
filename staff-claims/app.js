@@ -30,20 +30,18 @@ async function initApp() {
     dateInput.value = new Date().toISOString().split("T")[0];
   }
 
-  // Bind PIN hidden input events
-  bindPinKeypad();
-
   // Load employees database
   await loadEmployeesData();
 
-  // Check saved session in localStorage
+  // Check saved session (Centralized Portal Auth)
   const cachedUser = getCachedAuth();
   if (cachedUser) {
     currentUser = cachedUser;
     showMainApp();
     await refreshData();
   } else {
-    showAuthGatekeeper();
+    // Unauthenticated: return to main portal PIN gate
+    window.location.href = "../index.html";
   }
 }
 
@@ -70,7 +68,7 @@ function formatCleanPayNow(val) {
 }
 
 // ============================================================================
-// AUTHENTICATION & PIN GATEKEEPER
+// AUTHENTICATION (CENTRALIZED PORTAL INTEGRATION)
 // ============================================================================
 async function loadEmployeesData() {
   try {
@@ -84,89 +82,28 @@ async function loadEmployeesData() {
   }
 }
 
-function bindPinKeypad() {
-  const hiddenInput = document.getElementById("auth-pin-hidden");
-  const wrapper = document.getElementById("pin-digits-wrapper");
-  const displays = document.querySelectorAll(".pin-digit-display");
-
-  if (wrapper && hiddenInput) {
-    wrapper.addEventListener("click", () => {
-      hiddenInput.focus();
-    });
-  }
-
-  if (hiddenInput) {
-    hiddenInput.addEventListener("input", (e) => {
-      const val = hiddenInput.value.replace(/\D/g, "").substring(0, 4);
-      hiddenInput.value = val;
-
-      displays.forEach((d, idx) => {
-        if (idx < val.length) {
-          d.textContent = "•";
-          d.classList.add("active");
-        } else {
-          d.textContent = "";
-          d.classList.remove("active");
-        }
-      });
-
-      if (val.length === 4) {
-        verifyPin(val);
-      }
-    });
-  }
-}
-
-function clearAuthPin() {
-  const hiddenInput = document.getElementById("auth-pin-hidden");
-  const displays = document.querySelectorAll(".pin-digit-display");
-  if (hiddenInput) {
-    hiddenInput.value = "";
-    hiddenInput.focus();
-  }
-  displays.forEach((d) => {
-    d.textContent = "";
-    d.classList.remove("active", "error");
-  });
-}
-
-async function verifyPin(pinStr) {
-  const enteredPin = parseInt(pinStr, 10);
-  const matched = allEmployees.find(
-    (e) => parseInt(e.pin, 10) === enteredPin || parseInt(e.PIN, 10) === enteredPin
-  );
-
-  if (!matched) {
-    const displays = document.querySelectorAll(".pin-digit-display");
-    displays.forEach((d) => d.classList.add("error"));
-    showToast("Incorrect PIN. Please try again.", "error");
-
-    setTimeout(() => {
-      clearAuthPin();
-    }, 600);
-    return;
-  }
-
-  // Bind employee details
-  const cleanPayNow = formatCleanPayNow(matched.paynow_number || matched.phone || "");
-  currentUser = {
-    id: matched.id || "",
-    name: matched.name || matched.full_name || "Staff",
-    email: (matched.email || "").toLowerCase().trim(),
-    role: matched.role || "",
-    paynow_number: cleanPayNow,
-    pin: pinStr
-  };
-
-  // Cache session for 30 minutes
-  setCachedAuth(currentUser);
-
-  showToast(`Welcome, ${currentUser.name}!`, "success");
-  showMainApp();
-  await refreshData();
-}
-
 function getCachedAuth() {
+  // 1. Check Centralized 30-day Main Portal session
+  try {
+    const portalUserStr = localStorage.getItem("ib_auth_user");
+    const portalExpiryStr = localStorage.getItem("ib_session_expiry");
+    if (portalUserStr && portalExpiryStr) {
+      if (Date.now() < Number(portalExpiryStr)) {
+        const pUser = JSON.parse(portalUserStr);
+        const cleanPayNow = formatCleanPayNow(pUser.paynow_number || pUser.phone || "");
+        return {
+          id: pUser.id || "",
+          name: pUser.name || "Staff",
+          email: (pUser.email || "").toLowerCase().trim(),
+          role: pUser.role || "",
+          paynow_number: cleanPayNow,
+          pin: pUser.pin || ""
+        };
+      }
+    }
+  } catch (_) {}
+
+  // 2. Fallback to Staff Claims direct session
   const userStr = localStorage.getItem("staff_claims_user");
   const expireStr = localStorage.getItem("staff_claims_expire");
   if (!userStr || !expireStr) return null;
@@ -184,7 +121,7 @@ function getCachedAuth() {
 }
 
 function setCachedAuth(user) {
-  const expire = Date.now() + 30 * 60 * 1000; // 30 mins
+  const expire = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
   localStorage.setItem("staff_claims_user", JSON.stringify(user));
   localStorage.setItem("staff_claims_expire", expire.toString());
 }
@@ -192,26 +129,21 @@ function setCachedAuth(user) {
 function clearCachedAuth() {
   localStorage.removeItem("staff_claims_user");
   localStorage.removeItem("staff_claims_expire");
+  localStorage.removeItem("ib_auth_user");
+  localStorage.removeItem("ib_session_expiry");
   currentUser = null;
-  showAuthGatekeeper();
-}
-
-function showAuthGatekeeper() {
-  document.getElementById("auth-page").style.display = "flex";
-  document.getElementById("main-app").classList.remove("active");
-  clearAuthPin();
+  window.location.href = "../index.html";
 }
 
 function showMainApp() {
-  document.getElementById("auth-page").style.display = "none";
-  document.getElementById("main-app").classList.add("active");
+  const mainApp = document.getElementById("main-app");
+  if (mainApp) mainApp.classList.add("active");
 
   // Setup header buttons
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) {
     logoutBtn.onclick = () => {
       clearCachedAuth();
-      showToast("Logged out successfully.", "info");
     };
   }
 

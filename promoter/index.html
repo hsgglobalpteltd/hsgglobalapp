@@ -17,47 +17,9 @@
 <body>
 
   <!-- ==========================================
-       LOGIN VIEW (Universal Gatekeeper PIN)
-       ========================================== -->
-  <div id="login-view" class="app-screen active" style="background-color: #F8FAFC;">
-    <header class="auth-header">
-      <span style="font-size: 15px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.02em;">iB - Promoter</span>
-    </header>
-
-    <div class="auth-content" style="display: flex; flex-direction: column; justify-content: space-between; align-items: center; height: calc(100% - 48px); padding: 0 24px; box-sizing: border-box;">
-      
-      <!-- 4-digit PIN Masked Input (30% from top) -->
-      <div class="pin-entry-container" style="margin-top: 25vh; display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%;">
-        <label class="pin-entry-label" style="font-size: 13px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em;">ENTER 4-DIGIT PIN</label>
-        
-        <div class="pin-digits-row" id="pin-digits-wrapper" style="display: flex; gap: 12px; justify-content: center; position: relative; cursor: pointer;">
-          <input type="tel" id="auth-pin-hidden" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;">
-          <div class="pin-digit-display" data-index="0" style="width: 52px; height: 52px; font-size: 24px; font-weight: 800; text-align: center; border: 2px solid #E2E8F0; border-radius: 12px; background-color: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03);"></div>
-          <div class="pin-digit-display" data-index="1" style="width: 52px; height: 52px; font-size: 24px; font-weight: 800; text-align: center; border: 2px solid #E2E8F0; border-radius: 12px; background-color: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03);"></div>
-          <div class="pin-digit-display" data-index="2" style="width: 52px; height: 52px; font-size: 24px; font-weight: 800; text-align: center; border: 2px solid #E2E8F0; border-radius: 12px; background-color: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03);"></div>
-          <div class="pin-digit-display" data-index="3" style="width: 52px; height: 52px; font-size: 24px; font-weight: 800; text-align: center; border: 2px solid #E2E8F0; border-radius: 12px; background-color: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03);"></div>
-        </div>
-      </div>
-
-      <!-- Exit App Button (Bottom 30%) -->
-      <div style="margin-bottom: 22vh; width: 100%; display: flex; justify-content: center;">
-        <a href="../index.html" class="auth-exit-btn" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; background-color: #F1F5F9; border: 1.5px solid #E2E8F0; border-radius: 24px; color: #475569; font-size: 13px; font-weight: 700; text-decoration: none; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-            <polyline points="16 17 21 12 16 7"></polyline>
-            <line x1="21" y1="12" x2="9" y2="12"></line>
-          </svg>
-          <span>Exit Promoter</span>
-        </a>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ==========================================
        MAIN APP VIEW (DASHBOARD)
        ========================================== -->
-  <div id="main-view" class="app-screen">
+  <div id="main-view" class="app-screen active">
     
     <!-- Top App Bar -->
     <header class="app-header">
@@ -79,13 +41,13 @@
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
           </svg>
         </button>
-        <button type="button" class="btn-icon logout" onclick="handleLogout()" title="Logout">
+        <a href="../index.html" class="btn-icon" title="Exit" style="display: flex; align-items: center; justify-content: center; text-decoration: none; color: inherit;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
             <polyline points="16 17 21 12 16 7"></polyline>
             <line x1="21" y1="12" x2="9" y2="12"></line>
           </svg>
-        </button>
+        </a>
       </div>
     </header>
 

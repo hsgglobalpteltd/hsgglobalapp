@@ -118,11 +118,6 @@
           <div class="pin-digit-display" data-index="3"></div>
         </div>
         <input type="hidden" id="auth-pin-input">
-
-        <!-- Subtle Outsource Driver Link (Quiet & unobtrusive) -->
-        <button type="button" id="open-outsource-modal-btn" style="background: none; border: none; color: #94A3B8; font-size: 11.5px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 8px 12px; margin-top: 28px; letter-spacing: 0.02em; font-family: 'Outfit', sans-serif;">
-          Outsource Driver Login
-        </button>
       </div>
 
       <!-- Matching Version Footer -->
@@ -133,73 +128,6 @@
           <span style="font-size: 10px; opacity: 0.5; margin-top: 4px; display: block;">v1.3.2</span>
         </div>
       </footer>
-    </div>
-  </div>
-
-  <!-- ==========================================================================
-       Outsource Driver Modal Dialog
-       ========================================================================== -->
-  <div id="outsource-modal" class="modal-overlay hidden">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="1" y="3" width="15" height="13"></rect>
-            <polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon>
-            <circle cx="5.5" cy="18.5" r="2.5"></circle>
-            <circle cx="18.5" cy="18.5" r="2.5"></circle>
-          </svg>
-          <span>Outsource Driver</span>
-        </h3>
-        <button id="close-outsource-modal-btn" class="modal-close-btn">&times;</button>
-      </div>
-
-      <!-- Modal Tabs -->
-      <div class="modal-tabs">
-        <button id="tab-os-new" class="modal-tab-btn active">New Shift</button>
-        <button id="tab-os-restore" class="modal-tab-btn">Restore By Phone</button>
-      </div>
-
-      <!-- Tab 1: New / Active Shift Form -->
-      <div id="os-form-new" style="display: flex; flex-direction: column; gap: 12px;">
-        <div class="modal-input-group">
-          <label class="modal-label">Driver Name</label>
-          <input type="text" id="os-name-input" class="modal-input" placeholder="e.g. John Tan" autocomplete="name">
-        </div>
-        <div class="modal-input-group">
-          <label class="modal-label">Car / Vehicle Plate</label>
-          <input type="text" id="os-plate-input" class="modal-input" placeholder="e.g. SBA1234A" style="text-transform: uppercase;">
-        </div>
-        <div class="modal-input-group">
-          <label class="modal-label">Phone Number</label>
-          <input type="tel" id="os-phone-input" class="modal-input" placeholder="e.g. 91234567" autocomplete="tel">
-        </div>
-
-        <button id="os-submit-btn" class="modal-action-btn">
-          <span>Enter Driver App</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Tab 2: Restore Active Session by Phone -->
-      <div id="os-form-restore" style="display: none; flex-direction: column; gap: 12px;">
-        <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
-          Accidentally cleared browser cache? Enter your phone number below to resume your active shift and progress.
-        </p>
-        <div class="modal-input-group">
-          <label class="modal-label">Phone Number</label>
-          <input type="tel" id="os-restore-phone-input" class="modal-input" placeholder="e.g. 91234567">
-        </div>
-
-        <button id="os-restore-btn" class="modal-action-btn" style="background-color: #10B981;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-          </svg>
-          <span>Restore Active Shift</span>
-        </button>
-      </div>
     </div>
   </div>
 
