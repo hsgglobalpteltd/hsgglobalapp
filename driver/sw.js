@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ib-driver-v26.0.5';
+const CACHE_NAME = 'ib-driver-v1.3.2';
 const ASSETS = [
   './index.html',
   './style.css',
