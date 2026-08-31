@@ -46,11 +46,11 @@ const APP_REGISTRY = [
     </svg>`
   },
   {
-    id: 'stock-take',
-    label: 'Stock Take',
-    url: 'stock-take/index.html',
-    className: 'stock-take',
-    roles: ['warehouse', 'stock take', 'stock_take'],
+    id: 'stock-flow',
+    label: 'Stock Flow',
+    url: 'stock-flow/index.html',
+    className: 'stock-flow',
+    roles: ['warehouse', 'stock flow', 'stock_flow', 'stock take', 'stock_take', 'stock inventory', 'stock_inventory'],
     icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
       <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
@@ -113,7 +113,7 @@ const APP_REGISTRY = [
     label: 'Staff Claims',
     url: 'staff-claims/index.html',
     className: 'staff-claims',
-    roles: ['all'], // Available to all authenticated employees
+    roles: ['staff claim', 'staff_claim', 'staff claims', 'staff_claims', 'claims', 'claim'],
     icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
       <polyline points="14 2 14 8 20 8"></polyline>
@@ -168,7 +168,7 @@ function loadCachedEmployees() {
   } catch (_) {}
 }
 
-// Fetch Centralized Employees from Worker
+// Fetch Centralized Employees from Worker & Live Sync Roles
 async function fetchEmployees() {
   try {
     const res = await fetch(`${WORKER_URL}/api/app-auth/employees?t=${Date.now()}`);
@@ -177,6 +177,19 @@ async function fetchEmployees() {
       if (Array.isArray(data) && data.length > 0) {
         allEmployees = data;
         localStorage.setItem('ib_employees', JSON.stringify(data));
+
+        // Live Role & Status Sync: If currently logged in, refresh active roles
+        try {
+          const currentSessionStr = localStorage.getItem('ib_auth_user');
+          if (currentSessionStr) {
+            const currentUser = JSON.parse(currentSessionStr);
+            const freshEmp = data.find(e => e.id === currentUser.id || String(e.pin) === String(currentUser.pin));
+            if (freshEmp) {
+              localStorage.setItem('ib_auth_user', JSON.stringify(freshEmp));
+              renderAuthorizedApps(freshEmp);
+            }
+          }
+        } catch (_) {}
       }
     }
   } catch (err) {

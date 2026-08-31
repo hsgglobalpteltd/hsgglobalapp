@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' https: http: data: blob: https://cdnjs.cloudflare.com; style-src * 'unsafe-inline' https: http:; img-src * data: blob: https: http:; connect-src * https: http: ws: wss:; font-src * data: https: http:;">
+  <title>iB - Stock Flow</title>
+  <link rel="stylesheet" href="style.css?v=20260831_1507">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+  
+</head>
+<body class="bg-[#F8F9FA] text-[#1F1F1F] antialiased selection:bg-[#D3E3FD]">
+
+  <!-- Mobile Only Container -->
+  <div class="mobile-container">
+    
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+      <!-- Default Navigation View -->
+      <div id="defaultHeader" class="header-view active">
+        <div class="header-left">
+          <button id="backBtn" onclick="goBack()" class="icon-btn hidden">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+        </div>
+
+        <h1 class="header-title" id="mainHeaderTitle">
+          iB - Stock Flow
+        </h1>
+
+        <div class="header-right">
+          <button id="headerAddStockBtn" onclick="openProductPickerModal()" class="icon-btn hidden" title="Add Stock">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+          <button id="headerSearchBtn" onclick="toggleSearch()" class="icon-btn hidden">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Navigation View -->
+      <div id="searchHeader" class="header-view search-view">
+        <button onclick="toggleSearch()" class="icon-btn mr-2">
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <input type="text" id="globalSearchInput" placeholder="Search product or brand..." class="search-input" oninput="handleGlobalSearch()">
+      </div>
+    </header>
+
+    <!-- Page 1: Home Dashboard -->
+    <main id="page1" class="page-view active flex-center">
+      <div class="home-actions">
+        <!-- 1. Manage Stock Button (New Feature) -->
+        <button id="btnManageStock" onclick="openManageStock()" class="btn-primary-gradient">
+          <span class="btn-gradient-content">
+            <i class="fa-solid fa-arrow-right-arrow-left mr-2"></i>
+            MANAGE STOCK
+          </span>
+        </button>
+
+        <!-- 2. Audit Stock Button (Existing Full Count) -->
+        <button id="btnAuditStock" onclick="startCount()" class="btn-menu-card">
+          <div class="menu-card-left">
+            <div class="menu-card-icon"><i class="fa-solid fa-clipboard-check"></i></div>
+            <div class="menu-card-text">
+              <span class="menu-card-title">Audit Stock</span>
+              <span class="menu-card-subtitle">Full periodic stock take count</span>
+            </div>
+          </div>
+          <i class="fa-solid fa-chevron-right menu-card-arrow"></i>
+        </button>
+
+        <!-- 3. Current Stock Button (Existing Latest Count) -->
+        <button id="btnCurrentStock" onclick="showLatestStockTake()" class="btn-menu-card">
+          <div class="menu-card-left">
+            <div class="menu-card-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            <div class="menu-card-text">
+              <span class="menu-card-title">Current Stock</span>
+              <span class="menu-card-subtitle">View latest audit balance</span>
+            </div>
+          </div>
+          <i class="fa-solid fa-chevron-right menu-card-arrow"></i>
+        </button>
+      </div>
+
+      <div class="version-footer">
+        <a href="../index.html" class="exit-link">Exit</a>
+      </div>
+    </main>
+
+    <!-- Page Manage Stock Step 1: Select Products & Quantities -->
+    <main id="pageManageStock" class="page-view hidden">
+      <div class="scroll-container pb-safe-large">
+        <div id="stockCardItemsContainer" class="sc-manage-items-list p-3">
+          <!-- Rendered dynamically as full audit-style cards or empty placeholder -->
+          <div id="scEmptyPlaceholder" class="empty-items-box-large" onclick="openProductPickerModal()">
+            <i class="fa-solid fa-boxes-stacked text-3xl text-slate-300 mb-2"></i>
+            <span class="text-sm font-semibold text-slate-700">No stock items added</span>
+            <span class="text-xs font-normal text-slate-400 mt-1">Tap here or the + button above to select products</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sticky Step 1 Footer (Next Button) -->
+      <div id="footerManageStockStep1" class="sticky-footer hidden">
+        <button type="button" id="btnGoToStep2" onclick="goToManageStockStep2()" class="btn-primary w-full flex-center gap-2">
+          <span>Next &gt;&gt;</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- Page Manage Stock Step 2: Action, Document, Description, Approval, Picture -->
+    <main id="pageManageStockStep2" class="page-view hidden">
+      <div class="scroll-container pb-safe-large">
+        <div class="manage-stock-form">
+          
+          <!-- Step 1: Action Selector -->
+          <div class="form-section">
+            <label class="form-section-title mb-3">Select Action</label>
+            <div class="action-pills-grid">
+              <button type="button" id="pillStockOut" class="action-pill active" onclick="selectStockCardAction('Stock Out')">
+                <i class="fa-solid fa-arrow-up"></i>
+                <span>Stock Out</span>
+              </button>
+              <button type="button" id="pillStockIn" class="action-pill" onclick="selectStockCardAction('Stock In')">
+                <i class="fa-solid fa-arrow-down"></i>
+                <span>Stock In</span>
+              </button>
+              <button type="button" id="pillTransferTiktok" class="action-pill" onclick="selectStockCardAction('Transfer stock to Tiktok Fulfillment')">
+                <i class="fa-solid fa-share"></i>
+                <span>Transfer</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 2: Document Reference Toggle -->
+          <div class="form-section">
+            <div class="flex-between mb-3">
+              <label class="form-section-title mb-0">Paper Document Reference</label>
+              <div class="segmented-toggle">
+                <button type="button" id="docToggleNo" class="seg-btn active" onclick="setDocumentToggle(false)">No</button>
+                <button type="button" id="docToggleYes" class="seg-btn" onclick="setDocumentToggle(true)">Yes</button>
+              </div>
+            </div>
+
+            <div id="docRefInputWrapper" class="ref-input-wrapper hidden mt-3">
+              <input type="text" id="stockCardRefNumber" placeholder="Reference Number (e.g. DO-99214 / TR-1024)..." class="form-text-input" oninput="checkStockFlowFormValidity()">
+            </div>
+          </div>
+
+          <!-- Step 3: Description & Quick Badges -->
+          <div class="form-section">
+            <label class="form-section-title mb-3">Description / Reason</label>
+            
+            <textarea id="stockCardDescription" rows="2" placeholder="Enter reason, destination, or remarks..." class="form-textarea mb-3" oninput="checkStockFlowFormValidity()"></textarea>
+
+            <div class="pretext-badges-row">
+              <button type="button" class="pretext-badge" onclick="appendPretext('Sample')">Sample</button>
+              <button type="button" class="pretext-badge" onclick="appendPretext('Replacement Tiktok')">Replacement Tiktok</button>
+              <button type="button" class="pretext-badge" onclick="appendPretext('Marketing')">Marketing</button>
+              <button type="button" class="pretext-badge" onclick="appendPretext('Damage / Dispose')">Damage / Dispose</button>
+              <button type="button" class="pretext-badge" onclick="appendPretext('Expired')">Expired</button>
+              <button type="button" class="pretext-badge" onclick="appendPretext('Return to Supplier')">Return to Supplier</button>
+              <button type="button" class="pretext-badge" onclick="appendPretext('Internal Use')">Internal Use</button>
+            </div>
+          </div>
+
+          <!-- Step 4: Select Approval -->
+          <div class="form-section">
+            <label class="form-section-title mb-3">Select Approval <span class="text-rose-500">*</span></label>
+            <select id="stockCardApprovedBy" class="form-select" onchange="checkStockFlowFormValidity()">
+              <option value="">Select Approval...</option>
+            </select>
+          </div>
+
+          <!-- Step 5: Picture Upload (1 to 8 photos) -->
+          <div class="form-section">
+            <div class="flex-between mb-3">
+              <label class="form-section-title mb-0">Attach Picture <span class="text-rose-500">*</span></label>
+              <span id="photoCountBadge" class="text-xs font-semibold text-slate-500">(0/8)</span>
+            </div>
+
+            <div class="photo-upload-container">
+              <input type="file" id="stockCardPhotoInput" accept="image/*" multiple class="hidden" onchange="handleStockCardPhotoSelect(this)">
+              
+              <!-- Multi-Photo Gallery Grid -->
+              <div id="stockCardPhotoGallery" class="photo-grid-gallery">
+                <div id="photoAddTile" onclick="document.getElementById('stockCardPhotoInput').click()" class="photo-add-tile">
+                  <i class="fa-solid fa-camera text-2xl text-slate-400 mb-1"></i>
+                  <span class="text-xs font-semibold text-slate-600">Add Photo</span>
+                  <span class="text-[10px] text-slate-400">1 to 8 photos</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Sticky Review Button (Only appears after all mandatory inputs are done) -->
+      <div id="footerReviewStockFlow" class="sticky-footer hidden">
+        <button type="button" id="btnReviewStockFlow" onclick="reviewStockCardTransaction()" class="btn-primary w-full">
+          Review Transaction
+        </button>
+      </div>
+    </main>
+
+    <!-- Page Stock Flow Summary Review -->
+    <main id="pageStockCardSummary" class="page-view hidden">
+      <div class="summary-header">
+        <h2 class="summary-title">Transaction Review</h2>
+        <p class="summary-remark" id="scSummaryTrxId">ID: SF-XXXXXXXX-XXXX</p>
+      </div>
+
+      <div class="scroll-container pb-safe-large">
+        <div class="summary-card-body">
+          
+          <div class="summary-action-banner" id="scSummaryActionBanner">
+            <span id="scSummaryActionText">STOCK OUT</span>
+          </div>
+
+          <!-- Items Review Table -->
+          <div class="summary-block">
+            <h4 class="summary-block-title">Items & Quantities</h4>
+            <div id="scSummaryItemsList" class="summary-items-list">
+              <!-- Rendered dynamically -->
+            </div>
+            <div class="summary-total-row">
+              <span class="text-xs font-medium text-slate-600">Total Quantity:</span>
+              <span id="scSummaryTotalQty" class="text-sm font-semibold text-[#0B57D0]">0 units</span>
+            </div>
+          </div>
+
+          <!-- Transaction Details Block -->
+          <div class="summary-block">
+            <h4 class="summary-block-title">Details</h4>
+            <div class="summary-detail-row">
+              <span class="detail-label">Documentation:</span>
+              <span id="scSummaryDocRef" class="detail-val">None</span>
+            </div>
+            <div class="summary-detail-row">
+              <span class="detail-label">Description:</span>
+              <span id="scSummaryDescription" class="detail-val">—</span>
+            </div>
+            <div class="summary-detail-row">
+              <span class="detail-label">Approved By:</span>
+              <span id="scSummaryApprovedBy" class="detail-val font-medium text-emerald-700">—</span>
+            </div>
+          </div>
+
+          <!-- Photo Review Block (Multi-Photo) -->
+          <div id="scSummaryPhotoBlock" class="summary-block hidden">
+            <div class="flex-between mb-2">
+              <h4 class="summary-block-title mb-0">Attached Pictures</h4>
+              <span id="scSummaryPhotoCount" class="text-xs font-semibold text-slate-500"></span>
+            </div>
+            <div id="scSummaryPhotoGrid" class="summary-photos-grid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Submit Footer -->
+      <div class="sticky-footer">
+        <button type="button" id="btnSubmitStockCard" onclick="promptPinForStockCard()" class="btn-success w-full">
+          Confirm & Authorize
+        </button>
+      </div>
+    </main>
+
+    <!-- Page 2: Product Count Sheet (Full Audit) -->
+    <main id="page2" class="page-view hidden">
+      <div id="productsContainer" class="scroll-container pb-safe">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+
+      <!-- Sticky Footer Actions -->
+      <div class="sticky-footer">
+        <button onclick="prepareSummary()" class="btn-primary w-full">
+          <i class="fa-solid fa-list-check mr-2"></i> REVIEW COUNT
+        </button>
+      </div>
+    </main>
+
+    <!-- Page 3: Audit Summary Review (Full Audit) -->
+    <main id="page3" class="page-view hidden">
+      <div class="summary-header">
+        <h2 id="summaryTitle" class="summary-title">Inventory Review</h2>
+        <p id="summaryRemark" class="summary-remark"></p>
+      </div>
+
+      <div class="scroll-container pb-safe-large">
+        <div id="summaryListContainer" class="summary-list">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+      </div>
+
+      <!-- Submit Footer -->
+      <div id="submitBtnContainer" class="sticky-footer">
+        <button id="submitBtn" onclick="submitData()" class="btn-success w-full">
+          <i class="fa-solid fa-cloud-arrow-up mr-2"></i> SUBMIT INVENTORY
+        </button>
+      </div>
+
+      <!-- Floating PDF Button -->
+      <button id="headerExportBtn" onclick="handleExportAction('pdf')" class="fab-pdf hidden">
+        <i class="fa-solid fa-file-pdf"></i>
+      </button>
+    </main>
+
+    <!-- Product Picker Modal for Manage Stock -->
+    <div id="productPickerModal" class="modal-overlay hidden">
+      <div class="modal-card product-picker-card">
+        <div class="modal-header">
+          <span class="modal-header-tag"><i class="fa-solid fa-box-open mr-1"></i> Select Products</span>
+          <button onclick="closeProductPickerModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="picker-search-wrapper" style="position: relative; width: 100%; margin: 0.25rem 0 0.65rem 0; box-sizing: border-box; flex-shrink: 0;">
+          <i class="fa-solid fa-magnifying-glass picker-search-icon" style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: #64748B; font-size: 0.95rem; pointer-events: none; z-index: 2;"></i>
+          <input type="text" id="pickerSearchInput" placeholder="Search SKU or product title..." class="picker-search-input" style="width: 100%; height: 42px; -webkit-appearance: none; appearance: none; display: block; background-color: #F1F5F9; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 0 0.85rem 0 2.4rem; font-size: 0.9rem; font-weight: 500; color: #0F172A; outline: none; box-sizing: border-box;" oninput="filterProductPicker()">
+        </div>
+
+        <div id="pickerProductsList" class="picker-products-list" style="flex: 1 1 auto; height: calc(85vh - 160px); max-height: calc(85vh - 160px); min-height: 0; overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; touch-action: pan-y !important;">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <div class="picker-modal-footer">
+          <button type="button" onclick="closeProductPickerModal()" class="btn-primary w-full">
+            DONE SELECTING
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Overlays -->
+
+    <!-- 1. Quick Calc Overlay -->
+    <div id="calcModal" class="modal-overlay hidden">
+      <div class="modal-card calc-card">
+        <div class="modal-header">
+          <span class="modal-header-tag"><i class="fa-solid fa-calculator mr-1"></i> Quick Calc</span>
+          <button onclick="closeCalc()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="calc-logs-panel">
+          <div id="calcHistoryLog"></div>
+        </div>
+
+        <div class="calc-display-panel">
+          <div id="calcProductCode" class="calc-sku-tag"></div>
+          <div id="calcHistory" class="calc-formula"></div>
+          <div id="calcDisplay" class="calc-result">0</div>
+        </div>
+
+        <!-- Calculator Keys -->
+        <div class="calc-grid">
+          <!-- Row 1 -->
+          <button class="calc-key op-key" onclick="calcOp('/')"><i class="fa-solid fa-divide"></i></button>
+          <button class="calc-key op-key" onclick="calcOp('*')"><i class="fa-solid fa-xmark"></i></button>
+          <button class="calc-key op-key" onclick="calcOp('+')"><i class="fa-solid fa-plus"></i></button>
+          <button class="calc-key op-key" onclick="calcOp('-')"><i class="fa-solid fa-minus"></i></button>
+
+          <!-- Row 2 -->
+          <button class="calc-key num-key" onclick="calcInput('7')">7</button>
+          <button class="calc-key num-key" onclick="calcInput('8')">8</button>
+          <button class="calc-key num-key" onclick="calcInput('9')">9</button>
+          <button class="calc-key del-key" onclick="calcDel()"><i class="fa-solid fa-backspace"></i></button>
+
+          <!-- Row 3 -->
+          <button class="calc-key num-key" onclick="calcInput('4')">4</button>
+          <button class="calc-key num-key" onclick="calcInput('5')">5</button>
+          <button class="calc-key num-key" onclick="calcInput('6')">6</button>
+          <button class="calc-key clear-key" onclick="calcClear()">C</button>
+
+          <!-- Row 4 -->
+          <button class="calc-key num-key" onclick="calcInput('1')">1</button>
+          <button class="calc-key num-key" onclick="calcInput('2')">2</button>
+          <button class="calc-key num-key" onclick="calcInput('3')">3</button>
+          <button class="calc-key eq-key row-span-2" onclick="calcEq()"><i class="fa-solid fa-equals"></i></button>
+
+          <!-- Row 5 -->
+          <button class="calc-key num-key" onclick="calcInput('(')">(</button>
+          <button class="calc-key num-key" onclick="calcInput('0')">0</button>
+          <button class="calc-key num-key" onclick="calcInput(')')">)</button>
+        </div>
+
+        <button class="btn-success calc-apply-btn" onclick="applyCalc()">
+          <i class="fa-solid fa-check-double mr-2"></i> APPLY TO COUNT
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. Security PIN Modal -->
+    <div id="pinModal" class="modal-overlay hidden" onclick="document.getElementById('hiddenPinInput').focus()">
+      <button onclick="cancelPinModal()" class="close-btn absolute-top-right"><i class="fa-solid fa-xmark"></i></button>
+
+      <div class="pin-modal-content">
+        <div class="pin-lock-icon">
+          <i class="fa-solid fa-user-lock"></i>
+        </div>
+        <h3 class="pin-title">ENTER SECURITY PIN</h3>
+        <p class="pin-subtitle">Required to authorize inventory submission</p>
+
+        <div class="pin-box-wrapper">
+          <!-- Hidden Input for mobile keyboard trigger -->
+          <input type="tel" id="hiddenPinInput" maxlength="4" autocomplete="off" class="hidden-pin-input" oninput="handleHiddenPinInput(this)">
+
+          <div class="pin-box"></div>
+          <div class="pin-box"></div>
+          <div class="pin-box"></div>
+          <div class="pin-box"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Centralized Custom Alert Modal -->
+    <div id="customAlertModal" class="modal-overlay alert-overlay hidden">
+      <div id="customAlertBox" class="modal-card alert-card">
+        <div id="customAlertIcon" class="alert-icon-wrapper">
+          <i class="fa-solid fa-bell"></i>
+        </div>
+        <h3 id="customAlertTitle" class="alert-title">Notice</h3>
+        <p id="customAlertMessage" class="alert-desc"></p>
+        <button id="customAlertBtn" onclick="closeCustomAlert()" class="btn-primary w-full py-3">
+          OK, GOT IT
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. Image Fullscreen View Modal -->
+    <div id="imageModal" class="modal-overlay hidden">
+      <div class="absolute-top-right">
+        <button onclick="closeImageModal()" class="icon-btn bg-slate-800 rounded-full border border-gray-700 shadow-md">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+      
+      <div class="fullscreen-image-wrapper">
+        <img id="imageModalImg" src="" alt="Product Preview" class="preview-img" />
+        <div class="preview-info-card">
+          <h3 id="imageModalCode" class="preview-sku"></h3>
+          <p id="imageModalDesc" class="preview-description"></p>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- End Mobile Only Container -->
+
+
+  <!-- PDF libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <script src="app.js?v=20260831_1507"></script>
+</body>
+</html>

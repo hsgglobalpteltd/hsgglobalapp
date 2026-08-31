@@ -1,7 +1,13 @@
 // Desktop Redirect Check
-if (window.innerWidth > 600) {
-  window.location.href = '../index.html';
+if (window.innerWidth >= 900 || window.matchMedia("(min-width: 900px)").matches) {
+  window.location.replace("../index.html");
 }
+
+// iOS / Mobile gesture and zoom prevention
+document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+document.addEventListener('touchstart', function (event) { if (event.touches.length > 1) event.preventDefault(); }, { passive: false });
+document.addEventListener('wheel', function (e) { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+document.addEventListener('keydown', function (e) { if (e.ctrlKey && (e.key === '=' || e.key === '-' || e.key === '0' || e.key === '+')) e.preventDefault(); });
 
 // ==========================================
 // CONFIGURATION & CORE STATE
@@ -79,9 +85,23 @@ window.addEventListener('DOMContentLoaded', () => {
     showPage('page1');
   }
 
+  // Auto-scroll input into focus when keyboard opens on mobile
+  setupKeyboardScrollHandling();
+
   // Run initial sync & fetch
   backgroundSync();
 });
+
+function setupKeyboardScrollHandling() {
+  document.addEventListener('focusin', (e) => {
+    const target = e.target;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+      setTimeout(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      }, 300);
+    }
+  });
+}
 
 // ==========================================
 // SYNCHRONIZATION & DATA FETCHING
@@ -125,31 +145,54 @@ async function fetchData(silent = true) {
     const rawLogs = await logsRes.json();
     const rawUsers = await usersRes.json();
 
-    // 1. Map Brands (raw SQL lowercase columns)
+    const prodList = Array.isArray(rawProducts) ? rawProducts : (rawProducts.products || rawProducts.value || rawProducts.data || []);
+    const brandList = Array.isArray(rawBrands) ? rawBrands : (rawBrands.value || rawBrands.brands || rawBrands.data || []);
+    const logsList = Array.isArray(rawLogs) ? rawLogs : (rawLogs.value || rawLogs.logs || rawLogs.data || []);
+    const usersList = Array.isArray(rawUsers) ? rawUsers : (rawUsers.value || rawUsers.users || rawUsers.data || []);
+
+    // 1. Map Brands (handle any casing)
     const brandMap = {};
-    rawBrands.forEach(b => {
-      brandMap[b.id] = {
-        name: b.display_name,
-        rank: parseInt(b.rank) || 999
-      };
+    brandList.forEach(b => {
+      const bId = b.ID || b.id || b.brands_id;
+      if (bId) {
+        brandMap[bId] = {
+          name: b['Display Name'] || b.display_name || b.name || "Brand",
+          rank: parseInt(b.Rank || b.rank) || 999
+        };
+      }
     });
 
-    // 2. Map Products and normalize (raw SQL lowercase columns)
-    products = rawProducts.map(p => {
-      const bInfo = brandMap[p.brands_id] || { name: "Unknown", rank: 999 };
+    // 2. Map Products and normalize - ONLY Active & Non-Archived Products
+    products = prodList.filter(p => {
+      const status = String(p.Status || p.status || p.State || p.state || 'Active').trim().toLowerCase();
+      const archived = p.Archived === true || p.archived === true || String(p.Archived) === 'true' || String(p.archived) === 'true';
+      if (archived) return false;
+      if (status === 'inactive' || status === 'archived' || status === 'disabled' || status === 'draft' || status === 'deleted') return false;
+      return true;
+    }).map(p => {
+      const brandId = p['Brands ID'] || p.brands_id || p.brand_id || p.Brand_ID || '';
+      const bInfo = brandMap[brandId] || { name: p.Brand || p.brand || "General", rank: 999 };
+      const sku = p.SKU || p.sku || p.Code || p.code || '';
+      const desc = p['Display Name'] || p.display_name || p.Description || p.description || p.name || sku;
+      const img = p.Image || p.image || p.ImgLink || '';
+      const pack = parseInt(p.Carton || p.carton || p.Pack) || 0;
+      const rank = parseInt(p.Rank || p.rank) || 999;
       return {
-        Code: p.sku,
-        Description: p.display_name,
-        ImgLink: p.image,
-        Pack: parseInt(p.carton) || 0,
-        Rank: parseInt(p.rank) || 999,
+        Code: sku,
+        sku: sku,
+        Description: desc,
+        name: desc,
+        ImgLink: img,
+        Image: img,
+        Pack: pack,
+        Rank: rank,
         Brand: bInfo.name,
         BrandRank: bInfo.rank
       };
     });
 
-    // 3. Map and parse Logs (raw SQL lowercase columns)
-    logs = rawLogs.map(l => {
+    // 3. Map and parse Logs
+    logs = logsList.map(l => {
       let auditData = [];
       try {
         const rawData = typeof l.audit === 'string' ? JSON.parse(l.audit) : l.audit;
@@ -161,11 +204,11 @@ async function fetchData(silent = true) {
           }));
         }
       } catch (e) {
-        console.warn("Failed to parse Audit JSON for log at " + l.timestamp, e);
+        console.warn("Failed to parse Audit JSON for log at " + (l.timestamp || l.Timestamp), e);
       }
       return {
-        timestamp: l.timestamp,
-        submittedBy: l.audit_by,
+        timestamp: l.timestamp || l.Timestamp,
+        submittedBy: l.audit_by || l['Audit By'],
         data: auditData
       };
     }).filter(l => l.data && l.data.length > 0);
@@ -269,12 +312,12 @@ function getProductImg(p) {
   let link = p.ImgLink || p.imglink || p.Image || p.image;
   if (!link) return defaultImg;
 
-  // Handle Google Drive image mapping link format
-  if (link.includes('drive.google.com')) {
+  // Handle Google Drive image mapping - request 200px thumbnail
+  if (link.includes('drive.google.com') || link.includes('googleusercontent.com')) {
     let fileId = '';
     if (link.includes('/d/')) fileId = link.split('/d/')[1].split('/')[0];
     else if (link.includes('id=')) fileId = link.split('id=')[1].split('&')[0];
-    if (fileId) return `https://drive.google.com/uc?export=view&id=${fileId}`;
+    if (fileId) return `https://drive.google.com/thumbnail?id=${fileId}&sz=w200`;
   }
 
   return link;
@@ -312,43 +355,75 @@ function showPage(pageId) {
     localStorage.removeItem('inventoryScrollPage2');
   }
 
-  document.getElementById('page1').classList.add('hidden');
-  document.getElementById('page2').classList.add('hidden');
-  document.getElementById('page3').classList.add('hidden');
-  document.getElementById(pageId).classList.remove('hidden');
-  document.getElementById(pageId).classList.add('active');
+  const allPages = ['page1', 'page2', 'page3', 'pageManageStock', 'pageManageStockStep2', 'pageStockCardSummary'];
+  allPages.forEach(p => {
+    const el = document.getElementById(p);
+    if (el) {
+      el.classList.add('hidden');
+      el.classList.remove('active');
+    }
+  });
+
+  const target = document.getElementById(pageId);
+  if (target) {
+    target.classList.remove('hidden');
+    target.classList.add('active');
+  }
 
   if (pageId === 'page2') {
     const savedScroll = localStorage.getItem('inventoryScrollPage2');
     if (savedScroll) {
       setTimeout(() => {
-        document.getElementById('productsContainer').scrollTop = parseInt(savedScroll);
+        const container = document.getElementById('productsContainer');
+        if (container) container.scrollTop = parseInt(savedScroll);
       }, 50);
     }
   }
 
   const backBtn = document.getElementById('backBtn');
   const searchBtn = document.getElementById('headerSearchBtn');
-  const refreshBtn = document.getElementById('syncRefreshBtn');
-  const indicator = document.getElementById('syncIndicatorContainer');
-  const exportBtn = document.getElementById('headerExportBtn');
+  const addStockBtn = document.getElementById('headerAddStockBtn');
+  const titleEl = document.getElementById('mainHeaderTitle');
+
+  if (titleEl) {
+    if (pageId === 'pageManageStock') {
+      titleEl.textContent = 'Manage Stock';
+    } else if (pageId === 'pageManageStockStep2') {
+      titleEl.textContent = 'Stock Details';
+    } else if (pageId === 'pageStockCardSummary') {
+      titleEl.textContent = 'Review Transaction';
+    } else {
+      titleEl.textContent = 'iB - Stock Flow';
+    }
+  }
 
   if (pageId === 'page1') {
     if (backBtn) backBtn.classList.add('hidden');
     if (searchBtn) searchBtn.classList.add('hidden');
-    if (refreshBtn) refreshBtn.classList.add('hidden');
-    if (indicator) indicator.classList.add('hidden');
-    if (exportBtn) exportBtn.classList.add('hidden');
+    if (addStockBtn) addStockBtn.classList.add('hidden');
+  } else if (pageId === 'pageManageStock') {
+    if (backBtn) backBtn.classList.remove('hidden');
+    if (searchBtn) searchBtn.classList.add('hidden');
+    if (addStockBtn) addStockBtn.classList.remove('hidden');
+  } else if (pageId === 'pageManageStockStep2' || pageId === 'pageStockCardSummary') {
+    if (backBtn) backBtn.classList.remove('hidden');
+    if (searchBtn) searchBtn.classList.add('hidden');
+    if (addStockBtn) addStockBtn.classList.add('hidden');
   } else {
     if (backBtn) backBtn.classList.remove('hidden');
     if (searchBtn) searchBtn.classList.remove('hidden');
-    if (refreshBtn) refreshBtn.classList.add('hidden');
-    if (indicator) indicator.classList.add('hidden');
+    if (addStockBtn) addStockBtn.classList.add('hidden');
   }
 }
 
 function goBack() {
-  if (!document.getElementById('page3').classList.contains('hidden')) {
+  if (!document.getElementById('pageStockCardSummary').classList.contains('hidden')) {
+    showPage('pageManageStockStep2');
+  } else if (!document.getElementById('pageManageStockStep2').classList.contains('hidden')) {
+    showPage('pageManageStock');
+  } else if (!document.getElementById('pageManageStock').classList.contains('hidden')) {
+    showPage('page1');
+  } else if (!document.getElementById('page3').classList.contains('hidden')) {
     const title = document.getElementById('summaryTitle').innerText.toLowerCase();
     if (title.includes('stock as')) {
       showPage('page1');
@@ -634,8 +709,16 @@ let currentCodeForCalc = null;
 let calcCurrentVal = '0';
 let calcResultShown = false;
 let fullCalcLog = {};
+let currentCalcContext = 'page2';
+let stockFlowCalcLogs = {};
+
+try {
+  const savedCalcLogs = localStorage.getItem('stockFlowCalcLogs');
+  if (savedCalcLogs) stockFlowCalcLogs = JSON.parse(savedCalcLogs);
+} catch (e) {}
 
 function openCalc(code) {
+  currentCalcContext = 'page2';
   currentCodeForCalc = code;
   const currentVal = (quantities[code] === undefined || quantities[code] === null) ? "" : quantities[code];
   calcCurrentVal = (currentVal === "" || currentVal === 0) ? '0' : currentVal.toString();
@@ -651,9 +734,28 @@ function openCalc(code) {
   modal.classList.add('active'); // active uses flex
 }
 
+function openStockCardCalc(code) {
+  currentCalcContext = 'stockCard';
+  currentCodeForCalc = code;
+  const item = (stockCardState && stockCardState.items) ? stockCardState.items.find(i => i.sku === code) : null;
+  const currentVal = item ? item.qty : 1;
+  calcCurrentVal = (currentVal === "" || currentVal === 0) ? '0' : currentVal.toString();
+  calcResultShown = false;
+
+  renderCalcHistoryLog();
+  document.getElementById('calcProductCode').innerText = `Counting: ${code}`;
+  document.getElementById('calcHistory').innerText = '';
+  updateCalcDisplay();
+
+  const modal = document.getElementById('calcModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('active');
+}
+
 function renderCalcHistoryLog() {
   const logContainer = document.getElementById('calcHistoryLog');
-  const hist = fullCalcLog[currentCodeForCalc] || [];
+  if (!logContainer) return;
+  const hist = (currentCalcContext === 'stockCard' ? (stockFlowCalcLogs[currentCodeForCalc] || []) : (fullCalcLog[currentCodeForCalc] || []));
   logContainer.innerHTML = `<div>${hist.join(' | ')}</div>`;
 }
 
@@ -714,9 +816,17 @@ function calcEq() {
     let roundedRes = Math.max(0, Math.round(res * 100) / 100);
 
     const calculationEntry = calcCurrentVal.replace(/\*/g, '×').replace(/\//g, '÷') + ' = ' + roundedRes;
-    if (!fullCalcLog[currentCodeForCalc]) fullCalcLog[currentCodeForCalc] = [];
-    fullCalcLog[currentCodeForCalc].push(calculationEntry);
-    if (fullCalcLog[currentCodeForCalc].length > 4) fullCalcLog[currentCodeForCalc].shift();
+    
+    if (currentCalcContext === 'stockCard') {
+      if (!stockFlowCalcLogs[currentCodeForCalc]) stockFlowCalcLogs[currentCodeForCalc] = [];
+      stockFlowCalcLogs[currentCodeForCalc].push(calculationEntry);
+      if (stockFlowCalcLogs[currentCodeForCalc].length > 4) stockFlowCalcLogs[currentCodeForCalc].shift();
+      localStorage.setItem('stockFlowCalcLogs', JSON.stringify(stockFlowCalcLogs));
+    } else {
+      if (!fullCalcLog[currentCodeForCalc]) fullCalcLog[currentCodeForCalc] = [];
+      fullCalcLog[currentCodeForCalc].push(calculationEntry);
+      if (fullCalcLog[currentCodeForCalc].length > 4) fullCalcLog[currentCodeForCalc].shift();
+    }
     renderCalcHistoryLog();
 
     document.getElementById('calcHistory').innerText = calcCurrentVal.replace(/\*/g, '×').replace(/\//g, '÷') + ' =';
@@ -750,32 +860,57 @@ function calcDel() {
 }
 
 function applyCalc() {
-  removeSkipBadge(currentCodeForCalc);
-  if (!calcResultShown && calcCurrentVal !== '0') {
-    try {
-      const expression = calcCurrentVal.replace(/[^-()\d/*+.]/g, '');
-      let res = Function('"use strict";return (' + expression + ')')();
-      calcCurrentVal = (Math.max(0, Math.round(res))).toString();
-    } catch (e) { }
+  if (currentCalcContext === 'page2') {
+    removeSkipBadge(currentCodeForCalc);
+    if (!calcResultShown && calcCurrentVal !== '0') {
+      try {
+        const expression = calcCurrentVal.replace(/[^-()\d/*+.]/g, '');
+        let res = Function('"use strict";return (' + expression + ')')();
+        calcCurrentVal = (Math.max(0, Math.round(res))).toString();
+      } catch (e) { }
+    }
+    const val = parseInt(calcCurrentVal) || 0;
+    quantities[currentCodeForCalc] = val;
+
+    const input = document.getElementById('qty-' + currentCodeForCalc);
+    if (input) {
+      if (val === 0) {
+        input.value = "Out Of Stock";
+        input.classList.add('out-of-stock');
+      } else {
+        input.value = val;
+        input.classList.remove('out-of-stock');
+      }
+      input.classList.add('apply-flash');
+      setTimeout(() => input.classList.remove('apply-flash'), 500);
+    }
+
+    localStorage.setItem('inventoryQuantities', JSON.stringify(quantities));
+    closeCalc();
+  } else if (currentCalcContext === 'stockCard') {
+    if (!calcResultShown && calcCurrentVal !== '0') {
+      try {
+        const expression = calcCurrentVal.replace(/[^-()\d/*+.]/g, '');
+        let res = Function('"use strict";return (' + expression + ')')();
+        calcCurrentVal = (Math.max(0, Math.round(res))).toString();
+      } catch (e) { }
+    }
+    const val = Math.max(1, parseInt(calcCurrentVal) || 1);
+    const item = (stockCardState && stockCardState.items) ? stockCardState.items.find(i => i.sku === currentCodeForCalc) : null;
+    if (item) {
+      item.qty = val;
+    }
+    renderStockCardItems();
+    closeCalc();
+
+    setTimeout(() => {
+      const input = document.getElementById('sc-qty-' + currentCodeForCalc);
+      if (input) {
+        input.classList.add('apply-flash');
+        setTimeout(() => input.classList.remove('apply-flash'), 500);
+      }
+    }, 100);
   }
-  const val = parseInt(calcCurrentVal) || 0;
-  quantities[currentCodeForCalc] = val;
-
-  const input = document.getElementById('qty-' + currentCodeForCalc);
-  if (val === 0) {
-    input.value = "Out Of Stock";
-    input.classList.add('out-of-stock');
-  } else {
-    input.value = val;
-    input.classList.remove('out-of-stock');
-  }
-
-  localStorage.setItem('inventoryQuantities', JSON.stringify(quantities));
-  closeCalc();
-
-  // Highlight flash animation
-  input.classList.add('apply-flash');
-  setTimeout(() => input.classList.remove('apply-flash'), 500);
 }
 
 // ==========================================
@@ -1109,6 +1244,7 @@ function closePinModal() {
 function cancelPinModal() {
   closePinModal();
   pendingAuditData = null;
+  pendingStockCardData = null;
 }
 
 function handleHiddenPinInput(el) {
@@ -1134,15 +1270,41 @@ function handleHiddenPinInput(el) {
 }
 
 function validatePin() {
-  const storeKeeper = storeKeepers.find(s => s.pin === currentPin);
+  // Find authorized staff in storeKeepers, portal session, or cached employees
+  let authorizedStaff = storeKeepers.find(s => String(s.pin || '').trim() === currentPin);
   
-  if (storeKeeper) {
+  if (!authorizedStaff) {
+    try {
+      const portalUserStr = localStorage.getItem('ib_auth_user');
+      if (portalUserStr) {
+        const pUser = JSON.parse(portalUserStr);
+        if (String(pUser.pin || '').trim() === currentPin) {
+          authorizedStaff = pUser;
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (!authorizedStaff) {
+    try {
+      const empCached = JSON.parse(localStorage.getItem('ib_employees') || '[]');
+      if (Array.isArray(empCached)) {
+        authorizedStaff = empCached.find(e => String(e.pin || '').trim() === currentPin);
+      }
+    } catch (_) {}
+  }
+  
+  if (authorizedStaff) {
     closePinModal();
-    finalizeSubmit(storeKeeper);
+    if (pendingStockCardData) {
+      finalizeStockCardSubmit(authorizedStaff);
+    } else if (pendingAuditData) {
+      finalizeSubmit(authorizedStaff);
+    }
   } else {
     // Shake animation feedback
     const container = document.querySelector('#pinModal .pin-box-wrapper');
-    container.classList.add('shake-animation');
+    if (container) container.classList.add('shake-animation');
     
     const boxes = document.querySelectorAll('#pinModal .pin-box');
     boxes.forEach(box => {
@@ -1152,15 +1314,716 @@ function validatePin() {
     });
 
     setTimeout(() => {
-      container.classList.remove('shake-animation');
+      if (container) container.classList.remove('shake-animation');
       alert('Invalid security PIN! Please try again.');
       
       currentPin = '';
       const input = document.getElementById('hiddenPinInput');
-      input.value = '';
+      if (input) input.value = '';
       boxes.forEach(box => box.classList.remove('error'));
-      setTimeout(() => input.focus(), 150);
+      setTimeout(() => input && input.focus(), 150);
     }, 350);
+  }
+}
+
+// ==========================================
+// STOCK CARD / MANAGE STOCK LOGIC
+// ==========================================
+let stockCardState = {
+  action: 'Stock Out',
+  items: [], // [{ sku, name, qty, image, carton }]
+  hasDoc: false,
+  refNumber: '',
+  description: '',
+  approvedBy: '',
+  photoFile: null,
+  photoPreviewUrl: '',
+  trxId: ''
+};
+
+let administratorsList = [];
+let pendingStockCardData = null;
+
+async function fetchAdministrators() {
+  try {
+    const res = await fetch(`${WORKER_URL}/api/app4/admins`);
+    if (res.ok) {
+      administratorsList = await res.json();
+      populateApprovedByDropdown();
+    }
+  } catch (err) {
+    console.warn("Could not load administrators:", err);
+  }
+}
+
+function populateApprovedByDropdown() {
+  const select = document.getElementById('stockCardApprovedBy');
+  if (!select) return;
+  
+  const currentVal = select.value;
+  select.innerHTML = '<option value="">Select Approval...</option>';
+  
+  (administratorsList || []).forEach(adm => {
+    const opt = document.createElement('option');
+    opt.value = adm.name || adm.email;
+    opt.textContent = adm.name || adm.email;
+    select.appendChild(opt);
+  });
+
+  if (currentVal) select.value = currentVal;
+  checkStockFlowFormValidity();
+}
+
+function checkStockFlowFormValidity() {
+  const footer = document.getElementById('footerReviewStockFlow');
+  if (!footer) return false;
+
+  // 1. Action must be selected
+  if (!stockCardState || !stockCardState.action) {
+    footer.classList.add('hidden');
+    return false;
+  }
+
+  // 2. Must have at least 1 product with valid qty >= 1
+  if (!stockCardState.items || stockCardState.items.length === 0) {
+    footer.classList.add('hidden');
+    return false;
+  }
+  const hasInvalidQty = stockCardState.items.some(i => !i.qty || i.qty < 1);
+  if (hasInvalidQty) {
+    footer.classList.add('hidden');
+    return false;
+  }
+
+  // 3. If hasDoc is true, ref number is required
+  if (stockCardState.hasDoc) {
+    const refVal = (document.getElementById('stockCardRefNumber')?.value || '').trim();
+    if (!refVal) {
+      footer.classList.add('hidden');
+      return false;
+    }
+    stockCardState.refNumber = refVal;
+  }
+
+  // 4. Approved by is required
+  const approvedByVal = (document.getElementById('stockCardApprovedBy')?.value || '').trim();
+  if (!approvedByVal) {
+    footer.classList.add('hidden');
+    return false;
+  }
+  stockCardState.approvedBy = approvedByVal;
+
+  // 5. Photos: Minimum 1 photo, Maximum 8 photos
+  const photoCount = (stockCardState.photos || []).length;
+  if (photoCount < 1 || photoCount > 8) {
+    footer.classList.add('hidden');
+    return false;
+  }
+
+  // All mandatory inputs are complete
+  footer.classList.remove('hidden');
+  return true;
+}
+
+function openManageStock() {
+  let savedDraft = [];
+  try {
+    const raw = localStorage.getItem('stockFlowDraftItems');
+    if (raw) savedDraft = JSON.parse(raw);
+  } catch (e) {}
+
+  stockCardState = {
+    action: 'Stock Out',
+    items: Array.isArray(savedDraft) ? savedDraft : [],
+    hasDoc: false,
+    refNumber: '',
+    description: '',
+    approvedBy: '',
+    photos: [],
+    trxId: ''
+  };
+
+  selectStockCardAction('Stock Out');
+  setDocumentToggle(false);
+  
+  const descEl = document.getElementById('stockCardDescription');
+  if (descEl) descEl.value = '';
+  
+  const refEl = document.getElementById('stockCardRefNumber');
+  if (refEl) refEl.value = '';
+
+  renderStockCardPhotoGallery();
+  renderStockCardItems();
+  fetchAdministrators();
+  checkStockFlowFormValidity();
+  
+  showPage('pageManageStock');
+}
+
+function selectStockCardAction(action) {
+  stockCardState.action = action;
+
+  // Update pills
+  const pills = document.querySelectorAll('.action-pill');
+  pills.forEach(pill => {
+    const attr = pill.getAttribute('onclick') || '';
+    if (attr.includes(`'${action}'`)) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
+
+  checkStockFlowFormValidity();
+}
+
+function setDocumentToggle(hasDoc) {
+  stockCardState.hasDoc = hasDoc;
+  const noBtn = document.getElementById('docToggleNo');
+  const yesBtn = document.getElementById('docToggleYes');
+  const wrapper = document.getElementById('docRefInputWrapper');
+
+  if (noBtn && yesBtn) {
+    if (hasDoc) {
+      yesBtn.classList.add('active');
+      noBtn.classList.remove('active');
+      if (wrapper) wrapper.classList.remove('hidden');
+    } else {
+      noBtn.classList.add('active');
+      yesBtn.classList.remove('active');
+      if (wrapper) wrapper.classList.add('hidden');
+    }
+  }
+
+  checkStockFlowFormValidity();
+}
+
+function appendPretext(text) {
+  const desc = document.getElementById('stockCardDescription');
+  if (!desc) return;
+  const current = desc.value.trim();
+  if (!current) {
+    desc.value = text;
+  } else if (!current.includes(text)) {
+    desc.value = `${current} - ${text}`;
+  }
+  checkStockFlowFormValidity();
+}
+
+function renderStockCardItems() {
+  const container = document.getElementById('stockCardItemsContainer');
+  const footerStep1 = document.getElementById('footerManageStockStep1');
+  if (!container) return;
+
+  // Persist draft in localStorage
+  localStorage.setItem('stockFlowDraftItems', JSON.stringify(stockCardState.items));
+
+  if (!stockCardState.items || stockCardState.items.length === 0) {
+    container.innerHTML = `
+      <div id="scEmptyPlaceholder" class="empty-items-box-large" onclick="openProductPickerModal()">
+        <i class="fa-solid fa-boxes-stacked text-4xl text-slate-300 mb-2"></i>
+        <span class="text-base font-bold text-slate-700">No stock items added</span>
+        <span class="text-xs font-normal text-slate-400 mt-1">Tap here or the + button above to select products</span>
+      </div>`;
+    if (footerStep1) footerStep1.classList.add('hidden');
+    return;
+  }
+
+  container.innerHTML = '';
+  stockCardState.items.forEach((item) => {
+    const p = products.find(prod => prod.Code === item.sku) || { Code: item.sku, Description: item.name || '', Brand: '' };
+    const finalImg = getProductImg(p);
+    const calcHist = stockFlowCalcLogs[item.sku] || [];
+    const latestCalc = calcHist.length > 0 ? calcHist[calcHist.length - 1] : '';
+
+    const card = document.createElement('div');
+    card.className = 'product-card mb-3';
+
+    card.innerHTML = `
+      <div class="product-info-row">
+        <img src="${finalImg}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'100\\' height=\\'100\\' viewBox=\\'0 0 100 100\\'%3E%3Crect width=\\'100\\' height=\\'100\\' fill=\\'%231e293b\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' font-family=\\'sans-serif\\' font-size=\\'24\\' font-weight=\\'900\\' fill=\\'%23475569\\'%3E?%3C/text%3E%3C/svg%3E'" class="product-img" />
+        <div class="product-details">
+          <div class="sku-info-wrapper">
+            <h3 class="product-sku">${p.Code}</h3>
+            <button type="button" onclick="openImageModal('${p.Code}')" class="info-help-btn">
+              <i class="fa-solid fa-circle-question"></i>
+            </button>
+          </div>
+          <p class="product-desc">${p.Description || item.name || ''}</p>
+          ${latestCalc ? `<div class="text-[11px] font-semibold text-purple-600 mt-1"><i class="fa-solid fa-calculator mr-1"></i>${latestCalc}</div>` : ''}
+        </div>
+      </div>
+      <div class="product-control-row">
+        <div class="quantity-adjuster">
+          <button type="button" class="adjust-btn adjust-btn-minus" onclick="updateStockCardItemQty('${p.Code}', -1)">-</button>
+          <input type="text" inputmode="numeric" id="sc-qty-${p.Code}" class="quantity-input" value="${item.qty}" onchange="setStockCardItemQty('${p.Code}', this.value)" onclick="this.select()" />
+          <button type="button" class="adjust-btn adjust-btn-plus" onclick="updateStockCardItemQty('${p.Code}', 1)">+</button>
+        </div>
+        <button type="button" class="card-calc-btn" onclick="openStockCardCalc('${p.Code}')" style="margin-right: 0.4rem;" title="Count with Calculator">
+          <i class="fa-solid fa-calculator"></i>
+        </button>
+        <button type="button" class="card-trash-btn" onclick="removeStockCardItem('${p.Code}')" title="Remove Item">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  const hasValidQty = stockCardState.items.some(i => i.qty > 0);
+  if (footerStep1) {
+    if (hasValidQty) {
+      footerStep1.classList.remove('hidden');
+    } else {
+      footerStep1.classList.add('hidden');
+    }
+  }
+}
+
+function updateStockCardItemQty(sku, change) {
+  const item = stockCardState.items.find(i => i.sku === sku);
+  if (item) {
+    item.qty = Math.max(1, (item.qty || 1) + change);
+    renderStockCardItems();
+  }
+}
+
+function setStockCardItemQty(sku, valStr) {
+  const item = stockCardState.items.find(i => i.sku === sku);
+  if (item) {
+    const parsed = parseInt(valStr, 10);
+    item.qty = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    renderStockCardItems();
+  }
+}
+
+function removeStockCardItem(sku) {
+  stockCardState.items = stockCardState.items.filter(i => i.sku !== sku);
+  delete stockFlowCalcLogs[sku];
+  localStorage.setItem('stockFlowCalcLogs', JSON.stringify(stockFlowCalcLogs));
+  renderStockCardItems();
+}
+
+function goToManageStockStep2() {
+  if (!stockCardState.items || stockCardState.items.length === 0) {
+    alert("Please select at least 1 product.");
+    return;
+  }
+  const hasInvalid = stockCardState.items.some(i => !i.qty || i.qty < 1);
+  if (hasInvalid) {
+    alert("Please ensure all products have a valid quantity of at least 1.");
+    return;
+  }
+  checkStockFlowFormValidity();
+  showPage('pageManageStockStep2');
+}
+
+// Product Picker Modal
+function openProductPickerModal() {
+  const modal = document.getElementById('productPickerModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('active');
+  }
+  const searchInput = document.getElementById('pickerSearchInput');
+  if (searchInput) {
+    searchInput.value = '';
+    if (document.activeElement === searchInput) {
+      searchInput.blur();
+    }
+  }
+  filterProductPicker();
+}
+
+function closeProductPickerModal() {
+  const modal = document.getElementById('productPickerModal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.classList.add('hidden');
+  }
+}
+
+function filterProductPicker() {
+  const rawQ = (document.getElementById('pickerSearchInput')?.value || '').trim().toLowerCase();
+  const container = document.getElementById('pickerProductsList');
+  if (!container) return;
+
+  container.innerHTML = '';
+  
+  // Split search into individual words/tokens for flexible multi-part search (1:50 by word)
+  const tokens = rawQ.split(/\s+/).filter(Boolean);
+
+  const matched = (products || []).filter(p => {
+    if (tokens.length === 0) return true;
+    const target = `${p.Code || ''} ${p.Description || ''} ${p.Brand || ''}`.toLowerCase();
+    return tokens.every(token => target.includes(token));
+  });
+
+  // Sort by Brand first, then by Code (SKU)
+  matched.sort((a, b) => {
+    const brandA = (a.Brand || '').trim().toLowerCase();
+    const brandB = (b.Brand || '').trim().toLowerCase();
+    if (brandA !== brandB) {
+      return brandA.localeCompare(brandB);
+    }
+    return (a.Code || '').trim().localeCompare((b.Code || '').trim());
+  });
+
+  if (matched.length === 0) {
+    container.innerHTML = '<div class="p-6 text-center text-slate-400 text-xs font-normal">No products found matching all keywords.</div>';
+    return;
+  }
+
+  // Display top 50 matches (1:50 limit for fast scanning)
+  const displayLimit = 50;
+  const itemsToRender = matched.slice(0, displayLimit);
+
+  itemsToRender.forEach(p => {
+    const isSelected = (stockCardState.items || []).some(i => i.sku === p.Code);
+    const finalImg = getProductImg(p);
+    const div = document.createElement('div');
+    div.className = `picker-product-item ${isSelected ? 'selected' : ''}`;
+    div.setAttribute('style', `display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; background-color: ${isSelected ? '#ECFDF5' : '#FFFFFF'} !important; border: 1.5px solid ${isSelected ? '#10B981' : '#E2E8F0'} !important; border-radius: 12px !important; padding: 0.6rem 0.75rem !important; cursor: pointer !important; width: 100% !important; box-sizing: border-box !important; margin-bottom: 0.4rem !important;`);
+    div.onclick = () => toggleProductInStockCard(p);
+
+    div.innerHTML = `
+      <img src="${finalImg}" class="picker-prod-img" style="width:52px !important;height:52px !important;min-width:52px !important;max-width:52px !important;min-height:52px !important;max-height:52px !important;object-fit:cover !important;border-radius:8px !important;flex-shrink:0 !important;margin-right:0.75rem !important;display:block !important;background-color:#F1F5F9 !important;border:1px solid #E2E8F0 !important;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'100\\' height=\\'100\\' viewBox=\\'0 0 100 100\\'%3E%3Crect width=\\'100\\' height=\\'100\\' fill=\\'%231e293b\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' font-family=\\'sans-serif\\' font-size=\\'24\\' font-weight=\\'900\\' fill=\\'%23475569\\'%3E?%3C/text%3E%3C/svg%3E'" />
+      <div class="picker-prod-info" style="flex:1 1 auto !important;min-width:0 !important;display:flex !important;flex-direction:column !important;justify-content:center !important;overflow:hidden !important;text-align:left !important;">
+        <div class="picker-prod-sku-row" style="display:flex !important;flex-direction:row !important;align-items:center !important;gap:6px !important;overflow:hidden !important;width:100% !important;">
+          <span class="picker-prod-sku" style="font-size:1.05rem !important;font-weight:800 !important;color:#0F172A !important;line-height:1.2 !important;white-space:nowrap !important;">${p.Code}</span>
+          ${p.Brand ? `<span class="picker-prod-brand" style="font-size:0.68rem !important;font-weight:700 !important;color:#7C3AED !important;background:#F3E8FF !important;padding:1px 6px !important;border-radius:6px !important;white-space:nowrap !important;text-transform:uppercase !important;">${p.Brand}</span>` : ''}
+        </div>
+        <div class="picker-prod-name" style="font-size:0.8rem !important;font-weight:500 !important;color:#64748B !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;margin-top:2px !important;line-height:1.3 !important;width:100% !important;display:block !important;">${p.Description || ''}</div>
+      </div>
+      <div class="picker-check-btn" style="flex:0 0 auto !important;flex-shrink:0 !important;margin-left:0.75rem !important;display:flex !important;align-items:center !important;justify-content:center !important;">
+        <i class="fa-solid ${isSelected ? 'fa-circle-check text-emerald-600' : 'fa-circle-plus text-slate-300'}" style="font-size:1.5rem !important;"></i>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+
+  if (matched.length > displayLimit) {
+    const moreNotice = document.createElement('div');
+    moreNotice.className = 'text-center py-2 text-[11px] text-slate-400 font-normal';
+    moreNotice.textContent = `Showing 50 of ${matched.length} products. Type more to narrow down.`;
+    container.appendChild(moreNotice);
+  }
+}
+
+function toggleProductInStockCard(p) {
+  const existing = stockCardState.items.find(i => i.sku === p.Code);
+  if (existing) {
+    stockCardState.items = stockCardState.items.filter(i => i.sku !== p.Code);
+  } else {
+    stockCardState.items.push({
+      sku: p.Code,
+      name: p.Description || p.Code,
+      qty: 1,
+      carton: p.Pack || 1
+    });
+  }
+  filterProductPicker();
+  renderStockCardItems();
+}
+
+// Multi-Photo Upload Logic (1 to 8 photos)
+function handleStockCardPhotoSelect(input) {
+  if (!input.files || input.files.length === 0) return;
+
+  if (!stockCardState.photos) stockCardState.photos = [];
+  
+  const currentCount = stockCardState.photos.length;
+  const remainingSlots = 8 - currentCount;
+
+  if (remainingSlots <= 0) {
+    alert("You have reached the maximum limit of 8 photos.");
+    input.value = '';
+    return;
+  }
+
+  const filesToAdd = Array.from(input.files).slice(0, remainingSlots);
+  if (input.files.length > remainingSlots) {
+    alert(`Only ${remainingSlots} photo(s) added. Maximum limit is 8 photos.`);
+  }
+
+  let processed = 0;
+  filesToAdd.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      stockCardState.photos.push({
+        file: file,
+        previewUrl: e.target.result
+      });
+      processed++;
+      if (processed === filesToAdd.length) {
+        renderStockCardPhotoGallery();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  input.value = '';
+}
+
+function renderStockCardPhotoGallery() {
+  const gallery = document.getElementById('stockCardPhotoGallery');
+  const countBadge = document.getElementById('photoCountBadge');
+  if (!gallery) return;
+
+  if (!stockCardState.photos) stockCardState.photos = [];
+  const count = stockCardState.photos.length;
+
+  if (countBadge) {
+    countBadge.textContent = `(${count}/8)`;
+    if (count >= 1 && count <= 8) {
+      countBadge.className = 'text-xs font-semibold text-emerald-600';
+    } else {
+      countBadge.className = 'text-xs font-semibold text-slate-500';
+    }
+  }
+
+  gallery.innerHTML = '';
+
+  // Render photo thumbnails
+  stockCardState.photos.forEach((p, idx) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb-item';
+    thumb.innerHTML = `
+      <img src="${p.previewUrl}" alt="Photo ${idx + 1}" class="photo-thumb-img" />
+      <button type="button" onclick="removeStockCardPhotoItem(${idx})" class="photo-thumb-remove" title="Remove Photo">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    `;
+    gallery.appendChild(thumb);
+  });
+
+  // Render Add Photo tile if count < 8
+  if (count < 8) {
+    const addTile = document.createElement('div');
+    addTile.id = 'photoAddTile';
+    addTile.className = 'photo-add-tile';
+    addTile.onclick = () => document.getElementById('stockCardPhotoInput').click();
+    addTile.innerHTML = `
+      <i class="fa-solid fa-camera text-2xl text-slate-400 mb-1"></i>
+      <span class="text-xs font-semibold text-slate-600">Add Photo</span>
+      <span class="text-[10px] text-slate-400">${count}/8</span>
+    `;
+    gallery.appendChild(addTile);
+  }
+
+  checkStockFlowFormValidity();
+}
+
+function removeStockCardPhotoItem(index) {
+  if (stockCardState.photos && stockCardState.photos[index]) {
+    stockCardState.photos.splice(index, 1);
+    renderStockCardPhotoGallery();
+  }
+}
+
+// Review Transaction
+function reviewStockCardTransaction() {
+  if (stockCardState.items.length === 0) {
+    alert("Please select at least 1 product.");
+    return;
+  }
+
+  const descVal = (document.getElementById('stockCardDescription')?.value || '').trim();
+  stockCardState.description = descVal;
+
+  if (stockCardState.hasDoc) {
+    const refVal = (document.getElementById('stockCardRefNumber')?.value || '').trim();
+    if (!refVal) {
+      alert("Please enter the Delivery Order / Transfer / Stock Issue reference number.");
+      document.getElementById('stockCardRefNumber')?.focus();
+      return;
+    }
+    stockCardState.refNumber = refVal;
+  } else {
+    stockCardState.refNumber = '';
+  }
+
+  const approvedByVal = (document.getElementById('stockCardApprovedBy')?.value || '').trim();
+  if (!approvedByVal) {
+    alert("Please select who gave approval from the Administrator dropdown.");
+    document.getElementById('stockCardApprovedBy')?.focus();
+    return;
+  }
+  stockCardState.approvedBy = approvedByVal;
+
+  // Check minimum 1 photo, maximum 8 photos
+  const photoCount = (stockCardState.photos || []).length;
+  if (photoCount < 1) {
+    alert("Please attach at least 1 picture (minimum 1, maximum 8 photos)!");
+    return;
+  }
+  if (photoCount > 8) {
+    alert("Maximum 8 photos allowed.");
+    return;
+  }
+
+  // Generate unique transaction ID: SF-YYYYMMDD-XXXX
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const rand4 = Math.floor(1000 + Math.random() * 9000);
+  stockCardState.trxId = `SF-${yyyy}${mm}${dd}-${rand4}`;
+
+  // Populate Summary View
+  document.getElementById('scSummaryTrxId').textContent = `Transaction ID: ${stockCardState.trxId}`;
+  
+  const actionBanner = document.getElementById('scSummaryActionBanner');
+  const actionText = document.getElementById('scSummaryActionText');
+  actionText.textContent = stockCardState.action.toUpperCase();
+  actionBanner.className = 'summary-action-banner';
+  if (stockCardState.action === 'Stock In') actionBanner.classList.add('stock-in');
+  else if (stockCardState.action === 'Transfer stock to Tiktok Fulfillment') actionBanner.classList.add('transfer');
+
+  const itemsList = document.getElementById('scSummaryItemsList');
+  itemsList.innerHTML = '';
+  let totalUnits = 0;
+  stockCardState.items.forEach(item => {
+    totalUnits += item.qty;
+    const row = document.createElement('div');
+    row.className = 'summary-item-row';
+    row.innerHTML = `
+      <div class="flex flex-col">
+        <span class="font-bold text-white">${item.sku}</span>
+        <span class="text-xs text-slate-400">${item.name}</span>
+      </div>
+      <span class="font-bold text-purple-400">${item.qty} units</span>
+    `;
+    itemsList.appendChild(row);
+  });
+  document.getElementById('scSummaryTotalQty').textContent = `${totalUnits} units`;
+
+  document.getElementById('scSummaryDocRef').textContent = stockCardState.hasDoc ? stockCardState.refNumber : 'None';
+  document.getElementById('scSummaryDescription').textContent = stockCardState.description || '—';
+  document.getElementById('scSummaryApprovedBy').textContent = stockCardState.approvedBy;
+
+  // Multi-Photo Summary Review
+  const photoBlock = document.getElementById('scSummaryPhotoBlock');
+  const photoGrid = document.getElementById('scSummaryPhotoGrid');
+  const photoCountEl = document.getElementById('scSummaryPhotoCount');
+
+  if (photoCount > 0) {
+    photoBlock.classList.remove('hidden');
+    if (photoCountEl) photoCountEl.textContent = `(${photoCount} photo${photoCount > 1 ? 's' : ''})`;
+    if (photoGrid) {
+      photoGrid.innerHTML = '';
+      stockCardState.photos.forEach((p, idx) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'summary-photo-thumb';
+        thumb.innerHTML = `<img src="${p.previewUrl}" alt="Proof ${idx + 1}" />`;
+        photoGrid.appendChild(thumb);
+      });
+    }
+  } else {
+    photoBlock.classList.add('hidden');
+  }
+
+  showPage('pageStockCardSummary');
+}
+
+function promptPinForStockCard() {
+  pendingStockCardData = { ...stockCardState };
+  currentPin = '';
+  const input = document.getElementById('hiddenPinInput');
+  input.value = '';
+
+  const boxes = document.querySelectorAll('#pinModal .pin-box');
+  boxes.forEach(box => {
+    box.innerText = '';
+    box.className = 'pin-box';
+  });
+
+  const modal = document.getElementById('pinModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('active');
+
+  setTimeout(() => input.focus(), 100);
+}
+
+async function finalizeStockCardSubmit(authorizedStaff) {
+  updateSyncStatus('loading');
+  const btn = document.getElementById('btnSubmitStockCard');
+  if (btn) btn.disabled = true;
+
+  try {
+    let uploadedPhotoUrls = [];
+    // 1. Upload photos concurrently (1 to 8 photos)
+    if (pendingStockCardData.photos && pendingStockCardData.photos.length > 0) {
+      const uploadPromises = pendingStockCardData.photos.map(async (p, idx) => {
+        try {
+          const fileName = `stock-flow-${pendingStockCardData.trxId}-${idx + 1}-${Date.now()}.jpg`;
+          const uploadRes = await fetch(`${WORKER_URL}/api/app4/upload?filename=${encodeURIComponent(fileName)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': p.file.type || 'image/jpeg' },
+            body: p.file
+          });
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            return uploadData.url || '';
+          }
+        } catch (uploadErr) {
+          console.warn("Photo upload warning for index", idx, uploadErr);
+        }
+        return '';
+      });
+
+      const results = await Promise.all(uploadPromises);
+      uploadedPhotoUrls = results.filter(Boolean);
+    }
+
+    // 2. Submit to stock-flow endpoint
+    const payload = {
+      id: pendingStockCardData.trxId,
+      action_type: pendingStockCardData.action,
+      items: pendingStockCardData.items,
+      total_qty: pendingStockCardData.items.reduce((acc, i) => acc + (i.qty || 0), 0),
+      has_document: pendingStockCardData.hasDoc,
+      ref_number: pendingStockCardData.refNumber,
+      description: pendingStockCardData.description,
+      approved_by: pendingStockCardData.approvedBy,
+      photo_url: uploadedPhotoUrls.join(','),
+      photo_urls: uploadedPhotoUrls,
+      created_by: authorizedStaff.name || 'Operator',
+      created_by_pin: authorizedStaff.pin || currentPin,
+      created_at: Date.now()
+    };
+
+    const res = await fetch(`${WORKER_URL}/api/app4/stock-flow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`Server returned error ${res.status}`);
+    }
+
+    alert(`Success!\nTransaction ${payload.id} recorded into Stock Flow.`);
+    localStorage.removeItem('stockFlowDraftItems');
+    localStorage.removeItem('stockFlowCalcLogs');
+    stockFlowCalcLogs = {};
+    stockCardState = {
+      action: 'Stock Out',
+      items: [],
+      hasDoc: false,
+      refNumber: '',
+      description: '',
+      approvedBy: '',
+      photos: [],
+      trxId: ''
+    };
+    pendingStockCardData = null;
+    showPage('page1');
+  } catch (err) {
+    alert("Error saving transaction: " + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+    updateSyncStatus('success');
   }
 }
 

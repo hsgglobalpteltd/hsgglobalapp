@@ -246,10 +246,11 @@ body {
   --app-glow: rgba(59, 130, 246, 0.15);
 }
 
+.app-card.stock-flow,
 .app-card.stock-take {
-  --app-color: #8B5CF6; /* Purple */
-  --app-bg-light: #F5F3FF; /* Purple 50 */
-  --app-glow: rgba(139, 92, 246, 0.15);
+  --app-color: #0B57D0; /* Google Blue */
+  --app-bg-light: #D3E3FD; /* Google Blue Light */
+  --app-glow: rgba(11, 87, 208, 0.15);
 }
 
 .app-card.packing-proof {
