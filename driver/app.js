@@ -312,8 +312,12 @@ window.addEventListener('DOMContentLoaded', () => {
     resubmitBtn.addEventListener('click', retryFailedSyncs);
   }
 
-  // Enforce mandatory login on app open
-  if (!isSessionAuthenticated()) {
+  // Check URL parameters for outsource session recovery
+  const urlParams = new URLSearchParams(window.location.search);
+  const osSessionId = urlParams.get('os_session') || urlParams.get('session');
+  if (osSessionId) {
+    restoreOutsourceSessionFromUrl(osSessionId);
+  } else if (!isSessionAuthenticated()) {
     openAuthPage(true);
   } else {
     enforceNavigationRestrictions();
@@ -1124,6 +1128,39 @@ function isSessionAuthenticated() {
   return elapsed < (30 * 24 * 60 * 60 * 1000); // 30 days
 }
 
+// Restore Outsource Session from Supabase URL parameter
+async function restoreOutsourceSessionFromUrl(sessionId) {
+  try {
+    const res = await fetch(`${WORKER_URL}/api/app-auth/outsource-session?session_id=${encodeURIComponent(sessionId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.driver) {
+        localStorage.setItem('auth_driver_name', data.driver);
+        localStorage.setItem('is_outsource', 'true');
+        if (data.outsource_details) {
+          localStorage.setItem('outsource_details', JSON.stringify(data.outsource_details));
+          localStorage.setItem('saved_outsource_details', JSON.stringify(data.outsource_details));
+        }
+        localStorage.setItem('ib_os_session_id', data.session_id);
+        localStorage.setItem('auth_timestamp', String(Date.now()));
+        closeAuthPage();
+        enforceNavigationRestrictions();
+        showToast("Outsource session restored!", "success");
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not restore outsource session from URL:", err);
+  }
+
+  // If restore failed, fallback to normal auth check
+  if (!isSessionAuthenticated()) {
+    openAuthPage(true);
+  } else {
+    enforceNavigationRestrictions();
+  }
+}
+
 function getCachedAuth() {
   if (!isSessionAuthenticated()) {
     return null;
@@ -1202,7 +1239,30 @@ function updateDrawerLogoutButton() {
   const name = getCachedAuth();
   const logoutBtn = document.getElementById('logout-btn');
   const nameSpan = document.getElementById('logout-driver-name');
+  const shareBtn = document.getElementById('share-session-btn');
+  const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  const osSessionId = localStorage.getItem('ib_os_session_id');
   
+  if (shareBtn) {
+    if (isOutsource && osSessionId) {
+      shareBtn.classList.remove('hidden');
+      shareBtn.onclick = () => {
+        const fullUrl = `${window.location.origin}${window.location.pathname}?os_session=${encodeURIComponent(osSessionId)}`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(fullUrl).then(() => {
+            showToast("Session link copied to clipboard! 📋", "success");
+          }).catch(() => {
+            prompt("Copy your Outsource Session URL:", fullUrl);
+          });
+        } else {
+          prompt("Copy your Outsource Session URL:", fullUrl);
+        }
+      };
+    } else {
+      shareBtn.classList.add('hidden');
+    }
+  }
+
   if (name) {
     if (nameSpan) nameSpan.textContent = name;
     if (logoutBtn) {
@@ -1326,6 +1386,17 @@ function initOutsourceDriverLogin() {
       localStorage.setItem('outsource_details', JSON.stringify({ name, plate, phone }));
       localStorage.setItem('saved_outsource_details', JSON.stringify({ name, plate, phone }));
       localStorage.setItem('auth_timestamp', String(Date.now()));
+
+      // Save session to Supabase in background for URL recovery
+      fetch(`${WORKER_URL}/api/app-auth/outsource-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, plate, phone })
+      }).then(r => r.json()).then(d => {
+        if (d && d.session_id) {
+          localStorage.setItem('ib_os_session_id', d.session_id);
+        }
+      }).catch(() => {});
 
       updateDrawerLogoutButton();
       closeAuthPage();
@@ -5607,14 +5678,13 @@ async function compressImageToMax250kb(file) {
   return result.file;
 }
 
-// Register Service Worker for PWA
+// Unregister legacy driver service workers so main portal PWA controls the app
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then((reg) => {
-        console.log('Service Worker registered successfully:', reg.scope);
-        reg.update().catch(() => {});
-      })
-      .catch((err) => console.error('Service Worker registration failed:', err));
-  });
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (let registration of registrations) {
+      if (registration.scope.includes('/driver')) {
+        registration.unregister().catch(() => {});
+      }
+    }
+  }).catch(() => {});
 }

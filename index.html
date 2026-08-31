@@ -67,132 +67,30 @@
        Mobile View (Apps Pools Interface)
        ========================================================================== -->
   <div id="mobile-view">
-    <!-- Header: Title only, no other elements -->
+    <!-- Header: Title only -->
     <header class="mobile-header">
       <span class="mobile-header-title">iB - HSG Global Apps</span>
     </header>
 
     <!-- Content Area -->
     <main class="mobile-content">
-      <div class="apps-grid">
-        <!-- App 1: Merchandiser -->
-        <a href="merchandiser/index.html" class="app-card merchandiser">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <path d="M16 10a4 4 0 0 1-8 0"></path>
-            </svg>
-          </div>
-          <span class="app-label">Merchandiser</span>
-        </a>
-
-        <!-- App 2: Picker -->
-        <a href="picker/index.html" class="app-card picker">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-              <line x1="12" y1="22.08" x2="12" y2="12"></line>
-            </svg>
-          </div>
-          <span class="app-label">Picker</span>
-        </a>
-
-        <!-- App 3: Driver -->
-        <a href="driver/index.html" class="app-card driver">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="1" y="3" width="15" height="13"></rect>
-              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-              <circle cx="5.5" cy="18.5" r="2.5"></circle>
-              <circle cx="18.5" cy="18.5" r="2.5"></circle>
-            </svg>
-          </div>
-          <span class="app-label">Driver</span>
-        </a>
-
-        <!-- App 4: Stock Take -->
-        <a href="stock-take/index.html" class="app-card stock-take">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-              <line x1="9" y1="14" x2="15" y2="14"></line>
-              <line x1="9" y1="18" x2="15" y2="18"></line>
-              <line x1="9" y1="10" x2="15" y2="10"></line>
-            </svg>
-          </div>
-          <span class="app-label">Stock Take</span>
-        </a>
-
-        <!-- App 5: Packing Proof -->
-        <a href="packing-proof/index.html" class="app-card packing-proof">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-              <line x1="12" y1="22.08" x2="12" y2="12"></line>
-            </svg>
-          </div>
-          <span class="app-label">Tiktok Packing</span>
-        </a>
-
-        <!-- App 6: Shipping Proof -->
-        <a href="shipping-proof/index.html" class="app-card shipping-proof">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 11l3 3L22 4"></path>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-            </svg>
-          </div>
-          <span class="app-label">Tiktok Fulfillment</span>
-        </a>
-
-        <!-- App 7: Tiktok Pending -->
-        <a href="pending-status/index.html" class="app-card pending-status">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="9" y1="9" x2="15" y2="9"></line>
-              <line x1="9" y1="13" x2="15" y2="13"></line>
-              <line x1="9" y1="17" x2="13" y2="17"></line>
-            </svg>
-          </div>
-          <span class="app-label">Tiktok Pending</span>
-        </a>
-
-        <!-- App 8: Promoter -->
-        <a href="promoter/index.html" class="app-card promoter">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-          </div>
-          <span class="app-label">Promoter</span>
-        </a>
-
-        <!-- App 9: Staff Claims -->
-        <a href="staff-claims/index.html" class="app-card staff-claims">
-          <div class="app-icon-container">
-            <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-          </div>
-          <span class="app-label">Staff Claims</span>
-        </a>
-
+      <div id="apps-grid" class="apps-grid">
+        <!-- Dynamically rendered by app.js based on authenticated employee roles -->
       </div>
     </main>
 
     <footer class="mobile-footer">
+      <div id="footer-welcome-text" style="display: none; font-size: 13.5px; font-weight: 750; color: #0F172A; margin-bottom: 8px; letter-spacing: -0.01em;">
+        Welcome, <span id="welcome-user-name" style="color: #2563EB;">User</span>
+      </div>
+      <button id="footer-logout-btn" class="footer-logout-btn" style="display: none;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        <span>Logout / Switch User</span>
+      </button>
       <div class="mobile-footer-text">
         internal Bridge Apps
         <span>Copyright &copy; 2026 HSG Global. All rights reserved.</span>
@@ -201,27 +99,113 @@
     </footer>
   </div>
 
+  <!-- ==========================================================================
+       Main Gate 4-Digit PIN Authentication Overlay
+       ========================================================================== -->
+  <div id="pin-auth-overlay" class="pin-auth-overlay">
+    <div class="auth-content" style="display: flex; flex-direction: column; justify-content: space-between; align-items: center; height: 100%; width: 100%; padding: 0 24px; box-sizing: border-box;">
+      
+      <!-- Logo + 4-digit PIN Masked Input -->
+      <div id="auth-pin-container" class="pin-entry-container" style="margin-top: 15vh; width: 100%; display: flex; flex-direction: column; align-items: center;">
+        <img src="logo.png" alt="HSG Global" style="width: 82px; height: 82px; object-fit: contain; margin-bottom: 24px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.05));">
+        
+        <label class="pin-entry-label" style="font-size: 12px; color: #64748B; margin-bottom: 14px; font-weight: 700; letter-spacing: 0.06em;">ENTER 4-DIGIT PIN</label>
+        <div class="pin-digits-row" id="pin-digits-wrapper" style="position: relative; cursor: pointer; display: flex; gap: 10px; justify-content: center;">
+          <input type="tel" id="auth-pin-hidden" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;">
+          <div class="pin-digit-display" data-index="0"></div>
+          <div class="pin-digit-display" data-index="1"></div>
+          <div class="pin-digit-display" data-index="2"></div>
+          <div class="pin-digit-display" data-index="3"></div>
+        </div>
+        <input type="hidden" id="auth-pin-input">
+
+        <!-- Subtle Outsource Driver Link (Quiet & unobtrusive) -->
+        <button type="button" id="open-outsource-modal-btn" style="background: none; border: none; color: #94A3B8; font-size: 11.5px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 8px 12px; margin-top: 28px; letter-spacing: 0.02em; font-family: 'Outfit', sans-serif;">
+          Outsource Driver Login
+        </button>
+      </div>
+
+      <!-- Matching Version Footer -->
+      <footer class="mobile-footer" style="width: 100%; border-top: none; padding-bottom: max(24px, calc(16px + env(safe-area-inset-bottom)));">
+        <div class="mobile-footer-text">
+          internal Bridge Apps
+          <span>Copyright &copy; 2026 HSG Global. All rights reserved.</span>
+          <span style="font-size: 10px; opacity: 0.5; margin-top: 4px; display: block;">v1.3.2</span>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Outsource Driver Modal Dialog
+       ========================================================================== -->
+  <div id="outsource-modal" class="modal-overlay hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="3" width="15" height="13"></rect>
+            <polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon>
+            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+          </svg>
+          <span>Outsource Driver</span>
+        </h3>
+        <button id="close-outsource-modal-btn" class="modal-close-btn">&times;</button>
+      </div>
+
+      <!-- Modal Tabs -->
+      <div class="modal-tabs">
+        <button id="tab-os-new" class="modal-tab-btn active">New Shift</button>
+        <button id="tab-os-restore" class="modal-tab-btn">Restore By Phone</button>
+      </div>
+
+      <!-- Tab 1: New / Active Shift Form -->
+      <div id="os-form-new" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="modal-input-group">
+          <label class="modal-label">Driver Name</label>
+          <input type="text" id="os-name-input" class="modal-input" placeholder="e.g. John Tan" autocomplete="name">
+        </div>
+        <div class="modal-input-group">
+          <label class="modal-label">Car / Vehicle Plate</label>
+          <input type="text" id="os-plate-input" class="modal-input" placeholder="e.g. SBA1234A" style="text-transform: uppercase;">
+        </div>
+        <div class="modal-input-group">
+          <label class="modal-label">Phone Number</label>
+          <input type="tel" id="os-phone-input" class="modal-input" placeholder="e.g. 91234567" autocomplete="tel">
+        </div>
+
+        <button id="os-submit-btn" class="modal-action-btn">
+          <span>Enter Driver App</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Tab 2: Restore Active Session by Phone -->
+      <div id="os-form-restore" style="display: none; flex-direction: column; gap: 12px;">
+        <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+          Accidentally cleared browser cache? Enter your phone number below to resume your active shift and progress.
+        </p>
+        <div class="modal-input-group">
+          <label class="modal-label">Phone Number</label>
+          <input type="tel" id="os-restore-phone-input" class="modal-input" placeholder="e.g. 91234567">
+        </div>
+
+        <button id="os-restore-btn" class="modal-action-btn" style="background-color: #10B981;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+          </svg>
+          <span>Restore Active Shift</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
-  <div id="toast-notification">App Coming Soon</div>
+  <div id="toast-notification">Notification</div>
 
   <script src="app.js"></script>
-  <script>
-    let toastTimeout = null;
-    function showComingSoon(appName) {
-      const toast = document.getElementById('toast-notification');
-      if (!toast) return;
-      
-      if (toastTimeout) {
-        clearTimeout(toastTimeout);
-      }
-      
-      toast.textContent = `${appName} App - Coming Soon`;
-      toast.classList.add('toast-visible');
-      
-      toastTimeout = setTimeout(() => {
-        toast.classList.remove('toast-visible');
-      }, 2000);
-    }
-  </script>
 </body>
 </html>

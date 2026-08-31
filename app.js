@@ -1,28 +1,624 @@
+// Project 3 - Centralized Employee PIN Login & Role-Based App Hub
+const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days
+
+let allEmployees = [];
+let enteredPin = '';
+let isAuthenticating = false;
+
+// App Definitions Registry
+const APP_REGISTRY = [
+  {
+    id: 'merchandiser',
+    label: 'Merchandiser',
+    url: 'merchandiser/index.html',
+    className: 'merchandiser',
+    roles: ['merchandiser'],
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <path d="M16 10a4 4 0 0 1-8 0"></path>
+    </svg>`
+  },
+  {
+    id: 'picker',
+    label: 'Picker',
+    url: 'picker/index.html',
+    className: 'picker',
+    roles: ['picker'],
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>`
+  },
+  {
+    id: 'driver',
+    label: 'Driver',
+    url: 'driver/index.html',
+    className: 'driver',
+    roles: ['driver'],
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="1" y="3" width="15" height="13"></rect>
+      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+      <circle cx="5.5" cy="18.5" r="2.5"></circle>
+      <circle cx="18.5" cy="18.5" r="2.5"></circle>
+    </svg>`
+  },
+  {
+    id: 'stock-take',
+    label: 'Stock Take',
+    url: 'stock-take/index.html',
+    className: 'stock-take',
+    roles: ['warehouse', 'stock take', 'stock_take'],
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+      <line x1="9" y1="14" x2="15" y2="14"></line>
+      <line x1="9" y1="18" x2="15" y2="18"></line>
+      <line x1="9" y1="10" x2="15" y2="10"></line>
+    </svg>`
+  },
+  {
+    id: 'packing-proof',
+    label: 'Tiktok Packing',
+    url: 'packing-proof/index.html',
+    className: 'packing-proof',
+    roles: ['tiktok', 'warehouse'],
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>`
+  },
+  {
+    id: 'shipping-proof',
+    label: 'Tiktok Fulfillment',
+    url: 'shipping-proof/index.html',
+    className: 'shipping-proof',
+    roles: ['tiktok', 'warehouse'],
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 11l3 3L22 4"></path>
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+    </svg>`
+  },
+  {
+    id: 'pending-status',
+    label: 'Tiktok Pending',
+    url: 'pending-status/index.html',
+    className: 'pending-status',
+    roles: ['tiktok', 'warehouse'],
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+      <line x1="9" y1="9" x2="15" y2="9"></line>
+      <line x1="9" y1="13" x2="15" y2="13"></line>
+      <line x1="9" y1="17" x2="13" y2="17"></line>
+    </svg>`
+  },
+  {
+    id: 'promoter',
+    label: 'Promoter',
+    url: 'promoter/index.html',
+    className: 'promoter',
+    roles: ['promoter'],
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+      <circle cx="9" cy="7" r="4"></circle>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    </svg>`
+  },
+  {
+    id: 'staff-claims',
+    label: 'Staff Claims',
+    url: 'staff-claims/index.html',
+    className: 'staff-claims',
+    roles: ['all'], // Available to all authenticated employees
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      <polyline points="14 2 14 8 20 8"></polyline>
+      <line x1="16" y1="13" x2="8" y2="13"></line>
+      <line x1="16" y1="17" x2="8" y2="17"></line>
+      <polyline points="10 9 9 9 8 9"></polyline>
+    </svg>`
+  }
+];
+
+// Document Initialization
 document.addEventListener('DOMContentLoaded', () => {
   sessionStorage.setItem('from_pools', 'true');
-  // Get the current page URL
+
+  // Render Desktop QR code if on desktop viewport
+  setupDesktopView();
+
+  // Load cached employees immediately
+  loadCachedEmployees();
+
+  // Setup PIN inputs and Modals
+  bindAuthPinInputs();
+  setupOutsourceModal();
+  setupLogout();
+
+  // Check 30-Day Session
+  checkExistingSession();
+
+  // Background fetch fresh employees list
+  fetchEmployees();
+});
+
+// Setup Desktop View QR Code
+function setupDesktopView() {
   const currentUrl = window.location.href;
-
-  // Render the current URL text on the desktop screen
   const urlDisplay = document.getElementById('current-url-display');
-  if (urlDisplay) {
-    urlDisplay.textContent = currentUrl;
-  }
+  if (urlDisplay) urlDisplay.textContent = currentUrl;
 
-  // Set the src for the QR Code image
   const qrImg = document.getElementById('qr-code-img');
   if (qrImg) {
-    // We use a clean, public QR code generator API (qrserver.com) to render the URL
     const size = 200;
     qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(currentUrl)}`;
   }
-});
+}
 
-// Unregister any active Service Workers to prevent caching and PWA persistence issues
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (let registration of registrations) {
-      registration.unregister();
+// Load Cached Employees
+function loadCachedEmployees() {
+  try {
+    const cached = localStorage.getItem('ib_employees');
+    if (cached) {
+      allEmployees = JSON.parse(cached);
     }
-  }).catch((err) => console.warn('Failed to unregister Service Worker:', err));
+  } catch (_) {}
+}
+
+// Fetch Centralized Employees from Worker
+async function fetchEmployees() {
+  try {
+    const res = await fetch(`${WORKER_URL}/api/app-auth/employees?t=${Date.now()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        allEmployees = data;
+        localStorage.setItem('ib_employees', JSON.stringify(data));
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch centralized employees:", err);
+  }
+}
+
+// Check Existing 30-Day Session
+function checkExistingSession() {
+  try {
+    const sessionStr = localStorage.getItem('ib_auth_user');
+    const expiryStr = localStorage.getItem('ib_session_expiry');
+
+    if (sessionStr && expiryStr) {
+      const expiryTime = Number(expiryStr);
+      if (Date.now() < expiryTime) {
+        const user = JSON.parse(sessionStr);
+        unlockMainHub(user);
+        return;
+      }
+    }
+  } catch (_) {}
+
+  // No active session: Show PIN Gate
+  lockMainHub();
+}
+
+// Lock Main Hub & Show PIN Overlay
+function lockMainHub() {
+  const overlay = document.getElementById('pin-auth-overlay');
+  if (overlay) overlay.classList.remove('hidden');
+
+  const welcomeText = document.getElementById('footer-welcome-text');
+  if (welcomeText) welcomeText.style.display = 'none';
+
+  const logoutBtn = document.getElementById('footer-logout-btn');
+  if (logoutBtn) logoutBtn.style.display = 'none';
+
+  const grid = document.getElementById('apps-grid');
+  if (grid) grid.innerHTML = '';
+
+  clearPin();
+}
+
+// Unlock Main Hub & Render Authorized Apps
+function unlockMainHub(user) {
+  const overlay = document.getElementById('pin-auth-overlay');
+  if (overlay) overlay.classList.add('hidden');
+
+  // Update Welcome Message in Footer
+  const welcomeText = document.getElementById('footer-welcome-text');
+  const userNameSpan = document.getElementById('welcome-user-name');
+  if (welcomeText && userNameSpan) {
+    userNameSpan.textContent = user.name || 'Staff';
+    welcomeText.style.display = 'block';
+  }
+
+  // Show Footer Logout Button
+  const logoutBtn = document.getElementById('footer-logout-btn');
+  if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+
+  // Render Authorized Apps Grid
+  renderAuthorizedApps(user);
+}
+
+// Render Authorized App Cards
+function renderAuthorizedApps(user) {
+  const grid = document.getElementById('apps-grid');
+  if (!grid) return;
+
+  const userRoles = Array.isArray(user.roles) ? user.roles : [];
+  
+  // Filter apps that match any user role or 'all'
+  const authorizedApps = APP_REGISTRY.filter(app => {
+    if (app.roles.includes('all')) return true;
+    return app.roles.some(reqRole => userRoles.includes(reqRole.toLowerCase()));
+  });
+
+  if (authorizedApps.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px 16px; background: white; border-radius: 12px; border: 1px solid #E2E8F0;">
+        <p style="font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 6px;">No Apps Assigned</p>
+        <p style="font-size: 12px; color: #64748B;">You do not currently have any active app roles assigned. Please contact your system administrator.</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = authorizedApps.map(app => `
+    <a href="${app.url}" class="app-card ${app.className}" data-app-id="${app.id}">
+      <div class="app-icon-container">
+        ${app.icon}
+      </div>
+      <span class="app-label">${app.label}</span>
+    </a>
+  `).join('');
+
+  // Add click listener to sync sub-app session state
+  grid.querySelectorAll('.app-card').forEach(card => {
+    card.addEventListener('click', () => {
+      // Ensure sub-app recognizes the logged in employee
+      const pickerName = user.name || 'picker';
+      localStorage.setItem('auth_picker_name', pickerName);
+      localStorage.setItem('auth_driver_name', pickerName);
+      localStorage.setItem('auth_timestamp', String(Date.now()));
+    });
+  });
+}
+
+// Bind Standard PIN Inputs Digit Behavior (Native Keyboard)
+function bindAuthPinInputs() {
+  const hiddenInput = document.getElementById('auth-pin-hidden');
+  const displays = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
+  const pinInput = document.getElementById('auth-pin-input');
+  const wrapper = document.getElementById('pin-digits-wrapper');
+
+  if (!hiddenInput || !wrapper) return;
+
+  // Clicking anywhere on wrapper focuses the hidden input
+  wrapper.addEventListener('click', () => {
+    hiddenInput.focus();
+  });
+
+  hiddenInput.addEventListener('input', () => {
+    let val = hiddenInput.value.replace(/[^0-9]/g, '');
+    if (val.length > 4) {
+      val = val.substring(0, 4);
+    }
+    hiddenInput.value = val;
+    if (pinInput) pinInput.value = val;
+
+    // Update masked displays
+    displays.forEach((display, idx) => {
+      if (idx < val.length) {
+        display.textContent = '●';
+        display.classList.remove('active');
+        display.classList.remove('error');
+      } else {
+        display.textContent = '';
+        display.classList.remove('error');
+        if (idx === val.length) {
+          display.classList.add('active');
+        } else {
+          display.classList.remove('active');
+        }
+      }
+    });
+
+    // Auto-authenticate when 4 digits completed and dismiss keyboard
+    if (val.length === 4) {
+      hiddenInput.blur();
+      if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+      }
+      validateEnteredPin(val);
+    }
+  });
+
+  hiddenInput.addEventListener('focus', () => {
+    const val = hiddenInput.value;
+    displays.forEach((display, idx) => {
+      if (idx === val.length) {
+        display.classList.add('active');
+      } else {
+        display.classList.remove('active');
+      }
+    });
+  });
+
+  hiddenInput.addEventListener('blur', () => {
+    displays.forEach(display => {
+      display.classList.remove('active');
+    });
+  });
+}
+
+// Clear PIN Entry
+function clearPin() {
+  const hiddenInput = document.getElementById('auth-pin-hidden');
+  if (hiddenInput) {
+    hiddenInput.value = '';
+    hiddenInput.classList.remove('error');
+  }
+
+  const pinInput = document.getElementById('auth-pin-input');
+  if (pinInput) {
+    pinInput.value = '';
+  }
+
+  const displays = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
+  displays.forEach((display, idx) => {
+    display.textContent = '';
+    display.classList.remove('error');
+    if (idx === 0) {
+      display.classList.add('active');
+    } else {
+      display.classList.remove('active');
+    }
+  });
+
+  if (hiddenInput) {
+    setTimeout(() => {
+      hiddenInput.focus();
+    }, 250);
+  }
+}
+
+// Validate Entered PIN against Centralized Employees
+async function validateEnteredPin(pin) {
+  isAuthenticating = true;
+  const rawPin = String(pin).trim();
+  const enteredInt = parseInt(rawPin, 10);
+
+  // If memory list is empty, retry from localStorage
+  if (!allEmployees || allEmployees.length === 0) {
+    loadCachedEmployees();
+  }
+
+  let matchedEmp = allEmployees.find(emp => {
+    const empPin = String(emp.pin || '').trim();
+    return empPin === rawPin || parseInt(empPin, 10) === enteredInt;
+  });
+
+  // If still not matched, perform rapid background network lookup
+  if (!matchedEmp) {
+    try {
+      const res = await fetch(`${WORKER_URL}/api/app-auth/employees?t=${Date.now()}`);
+      if (res.ok) {
+        const freshList = await res.json();
+        if (Array.isArray(freshList)) {
+          allEmployees = freshList;
+          localStorage.setItem('ib_employees', JSON.stringify(freshList));
+          matchedEmp = allEmployees.find(emp => {
+            const empPin = String(emp.pin || '').trim();
+            return empPin === rawPin || parseInt(empPin, 10) === enteredInt;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (matchedEmp) {
+    // 30-Day Session Persistence
+    const expiryTimestamp = Date.now() + SESSION_DURATION_MS;
+    localStorage.setItem('ib_auth_user', JSON.stringify(matchedEmp));
+    localStorage.setItem('ib_session_expiry', String(expiryTimestamp));
+
+    // Warm up sub-app sessions
+    localStorage.setItem('auth_picker_name', matchedEmp.name || 'picker');
+    localStorage.setItem('auth_driver_name', matchedEmp.name || 'driver');
+    localStorage.setItem('auth_timestamp', String(Date.now()));
+
+    showToast(`Welcome, ${matchedEmp.name}!`, "success");
+    unlockMainHub(matchedEmp);
+    clearPin();
+  } else {
+    // Shake and display error
+    const displays = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
+    displays.forEach(d => d.classList.add('error'));
+    showToast("Incorrect PIN. Please try again.", "error");
+
+    setTimeout(() => {
+      clearPin();
+    }, 600);
+  }
+
+  isAuthenticating = false;
+}
+
+// Setup Outsource Modal & Session Generation
+function setupOutsourceModal() {
+  const modal = document.getElementById('outsource-modal');
+  const openBtn = document.getElementById('open-outsource-modal-btn');
+  const closeBtn = document.getElementById('close-outsource-modal-btn');
+
+  const tabNew = document.getElementById('tab-os-new');
+  const tabRestore = document.getElementById('tab-os-restore');
+  const formNew = document.getElementById('os-form-new');
+  const formRestore = document.getElementById('os-form-restore');
+
+  if (openBtn && modal) {
+    openBtn.addEventListener('click', () => {
+      modal.classList.remove('hidden');
+    });
+  }
+
+  if (closeBtn && modal) {
+    closeBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+  }
+
+  // Switch Tabs
+  if (tabNew && tabRestore) {
+    tabNew.addEventListener('click', () => {
+      tabNew.classList.add('active');
+      tabRestore.classList.remove('active');
+      formNew.style.display = 'flex';
+      formRestore.style.display = 'none';
+    });
+
+    tabRestore.addEventListener('click', () => {
+      tabRestore.classList.add('active');
+      tabNew.classList.remove('active');
+      formRestore.style.display = 'flex';
+      formNew.style.display = 'none';
+    });
+  }
+
+  // Submit New Shift
+  const submitBtn = document.getElementById('os-submit-btn');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', async () => {
+      const name = (document.getElementById('os-name-input')?.value || '').trim();
+      const plate = (document.getElementById('os-plate-input')?.value || '').trim().toUpperCase();
+      const phone = (document.getElementById('os-phone-input')?.value || '').trim();
+
+      if (!name || !plate || !phone) {
+        showToast("Please enter Name, Car Plate, and Phone", "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<span>Creating Session...</span>`;
+
+      try {
+        const res = await fetch(`${WORKER_URL}/api/app-auth/outsource-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, plate, phone })
+        });
+
+        const data = await res.json();
+        if (data.success && data.session_id) {
+          const combinedName = `Outsource - ${name} (${plate}) - ${phone}`;
+          localStorage.setItem('auth_driver_name', combinedName);
+          localStorage.setItem('is_outsource', 'true');
+          localStorage.setItem('outsource_details', JSON.stringify({ name, plate, phone }));
+          localStorage.setItem('ib_os_session_id', data.session_id);
+          localStorage.setItem('auth_timestamp', String(Date.now()));
+
+          showToast("Outsource session created!", "success");
+          window.location.href = `driver/index.html?os_session=${encodeURIComponent(data.session_id)}`;
+        } else {
+          showToast(data.error || "Failed to create outsource session", "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Network error. Please try again.", "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>Enter Driver App</span>`;
+      }
+    });
+  }
+
+  // Restore Active Shift By Phone
+  const restoreBtn = document.getElementById('os-restore-btn');
+  if (restoreBtn) {
+    restoreBtn.addEventListener('click', async () => {
+      const phone = (document.getElementById('os-restore-phone-input')?.value || '').trim();
+      if (!phone) {
+        showToast("Please enter your Phone Number", "error");
+        return;
+      }
+
+      restoreBtn.disabled = true;
+      restoreBtn.innerHTML = `<span>Searching Session...</span>`;
+
+      try {
+        const res = await fetch(`${WORKER_URL}/api/app-auth/outsource-session?phone=${encodeURIComponent(phone)}`);
+        const data = await res.json();
+
+        if (data.success && data.session_id) {
+          localStorage.setItem('auth_driver_name', data.driver || `Outsource Driver - ${phone}`);
+          localStorage.setItem('is_outsource', 'true');
+          if (data.outsource_details) {
+            localStorage.setItem('outsource_details', JSON.stringify(data.outsource_details));
+          }
+          localStorage.setItem('ib_os_session_id', data.session_id);
+          localStorage.setItem('auth_timestamp', String(Date.now()));
+
+          showToast("Session recovered successfully!", "success");
+          window.location.href = `driver/index.html?os_session=${encodeURIComponent(data.session_id)}`;
+        } else {
+          showToast("No active session found for this phone number", "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Network error searching session", "error");
+      } finally {
+        restoreBtn.disabled = false;
+        restoreBtn.innerHTML = `<span>Restore Active Shift</span>`;
+      }
+    });
+  }
+}
+
+// Setup Logout Action
+function setupLogout() {
+  const logoutBtn = document.getElementById('footer-logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('ib_auth_user');
+      localStorage.removeItem('ib_session_expiry');
+      localStorage.removeItem('auth_picker_name');
+      localStorage.removeItem('auth_driver_name');
+      localStorage.removeItem('is_outsource');
+      localStorage.removeItem('ib_os_session_id');
+
+      showToast("Logged out successfully", "success");
+      lockMainHub();
+    });
+  }
+}
+
+// Toast Notification Helper
+let toastTimeout = null;
+function showToast(msg, type = 'info') {
+  const toast = document.getElementById('toast-notification');
+  if (!toast) return;
+
+  if (toastTimeout) clearTimeout(toastTimeout);
+
+  toast.textContent = msg;
+  toast.style.backgroundColor = type === 'error' ? '#EF4444' : type === 'success' ? '#10B981' : '#0F172A';
+  toast.classList.add('toast-visible');
+
+  toastTimeout = setTimeout(() => {
+    toast.classList.remove('toast-visible');
+  }, 2200);
+}
+
+// Register Main Portal Service Worker for Centralized PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => {
+        console.log('Main PWA Service Worker registered:', reg.scope);
+        reg.update().catch(() => {});
+      })
+      .catch((err) => console.error('Service Worker registration failed:', err));
+  });
 }
