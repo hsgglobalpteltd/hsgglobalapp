@@ -355,11 +355,14 @@ function bindAuthPinInputs() {
 }
 
 // Clear PIN Entry
-function clearPin() {
+function clearPin(shouldFocus = false) {
   const hiddenInput = document.getElementById('auth-pin-hidden');
   if (hiddenInput) {
     hiddenInput.value = '';
     hiddenInput.classList.remove('error');
+    if (!shouldFocus) {
+      hiddenInput.blur();
+    }
   }
 
   const pinInput = document.getElementById('auth-pin-input');
@@ -378,10 +381,10 @@ function clearPin() {
     }
   });
 
-  if (hiddenInput) {
+  if (hiddenInput && shouldFocus) {
     setTimeout(() => {
       hiddenInput.focus();
-    }, 250);
+    }, 200);
   }
 }
 
@@ -390,6 +393,13 @@ async function validateEnteredPin(pin) {
   isAuthenticating = true;
   const rawPin = String(pin).trim();
   const enteredInt = parseInt(rawPin, 10);
+
+  // Force dismissal of mobile keyboard immediately
+  const hiddenInput = document.getElementById('auth-pin-hidden');
+  if (hiddenInput) hiddenInput.blur();
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
 
   // If memory list is empty, retry from localStorage
   if (!allEmployees || allEmployees.length === 0) {
@@ -432,7 +442,7 @@ async function validateEnteredPin(pin) {
 
     showToast(`Welcome, ${matchedEmp.name}!`, "success");
     unlockMainHub(matchedEmp);
-    clearPin();
+    clearPin(false); // Do not refocus keyboard
   } else {
     // Shake and display error
     const displays = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
@@ -440,7 +450,7 @@ async function validateEnteredPin(pin) {
     showToast("Incorrect PIN. Please try again.", "error");
 
     setTimeout(() => {
-      clearPin();
+      clearPin(true); // Refocus on error
     }, 600);
   }
 
