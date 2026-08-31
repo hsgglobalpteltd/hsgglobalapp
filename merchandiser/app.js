@@ -460,7 +460,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Set app version in footer
   const versionSpan = document.getElementById('app-version');
   if (versionSpan) {
-    versionSpan.textContent = `Trial Version : ${APP_VERSION}`;
+    versionSpan.textContent = `App Version : ${APP_VERSION}`;
   }
 
   // Setup PO Request event listeners

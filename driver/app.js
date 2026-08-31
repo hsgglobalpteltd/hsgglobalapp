@@ -4,7 +4,7 @@ if (window.innerWidth > 600) {
 }
 
 const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
-const APP_VERSION = "26.0.4";
+const APP_VERSION = "26.0.5";
 
 // Sync Queue / Failed submissions State
 let failedSyncs = [];
@@ -263,7 +263,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Display version number
   const versionSpan = document.getElementById('app-version');
   if (versionSpan) {
-    versionSpan.textContent = `Trial Version : ${APP_VERSION}`;
+    versionSpan.textContent = `App Version : ${APP_VERSION}`;
   }
 
   // Load from cache first, then fetch live data
@@ -2454,10 +2454,10 @@ function renderMapPins() {
   const activePins = [...deliveryPins, ...returnPins];
   currentRenderedMapPins = activePins;
 
-  // Group pins by postcode or lat-lng to detect overlapping
+  // Group pins by lat-lng to detect overlapping and offset side-by-side
   const keyGroups = {};
   activePins.forEach(pin => {
-    const key = String(pin.poscode || "").trim() || `${pin.lat.toFixed(5)}_${pin.lng.toFixed(5)}`;
+    const key = `${Number(pin.lat).toFixed(4)}_${Number(pin.lng).toFixed(4)}`;
     if (!keyGroups[key]) {
       keyGroups[key] = [];
     }
@@ -5611,7 +5611,10 @@ async function compressImageToMax250kb(file) {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then((reg) => console.log('Service Worker registered successfully:', reg.scope))
+      .then((reg) => {
+        console.log('Service Worker registered successfully:', reg.scope);
+        reg.update().catch(() => {});
+      })
       .catch((err) => console.error('Service Worker registration failed:', err));
   });
 }

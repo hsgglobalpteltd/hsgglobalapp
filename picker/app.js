@@ -4,7 +4,7 @@ if (window.innerWidth > 600) {
 }
 
 const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
-const APP_VERSION = "26.0.3";
+const APP_VERSION = "26.0.4";
 
 // App State
 let allOrders = [];
@@ -350,7 +350,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Display version number
   const versionSpan = document.getElementById('app-version');
   if (versionSpan) {
-    versionSpan.textContent = `Trial Version : ${APP_VERSION}`;
+    versionSpan.textContent = `App Version : ${APP_VERSION}`;
   }
 
   // Load from cache first, then fetch live data
@@ -1874,8 +1874,22 @@ async function proceedToSubmitProof(pickerName) {
 
 // Authenticate PIN, compress/upload proof photo, and advance order state to "Ready to Deliver"
 async function submitProofPIN(pin) {
-  const enteredPin = parseInt(pin);
-  const matchedUser = allUsers.find(u => parseInt(u.pin || u.pin) === enteredPin);
+  const rawPinStr = String(pin || '').trim();
+  const enteredPin = parseInt(rawPinStr, 10);
+  
+  let matchedUser = (Array.isArray(allUsers) && allUsers.length > 0)
+    ? allUsers.find(u => String(u.pin || u.PIN || '').trim() === rawPinStr || parseInt(u.pin || u.PIN, 10) === enteredPin)
+    : null;
+    
+  if (!matchedUser) {
+    try {
+      const cached = JSON.parse(localStorage.getItem('picker_employees') || '[]');
+      if (Array.isArray(cached) && cached.length > 0) {
+        allUsers = cached;
+        matchedUser = allUsers.find(u => String(u.pin || u.PIN || '').trim() === rawPinStr || parseInt(u.pin || u.PIN, 10) === enteredPin);
+      }
+    } catch (e) {}
+  }
   
   if (!matchedUser) {
     const hiddenInput = document.getElementById('auth-pin-hidden');
