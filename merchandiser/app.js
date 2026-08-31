@@ -4,7 +4,7 @@ if (window.innerWidth > 600) {
 }
 
 const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
-const APP_VERSION = "26.0.40";
+const APP_VERSION = "26.0.41";
 
 // Refresh and Auto-refresh State
 let lastRefreshTime = Date.now();
@@ -3752,307 +3752,347 @@ async function writeWithRetry(payload, retries = 3, delay = 3000) {
 
 // Final Submit
 async function submitAudit() {
-  const pinInput = document.getElementById('audit-pin-input');
-  
-  if (!pinInput || !pinInput.value.trim() || pinInput.value.length < 4) {
-    showToast("Please enter a 4-digit PIN.", "error");
-    return;
-  }
-  
-  const notCarryCheckbox = document.getElementById('not-carry-checkbox');
-  const isNotCarry = notCarryCheckbox && notCarryCheckbox.checked;
-  const remark = isNotCarry ? "Not Carry" : currentAuditBrands.map(b => `${b.displayName}: ${(b.remark || "").trim()}`).join(" | ");
-  
-  const enteredPin = parseInt(pinInput.value.trim());
-  
-  // Verify PIN against allUsers (Merch_Users)
-  const matchedUser = allUsers.find(u => parseInt(u.PIN || u.pin) === enteredPin);
-  if (!matchedUser) {
-    const digitInputs = document.querySelectorAll('.pin-digit-input');
-    digitInputs.forEach(input => input.classList.add('error'));
-    showToast("Incorrect PIN. Please enter a valid merchandiser PIN.", "error");
-    setTimeout(() => {
-      digitInputs.forEach(input => input.classList.remove('error'));
-      clearAuditPin();
-    }, 300);
-    return;
-  }
-  
-  const merchId = (matchedUser.ID || matchedUser.id || "Unknown").toString().trim();
-  const storeIdStr = (selectedStore.ID || selectedStore.id || "").toString().trim();
-  
-  // Find matching Visit task for this store and update it locally
-  const storeIdStrTrim = storeIdStr.trim();
-  const matchingTask = allTasks.find(t => {
-    const taskStoreId = (t['Stores ID'] || t['stores id'] || t['StoresID'] || "").toString().trim();
-    const taskAction = (t['Task Action'] || t['task action'] || t['TaskAction'] || "").toString().trim().toLowerCase();
+  try {
+    const pinInput = document.getElementById('audit-pin-input');
     
-    // Check if the store ID matches and the action is 'visit'
-    if (taskStoreId !== storeIdStrTrim || taskAction !== 'visit') return false;
-    
-    // Check if it is not already completed
-    const logVal = t['Task Log'] || t['task log'] || t['TaskLog'] || '[]';
-    try {
-      const logs = JSON.parse(logVal);
-      if (Array.isArray(logs)) {
-        return !logs.some(log => {
-          const action = log['Action'] || log['action'] || '';
-          return String(action).trim().toLowerCase() === 'visited';
-        });
-      }
-    } catch (e) {}
-    return true;
-  });
-
-  let taskLogs = [];
-  if (matchingTask) {
-    const logVal = matchingTask['Task Log'] || matchingTask['task log'] || matchingTask['TaskLog'] || '[]';
-    try {
-      taskLogs = JSON.parse(logVal);
-      if (!Array.isArray(taskLogs)) {
-        taskLogs = [];
-      }
-    } catch (e) {
-      taskLogs = [];
+    if (!pinInput || !pinInput.value.trim() || pinInput.value.length < 4) {
+      showToast("Please enter a 4-digit PIN.", "error");
+      return;
     }
     
-    const merchName = matchedUser.Name || matchedUser.name || "Merch Name";
-    taskLogs.push({
-      "Action": "Visited",
-      "Remark": remark,
-      "Action by": merchName,
-      "Timestamp": Date.now()
-    });
+    const notCarryCheckbox = document.getElementById('not-carry-checkbox');
+    const isNotCarry = notCarryCheckbox && notCarryCheckbox.checked;
+    const remark = isNotCarry ? "Not Carry" : currentAuditBrands.map(b => `${b.displayName}: ${(b.remark || "").trim()}`).join(" | ");
     
-    const taskLogString = JSON.stringify(taskLogs);
-    matchingTask['Task Log'] = taskLogString;
-    if (matchingTask['task log']) matchingTask['task log'] = taskLogString;
-    if (matchingTask['TaskLog']) matchingTask['TaskLog'] = taskLogString;
+    const rawPinStr = pinInput.value.trim();
+    const enteredPin = parseInt(rawPinStr, 10);
     
-    matchingTask['Task Action'] = "Call";
-    if (matchingTask['task action']) matchingTask['task action'] = "Call";
-    if (matchingTask['TaskAction']) matchingTask['TaskAction'] = "Call";
-    
-    localStorage.setItem('merch_tasks', JSON.stringify(allTasks));
-    processTasksData(allTasks);
-  }
-  
-  // Locally update status instantly
-  const newStatus = isNotCarry ? 'Not Carry' : 'Carry';
-  
-  selectedStore.Status = newStatus;
-  
-  // Save locally in allStores
-  localStorage.setItem('merch_stores', JSON.stringify(allStores));
-  
-  // Collect audited SKU quantities
-  const auditedSkus = [];
-  if (!isNotCarry) {
-    currentAuditBrands.forEach(b => {
-      b.products.forEach(p => {
-        auditedSkus.push({ sku: p.sku, qty: parseInt(p.qty) || 0 });
-      });
-    });
-  }
-  
-  // Save the new audit log locally immediately so it registers as visited instantly
-  const newAuditLog = {
-    "Timestamp": Date.now(),
-    "Merch ID": merchId,
-    "Retailer Stores ID": storeIdStr,
-    "Remark": remark,
-    "Audit JSON": JSON.stringify(auditedSkus)
-  };
-  
-  allAuditLogs.push(newAuditLog);
-  localStorage.setItem('merch_audit_logs', JSON.stringify(allAuditLogs));
-  
-  // Push new shelf logs locally immediately using local base64/existing URLs for instant sharing
-  if (!isNotCarry) {
-    const now = Date.now();
-    currentAuditBrands.forEach(brand => {
-      const imgData = brand.newBase64 || brand.oldImg || "";
-      if (imgData) {
-        allShelfLogs.push({
-          "Timestamp": now,
-          "Merch ID": merchId,
-          "Retailer Stores ID": storeIdStr,
-          "Brands ID": brand.id,
-          "Image Link": imgData,
-          "Remark": (brand.remark || "").trim()
-        });
-      }
-    });
-    localStorage.setItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
-  }
-  
-  // Update view silently
-  updateStoreCount();
-  renderStoresList();
-
-  // Close all screens immediately
-  closeAllSubpages();
-  // No navigation needed, user remains on the previous page
-  
-  showToast("Audit submitted! Syncing in background.", "success");
-  
-  const submitTime = Date.now();
-  const productAuditDateStr = formatDateYYYYMMDD(submitTime);
-  const productAuditId = `${productAuditDateStr}_${merchId}_${storeIdStr}`;
-  const taskCreatedDate = matchingTask ? (matchingTask['Created Date'] || matchingTask.CreatedDate) : null;
-
-  // Build queue payload
-  const auditPayload = {
-    storeId: storeIdStr,
-    status: newStatus,
-    auditDateStr: productAuditDateStr,
-    auditId: productAuditId,
-    merchId: merchId,
-    remark: remark,
-    auditedSkus: auditedSkus,
-    taskId: matchingTask ? matchingTask.ID || matchingTask.id || taskCreatedDate : null,
-    taskCreatedDate: taskCreatedDate,
-    taskLogs: taskLogs,
-    shelfLogs: currentAuditBrands.map(brand => ({
-      id: brand.id,
-      displayName: brand.displayName,
-      base64: brand.newBase64 || '',
-      imgUrl: brand.oldImg || '',
-      remark: (brand.remark || "").trim()
-    }))
-  };
-
-  const queueItem = {
-    id: 'audit_' + submitTime + '_' + Math.random().toString(36).substring(2, 7),
-    type: 'audit',
-    storeName: selectedStore["Display Name"] || selectedStore.name || `Store #${storeIdStr}`,
-    timestamp: submitTime,
-    payload: auditPayload,
-    error: 'Pending sync...'
-  };
-
-  failedSyncs.push(queueItem);
-  localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
-  updateSyncUI();
-
-  // Silent background sync
-  (async () => {
-    try {
-      const shelfUpdates = [];
+    // Verify PIN against allUsers (Merch_Users) with dual string/integer comparison
+    let matchedUser = (Array.isArray(allUsers) && allUsers.length > 0)
+      ? allUsers.find(u => String(u.pin || u.PIN || '').trim() === rawPinStr || parseInt(u.pin || u.PIN, 10) === enteredPin)
+      : null;
       
-      // 1. Upload new shelf images to R2
-      for (const brand of auditPayload.shelfLogs) {
-        let finalUrl = brand.imgUrl || '';
-        if (brand.base64 && brand.base64.startsWith('data:')) {
-          const blob = base64ToBlob(brand.base64);
-          if (blob) {
-            const fileName = `shelf_${storeIdStr}_${brand.id}_${Date.now()}.jpg`;
-            let uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
-            if (brand.imgUrl) {
-              uploadUrl += `&deleteUrl=${encodeURIComponent(brand.imgUrl)}`;
-            }
-            
-            const uploadRes = await fetch(uploadUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': blob.type || 'image/jpeg' },
-              body: blob
-            });
-            
-            if (uploadRes.ok) {
-              const uploadData = await uploadRes.json();
-              if (uploadData.success) {
-                finalUrl = uploadData.url;
-                brand.imgUrl = finalUrl;
-                
-                const cachedShelfLog = allShelfLogs.find(sl => sl.Timestamp === queueItem.timestamp && sl["Brands ID"] === brand.id);
-                if (cachedShelfLog) {
-                  cachedShelfLog["Image Link"] = finalUrl;
+    if (!matchedUser) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('merch_users') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) {
+          allUsers = cached;
+          matchedUser = allUsers.find(u => String(u.pin || u.PIN || '').trim() === rawPinStr || parseInt(u.pin || u.PIN, 10) === enteredPin);
+        }
+      } catch (e) {}
+    }
+
+    if (!matchedUser) {
+      const digitInputs = document.querySelectorAll('.pin-digit-input');
+      digitInputs.forEach(input => input.classList.add('error'));
+      showToast("Incorrect PIN. Please enter a valid merchandiser PIN.", "error");
+      setTimeout(() => {
+        digitInputs.forEach(input => input.classList.remove('error'));
+        clearAuditPin();
+      }, 300);
+      return;
+    }
+
+    // Recover selectedStore if lost in navigation
+    if (!selectedStore) {
+      const nameEl = document.getElementById('audit-store-name');
+      const sName = nameEl ? nameEl.textContent.trim() : '';
+      if (sName) {
+        selectedStore = allStores.find(s => (s["Display Name"] || s.name || "").trim() === sName);
+      }
+    }
+    
+    const merchId = (matchedUser.ID || matchedUser.id || "Unknown").toString().trim();
+    const storeIdStr = selectedStore ? (selectedStore.ID || selectedStore.id || "").toString().trim() : "";
+    
+    if (!storeIdStr) {
+      showToast("Error: Store information missing. Please re-select the store.", "error");
+      closeAllSubpages();
+      return;
+    }
+
+    // Find matching Visit task for this store and update it locally
+    const storeIdStrTrim = storeIdStr.trim();
+    const matchingTask = Array.isArray(allTasks) ? allTasks.find(t => {
+      const taskStoreId = (t['Stores ID'] || t['stores id'] || t['StoresID'] || "").toString().trim();
+      const taskAction = (t['Task Action'] || t['task action'] || t['TaskAction'] || "").toString().trim().toLowerCase();
+      
+      // Check if the store ID matches and the action is 'visit'
+      if (taskStoreId !== storeIdStrTrim || taskAction !== 'visit') return false;
+      
+      // Check if it is not already completed
+      const logVal = t['Task Log'] || t['task log'] || t['TaskLog'] || '[]';
+      try {
+        const logs = JSON.parse(logVal);
+        if (Array.isArray(logs)) {
+          return !logs.some(log => {
+            const action = log['Action'] || log['action'] || '';
+            return String(action).trim().toLowerCase() === 'visited';
+          });
+        }
+      } catch (e) {}
+      return true;
+    }) : null;
+
+    let taskLogs = [];
+    if (matchingTask) {
+      const logVal = matchingTask['Task Log'] || matchingTask['task log'] || matchingTask['TaskLog'] || '[]';
+      try {
+        taskLogs = JSON.parse(logVal);
+        if (!Array.isArray(taskLogs)) {
+          taskLogs = [];
+        }
+      } catch (e) {
+        taskLogs = [];
+      }
+      
+      const merchName = matchedUser.Name || matchedUser.name || "Merch Name";
+      taskLogs.push({
+        "Action": "Visited",
+        "Remark": remark,
+        "Action by": merchName,
+        "Timestamp": Date.now()
+      });
+      
+      const taskLogString = JSON.stringify(taskLogs);
+      matchingTask['Task Log'] = taskLogString;
+      if (matchingTask['task log']) matchingTask['task log'] = taskLogString;
+      if (matchingTask['TaskLog']) matchingTask['TaskLog'] = taskLogString;
+      
+      matchingTask['Task Action'] = "Call";
+      if (matchingTask['task action']) matchingTask['task action'] = "Call";
+      if (matchingTask['TaskAction']) matchingTask['TaskAction'] = "Call";
+      
+      localStorage.setItem('merch_tasks', JSON.stringify(allTasks));
+      processTasksData(allTasks);
+    }
+    
+    // Locally update status instantly
+    const newStatus = isNotCarry ? 'Not Carry' : 'Carry';
+    
+    if (selectedStore) {
+      selectedStore.Status = newStatus;
+      if (selectedStore.status !== undefined) selectedStore.status = newStatus;
+    }
+
+    const storeInList = allStores.find(s => (s.ID || s.id || "").toString().trim() === storeIdStr);
+    if (storeInList) {
+      storeInList.Status = newStatus;
+      if (storeInList.status !== undefined) storeInList.status = newStatus;
+    }
+    
+    // Save locally in allStores
+    localStorage.setItem('merch_stores', JSON.stringify(allStores));
+    
+    // Collect audited SKU quantities
+    const auditedSkus = [];
+    if (!isNotCarry) {
+      currentAuditBrands.forEach(b => {
+        b.products.forEach(p => {
+          auditedSkus.push({ sku: p.sku, qty: parseInt(p.qty) || 0 });
+        });
+      });
+    }
+    
+    // Save the new audit log locally immediately so it registers as visited instantly
+    const newAuditLog = {
+      "Timestamp": Date.now(),
+      "Merch ID": merchId,
+      "Retailer Stores ID": storeIdStr,
+      "Remark": remark,
+      "Audit JSON": JSON.stringify(auditedSkus)
+    };
+    
+    allAuditLogs.push(newAuditLog);
+    localStorage.setItem('merch_audit_logs', JSON.stringify(allAuditLogs));
+    
+    // Push new shelf logs locally immediately using local base64/existing URLs for instant sharing
+    if (!isNotCarry) {
+      const now = Date.now();
+      currentAuditBrands.forEach(brand => {
+        const imgData = brand.newBase64 || brand.oldImg || "";
+        if (imgData) {
+          allShelfLogs.push({
+            "Timestamp": now,
+            "Merch ID": merchId,
+            "Retailer Stores ID": storeIdStr,
+            "Brands ID": brand.id,
+            "Image Link": imgData,
+            "Remark": (brand.remark || "").trim()
+          });
+        }
+      });
+      localStorage.setItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
+    }
+    
+    // Update view silently
+    updateStoreCount();
+    renderStoresList();
+
+    // Close all screens immediately
+    closeAllSubpages();
+    
+    showToast("Audit submitted! Syncing in background.", "success");
+    
+    const submitTime = Date.now();
+    const productAuditDateStr = formatDateYYYYMMDD(submitTime);
+    const productAuditId = `${productAuditDateStr}_${merchId}_${storeIdStr}`;
+    const taskCreatedDate = matchingTask ? (matchingTask['Created Date'] || matchingTask.CreatedDate) : null;
+
+    // Build queue payload
+    const auditPayload = {
+      storeId: storeIdStr,
+      status: newStatus,
+      auditDateStr: productAuditDateStr,
+      auditId: productAuditId,
+      merchId: merchId,
+      remark: remark,
+      auditedSkus: auditedSkus,
+      taskId: matchingTask ? matchingTask.ID || matchingTask.id || taskCreatedDate : null,
+      taskCreatedDate: taskCreatedDate,
+      taskLogs: taskLogs,
+      shelfLogs: currentAuditBrands.map(brand => ({
+        id: brand.id,
+        displayName: brand.displayName,
+        base64: brand.newBase64 || '',
+        imgUrl: brand.oldImg || '',
+        remark: (brand.remark || "").trim()
+      }))
+    };
+
+    const queueItem = {
+      id: 'audit_' + submitTime + '_' + Math.random().toString(36).substring(2, 7),
+      type: 'audit',
+      storeName: selectedStore ? (selectedStore["Display Name"] || selectedStore.name || `Store #${storeIdStr}`) : `Store #${storeIdStr}`,
+      timestamp: submitTime,
+      payload: auditPayload,
+      error: 'Pending sync...'
+    };
+
+    failedSyncs.push(queueItem);
+    localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
+    updateSyncUI();
+
+    // Silent background sync
+    (async () => {
+      try {
+        const shelfUpdates = [];
+        
+        // 1. Upload new shelf images to R2
+        for (const brand of auditPayload.shelfLogs) {
+          let finalUrl = brand.imgUrl || '';
+          if (brand.base64 && brand.base64.startsWith('data:')) {
+            const blob = base64ToBlob(brand.base64);
+            if (blob) {
+              const fileName = `shelf_${storeIdStr}_${brand.id}_${Date.now()}.jpg`;
+              let uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
+              if (brand.imgUrl) {
+                uploadUrl += `&deleteUrl=${encodeURIComponent(brand.imgUrl)}`;
+              }
+              
+              const uploadRes = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': blob.type || 'image/jpeg' },
+                body: blob
+              });
+              
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                if (uploadData.success) {
+                  finalUrl = uploadData.url;
+                  brand.imgUrl = finalUrl;
+                  
+                  const cachedShelfLog = allShelfLogs.find(sl => sl.Timestamp === queueItem.timestamp && sl["Brands ID"] === brand.id);
+                  if (cachedShelfLog) {
+                    cachedShelfLog["Image Link"] = finalUrl;
+                  }
                 }
               }
             }
           }
+          
+          shelfUpdates.push({
+            id: brand.id,
+            imgUrl: finalUrl,
+            remark: brand.remark
+          });
         }
         
-        shelfUpdates.push({
-          id: brand.id,
-          imgUrl: finalUrl,
-          remark: brand.remark
+        // Write A: Update store status in Store_Retailer_DB
+        await writeWithRetry({
+          sheet: "Store_Retailer_DB",
+          action: "update",
+          data: {
+            id: storeIdStr,
+            status: newStatus
+          }
         });
-      }
-      
-      // Write A: Update store status in Store_Retailer_DB
-      await writeWithRetry({
-        sheet: "Store_Retailer_DB",
-        action: "update",
-        data: {
-          id: storeIdStr,
-          status: newStatus
+        
+        // Write B: Insert audit logs to Merch_Visit_Product_Audit_Logs (for both Carry and Not Carry)
+        await writeWithRetry({
+          sheet: "Merch_Visit_Product_Audit_Logs",
+          action: "upsert",
+          data: {
+            id: productAuditId,
+            timestamp: submitTime,
+            merch_id: merchId,
+            retailer_stores_id: storeIdStr,
+            remark: remark,
+            audit_json: JSON.stringify(auditedSkus)
+          }
+        });
+        
+        // Write C: If not carry, we do NOT insert shelf audit logs, otherwise insert/upsert shelf logs
+        if (!isNotCarry && shelfUpdates.length > 0) {
+          for (const update of shelfUpdates) {
+            if (update.imgUrl) {
+              const shelfAuditId = `${productAuditDateStr}_${merchId}_${storeIdStr}_${update.id}`;
+              await writeWithRetry({
+                sheet: "Merch_Visit_Shelf_Audit_Logs",
+                action: "upsert",
+                data: {
+                  id: shelfAuditId,
+                  timestamp: submitTime,
+                  merch_id: merchId,
+                  retailer_stores_id: storeIdStr,
+                  brands_id: update.id,
+                  image_link: update.imgUrl,
+                  remark: update.remark
+                }
+              });
+            }
+          }
         }
-      });
-      
-      // Write B: Insert audit logs to Merch_Visit_Product_Audit_Logs (for both Carry and Not Carry)
-      await writeWithRetry({
-        sheet: "Merch_Visit_Product_Audit_Logs",
-        action: "upsert",
-        data: {
-          id: productAuditId,
-          timestamp: submitTime,
-          merch_id: merchId,
-          retailer_stores_id: storeIdStr,
-          remark: remark,
-          audit_json: JSON.stringify(auditedSkus)
-        }
-      });
-      
-      // Write C: Insert shelf images to Merch_Visit_Shelf_Audit_Logs (if Carry)
-      if (!isNotCarry) {
-        for (const brand of shelfUpdates) {
-          const shelfAuditId = `${productAuditDateStr}_${merchId}_${storeIdStr}_${brand.id}`;
-
+        
+        // Write D: If there is a matching visit task, update task log
+        if (auditPayload.taskId) {
           await writeWithRetry({
-            sheet: "Merch_Visit_Shelf_Audit_Logs",
-            action: "upsert",
+            sheet: "Stores_Task_Assigned",
+            action: "update",
             data: {
-              id: shelfAuditId,
-              timestamp: submitTime,
-              merch_id: merchId,
-              retailer_stores_id: storeIdStr,
-              brands_id: brand.id,
-              image_link: brand.imgUrl,
-              remark: brand.remark
+              id: auditPayload.taskId,
+              "Task Action": "Call",
+              "Task Log": JSON.stringify(auditPayload.taskLogs)
             }
           });
         }
+        
+        // Success! Remove from sync queue
+        failedSyncs = failedSyncs.filter(q => q.id !== queueItem.id);
+        localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
+        localStorage.setItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
+        updateSyncUI();
+      } catch (e) {
+        console.error("Background sync failed after retries:", e);
+        queueItem.error = e.message || 'Background sync failed';
+        localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
+        updateSyncUI();
       }
-      
-      // Write D: Update task log in Stores_Task_Assigned to mark visited
-      if (matchingTask) {
-        await writeWithRetry({
-          sheet: "Stores_Task_Assigned",
-          action: "update",
-          data: {
-            created_date: taskCreatedDate,
-            task_action: "Call",
-            task_log: JSON.stringify(taskLogs)
-          }
-        });
-      }
-      
-      // Success! Remove from sync queue
-      failedSyncs = failedSyncs.filter(q => q.id !== queueItem.id);
-      localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
-      localStorage.setItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
-      updateSyncUI();
-      
-      console.log("Silent background submission finished successfully.");
-      fetchDataSilently();
-    } catch (e) {
-      console.error("Background sync failed after retries:", e);
-      queueItem.error = e.message || 'Background sync failed';
-      localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
-      updateSyncUI();
-    }
-  })();
+    })();
+  } catch (err) {
+    console.error("Critical submitAudit error:", err);
+    showToast("Submission error: " + (err.message || err), "error");
+  }
 }
 
 function openLatestAudit() {
@@ -5932,6 +5972,10 @@ function pushPageState(pageId) {
 }
 
 function closeAllSubpages() {
+  // Directly dismiss all subpage overlays from DOM
+  document.querySelectorAll('.store-preview-page.active').forEach(p => p.classList.remove('active'));
+  clearAuditPin();
+
   if (pageHistoryDepth > 0) {
     console.log(`[Navigation] Closing all subpages, going back ${pageHistoryDepth} steps.`);
     const steps = -pageHistoryDepth;
