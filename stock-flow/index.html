@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' https: http: data: blob: https://cdnjs.cloudflare.com; style-src * 'unsafe-inline' https: http:; img-src * data: blob: https: http:; connect-src * https: http: ws: wss:; font-src * data: https: http:;">
   <title>iB - Stock Flow</title>
-  <link rel="stylesheet" href="style.css?v=20260831_1507">
+  <link rel="stylesheet" href="style.css?v=20260831_1527">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
   
@@ -181,15 +181,15 @@
               <span id="photoCountBadge" class="text-xs font-semibold text-slate-500">(0/8)</span>
             </div>
 
-            <div class="photo-upload-container">
+            <div class="photo-upload-card" style="background-color: #F8FAFC; border: 1.5px dashed #CBD5E1; border-radius: 12px; padding: 0.65rem; width: 100%; box-sizing: border-box;">
               <input type="file" id="stockCardPhotoInput" accept="image/*" multiple class="hidden" onchange="handleStockCardPhotoSelect(this)">
               
-              <!-- Multi-Photo Gallery Grid -->
-              <div id="stockCardPhotoGallery" class="photo-grid-gallery">
-                <div id="photoAddTile" onclick="document.getElementById('stockCardPhotoInput').click()" class="photo-add-tile">
-                  <i class="fa-solid fa-camera text-2xl text-slate-400 mb-1"></i>
-                  <span class="text-xs font-semibold text-slate-600">Add Photo</span>
-                  <span class="text-[10px] text-slate-400">1 to 8 photos</span>
+              <!-- Multi-Photo Gallery Grid (Compact 4 columns) -->
+              <div id="stockCardPhotoGallery" class="photo-grid-gallery" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; width: 100%;">
+                <div id="photoAddTile" onclick="document.getElementById('stockCardPhotoInput').click()" class="photo-add-tile" style="width: 100% !important; aspect-ratio: 1 / 1 !important; max-height: 75px !important; border: 1.5px dashed #0B57D0 !important; border-radius: 8px !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; text-align: center !important; background-color: #F0F4F9 !important; cursor: pointer !important; padding: 0.2rem !important; box-sizing: border-box !important;">
+                  <i class="fa-solid fa-camera text-xl text-[#0B57D0] mb-0.5"></i>
+                  <span class="text-[11px] font-semibold text-slate-700 leading-tight">Add Photo</span>
+                  <span class="text-[9px] text-slate-400 font-medium">0/8</span>
                 </div>
               </div>
             </div>
@@ -265,7 +265,7 @@
 
       <!-- Submit Footer -->
       <div class="sticky-footer">
-        <button type="button" id="btnSubmitStockCard" onclick="promptPinForStockCard()" class="btn-success w-full">
+        <button type="button" id="btnSubmitStockCard" onclick="promptPinForStockCard()" class="btn-primary w-full">
           Confirm & Authorize
         </button>
       </div>
@@ -394,25 +394,40 @@
       </div>
     </div>
 
-    <!-- 2. Security PIN Modal -->
-    <div id="pinModal" class="modal-overlay hidden" onclick="document.getElementById('hiddenPinInput').focus()">
-      <button onclick="cancelPinModal()" class="close-btn absolute-top-right"><i class="fa-solid fa-xmark"></i></button>
-
-      <div class="pin-modal-content">
-        <div class="pin-lock-icon">
-          <i class="fa-solid fa-user-lock"></i>
+    <!-- 2. Dedicated 4-Digit PIN Authentication Screen (App 1/2/3 Gatekeeper Standard) -->
+    <div id="pin-auth-overlay" class="pin-auth-overlay hidden">
+      <div class="auth-header">
+        <button type="button" onclick="cancelPinModal()" class="icon-btn" style="background: none; border: none; font-size: 1.1rem; color: #1F1F1F; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <span style="font-size: 0.95rem; font-weight: 700; color: #0F172A;">Authorize Action</span>
+        <div style="width: 36px;"></div>
+      </div>
+      
+      <div class="auth-content" style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: center; width: 100%; padding: 24px; box-sizing: border-box; margin-top: 52px;">
+        
+        <!-- Icon + 4-digit PIN Masked Input -->
+        <div id="auth-pin-container" class="pin-entry-container" style="margin-top: 10vh; width: 100%; display: flex; flex-direction: column; align-items: center;" onclick="document.getElementById('hiddenPinInput').focus()">
+          
+          <div style="width: 72px; height: 72px; border-radius: 50%; background: #E0E8F6; display: flex; align-items: center; justify-content: center; margin-bottom: 18px; color: #0B57D0; font-size: 28px;">
+            <i class="fa-solid fa-user-shield"></i>
+          </div>
+          
+          <h2 style="font-size: 1.15rem; font-weight: 800; color: #0F172A; margin-bottom: 4px;">ENTER 4-DIGIT PIN</h2>
+          <p style="font-size: 0.8rem; font-weight: 500; color: #64748B; margin-bottom: 24px;">Warehouse Personnel Authorization</p>
+          
+          <div class="pin-digits-row" id="pin-digits-wrapper" style="position: relative; cursor: pointer; display: flex; gap: 12px; justify-content: center;">
+            <input type="tel" id="hiddenPinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" autocomplete="off" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; cursor: pointer; border: none; outline: none; background: transparent; font-size: 16px;" oninput="handleHiddenPinInput(this)">
+            <div class="pin-digit-display" data-index="0" style="width: 52px; height: 52px; font-size: 24px; font-weight: 800; text-align: center; border: 2px solid #CBD5E1; border-radius: 12px; background: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03);"></div>
+            <div class="pin-digit-display" data-index="1" style="width: 52px; height: 52px; font-size: 24px; font-weight: 800; text-align: center; border: 2px solid #CBD5E1; border-radius: 12px; background: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03);"></div>
+            <div class="pin-digit-display" data-index="2" style="width: 52px; height: 52px; font-size: 24px; font-weight: 800; text-align: center; border: 2px solid #CBD5E1; border-radius: 12px; background: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03);"></div>
+            <div class="pin-digit-display" data-index="3" style="width: 52px; height: 52px; font-size: 24px; font-weight: 800; text-align: center; border: 2px solid #CBD5E1; border-radius: 12px; background: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.03);"></div>
+          </div>
         </div>
-        <h3 class="pin-title">ENTER SECURITY PIN</h3>
-        <p class="pin-subtitle">Required to authorize inventory submission</p>
 
-        <div class="pin-box-wrapper">
-          <!-- Hidden Input for mobile keyboard trigger -->
-          <input type="tel" id="hiddenPinInput" maxlength="4" autocomplete="off" class="hidden-pin-input" oninput="handleHiddenPinInput(this)">
-
-          <div class="pin-box"></div>
-          <div class="pin-box"></div>
-          <div class="pin-box"></div>
-          <div class="pin-box"></div>
+        <!-- Footer Info -->
+        <div style="text-align: center; margin-bottom: 24px;">
+          <span style="font-size: 0.75rem; font-weight: 600; color: #94A3B8;">iB - HSG Global Apps &bull; Stock Flow</span>
         </div>
       </div>
     </div>
@@ -454,6 +469,6 @@
   <!-- PDF libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-  <script src="app.js?v=20260831_1507"></script>
+  <script src="app.js?v=20260831_1527"></script>
 </body>
 </html>

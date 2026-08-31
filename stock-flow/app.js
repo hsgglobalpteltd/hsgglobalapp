@@ -1219,26 +1219,25 @@ function openPinModal(auditData) {
   pendingAuditData = auditData;
   currentPin = '';
   const input = document.getElementById('hiddenPinInput');
-  input.value = '';
+  if (input) input.value = '';
 
-  const boxes = document.querySelectorAll('#pinModal .pin-box');
+  const boxes = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
   boxes.forEach(box => {
     box.innerText = '';
-    box.className = 'pin-box';
+    box.className = 'pin-digit-display';
   });
 
-  const modal = document.getElementById('pinModal');
-  modal.classList.remove('hidden');
-  modal.classList.add('active'); // flex view
+  const overlay = document.getElementById('pin-auth-overlay');
+  if (overlay) overlay.classList.remove('hidden');
 
-  setTimeout(() => input.focus(), 100);
+  setTimeout(() => input && input.focus(), 150);
 }
 
 function closePinModal() {
-  const modal = document.getElementById('pinModal');
-  modal.classList.remove('active');
-  modal.classList.add('hidden');
-  document.getElementById('hiddenPinInput').blur();
+  const overlay = document.getElementById('pin-auth-overlay');
+  if (overlay) overlay.classList.add('hidden');
+  const input = document.getElementById('hiddenPinInput');
+  if (input) input.blur();
 }
 
 function cancelPinModal() {
@@ -1252,7 +1251,7 @@ function handleHiddenPinInput(el) {
   el.value = val;
   currentPin = val;
 
-  const boxes = document.querySelectorAll('#pinModal .pin-box');
+  const boxes = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
   boxes.forEach((box, index) => {
     if (index < currentPin.length) {
       box.innerText = '•';
@@ -1303,10 +1302,10 @@ function validatePin() {
     }
   } else {
     // Shake animation feedback
-    const container = document.querySelector('#pinModal .pin-box-wrapper');
-    if (container) container.classList.add('shake-animation');
+    const wrapper = document.getElementById('pin-digits-wrapper');
+    if (wrapper) wrapper.classList.add('shake-animation');
     
-    const boxes = document.querySelectorAll('#pinModal .pin-box');
+    const boxes = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
     boxes.forEach(box => {
       box.innerText = '';
       box.classList.remove('active');
@@ -1314,15 +1313,20 @@ function validatePin() {
     });
 
     setTimeout(() => {
-      if (container) container.classList.remove('shake-animation');
-      alert('Invalid security PIN! Please try again.');
+      if (wrapper) wrapper.classList.remove('shake-animation');
+      alert('Invalid security PIN! Please try again.', 'TRY AGAIN', () => {
+        const input = document.getElementById('hiddenPinInput');
+        if (input) {
+          input.value = '';
+          input.focus();
+        }
+      });
       
       currentPin = '';
       const input = document.getElementById('hiddenPinInput');
       if (input) input.value = '';
       boxes.forEach(box => box.classList.remove('error'));
-      setTimeout(() => input && input.focus(), 150);
-    }, 350);
+    }, 400);
   }
 }
 
@@ -1784,13 +1788,14 @@ function renderStockCardPhotoGallery() {
 
   gallery.innerHTML = '';
 
-  // Render photo thumbnails
+  // Render photo thumbnails (compact 4-column container)
   stockCardState.photos.forEach((p, idx) => {
     const thumb = document.createElement('div');
     thumb.className = 'photo-thumb-item';
+    thumb.setAttribute('style', 'position: relative !important; width: 100% !important; aspect-ratio: 1 / 1 !important; max-height: 75px !important; border-radius: 8px !important; overflow: hidden !important; border: 1.5px solid #CBD5E1 !important; background-color: #FFFFFF !important; display: flex !important; align-items: center !important; justify-content: center !important; box-sizing: border-box !important;');
     thumb.innerHTML = `
-      <img src="${p.previewUrl}" alt="Photo ${idx + 1}" class="photo-thumb-img" />
-      <button type="button" onclick="removeStockCardPhotoItem(${idx})" class="photo-thumb-remove" title="Remove Photo">
+      <img src="${p.previewUrl}" alt="Photo ${idx + 1}" class="photo-thumb-img" style="width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: cover !important; display: block !important;" />
+      <button type="button" onclick="removeStockCardPhotoItem(${idx})" class="photo-thumb-remove" style="position: absolute !important; top: 3px !important; right: 3px !important; width: 22px !important; height: 22px !important; border-radius: 50% !important; background: rgba(0, 0, 0, 0.7) !important; border: none !important; color: white !important; display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; font-size: 0.7rem !important; z-index: 2 !important;" title="Remove Photo">
         <i class="fa-solid fa-xmark"></i>
       </button>
     `;
@@ -1802,11 +1807,12 @@ function renderStockCardPhotoGallery() {
     const addTile = document.createElement('div');
     addTile.id = 'photoAddTile';
     addTile.className = 'photo-add-tile';
+    addTile.setAttribute('style', 'width: 100% !important; aspect-ratio: 1 / 1 !important; max-height: 75px !important; border: 1.5px dashed #0B57D0 !important; border-radius: 8px !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; text-align: center !important; background-color: #F0F4F9 !important; cursor: pointer !important; padding: 0.2rem !important; box-sizing: border-box !important;');
     addTile.onclick = () => document.getElementById('stockCardPhotoInput').click();
     addTile.innerHTML = `
-      <i class="fa-solid fa-camera text-2xl text-slate-400 mb-1"></i>
-      <span class="text-xs font-semibold text-slate-600">Add Photo</span>
-      <span class="text-[10px] text-slate-400">${count}/8</span>
+      <i class="fa-solid fa-camera text-xl text-[#0B57D0] mb-0.5"></i>
+      <span class="text-[11px] font-semibold text-slate-700 leading-tight">Add Photo</span>
+      <span class="text-[9px] text-slate-400 font-medium">${count}/8</span>
     `;
     gallery.appendChild(addTile);
   }
@@ -1888,11 +1894,11 @@ function reviewStockCardTransaction() {
     const row = document.createElement('div');
     row.className = 'summary-item-row';
     row.innerHTML = `
-      <div class="flex flex-col">
-        <span class="font-bold text-white">${item.sku}</span>
-        <span class="text-xs text-slate-400">${item.name}</span>
+      <div class="flex flex-col min-w-0 flex-1">
+        <span class="font-bold text-slate-800 text-[13px]">${item.sku}</span>
+        <span class="text-xs text-slate-500 truncate mt-0.5">${item.name}</span>
       </div>
-      <span class="font-bold text-purple-400">${item.qty} units</span>
+      <span class="font-bold text-[#0B57D0] text-[13px] ml-2 flex-shrink-0">${item.qty} units</span>
     `;
     itemsList.appendChild(row);
   });
@@ -1915,7 +1921,8 @@ function reviewStockCardTransaction() {
       stockCardState.photos.forEach((p, idx) => {
         const thumb = document.createElement('div');
         thumb.className = 'summary-photo-thumb';
-        thumb.innerHTML = `<img src="${p.previewUrl}" alt="Proof ${idx + 1}" />`;
+        thumb.setAttribute('style', 'width: 100% !important; aspect-ratio: 1 / 1 !important; max-height: 75px !important; border-radius: 8px !important; overflow: hidden !important; border: 1px solid #CBD5E1 !important; background-color: #FFFFFF !important; display: flex !important; align-items: center !important; justify-content: center !important;');
+        thumb.innerHTML = `<img src="${p.previewUrl}" alt="Proof ${idx + 1}" style="width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: cover !important; display: block !important;" />`;
         photoGrid.appendChild(thumb);
       });
     }
@@ -1930,19 +1937,18 @@ function promptPinForStockCard() {
   pendingStockCardData = { ...stockCardState };
   currentPin = '';
   const input = document.getElementById('hiddenPinInput');
-  input.value = '';
+  if (input) input.value = '';
 
-  const boxes = document.querySelectorAll('#pinModal .pin-box');
+  const boxes = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
   boxes.forEach(box => {
     box.innerText = '';
-    box.className = 'pin-box';
+    box.className = 'pin-digit-display';
   });
 
-  const modal = document.getElementById('pinModal');
-  modal.classList.remove('hidden');
-  modal.classList.add('active');
+  const overlay = document.getElementById('pin-auth-overlay');
+  if (overlay) overlay.classList.remove('hidden');
 
-  setTimeout(() => input.focus(), 100);
+  setTimeout(() => input && input.focus(), 150);
 }
 
 async function finalizeStockCardSubmit(authorizedStaff) {
