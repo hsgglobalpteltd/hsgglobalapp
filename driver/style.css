@@ -1139,6 +1139,20 @@ body {
   pointer-events: auto;
 }
 
+.slide-to-deliver-container {
+  transition: opacity 0.2s ease;
+}
+
+.slide-to-deliver-container.disabled-mode {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+}
+
+.slide-to-deliver-container.disabled-mode .slide-to-deliver-handle {
+  cursor: not-allowed !important;
+  opacity: 0.8;
+}
+
 /* ==========================================================================
    Goods Ready Proof Overlay
    ========================================================================== */

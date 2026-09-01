@@ -17,7 +17,7 @@
   <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
-  <link rel="stylesheet" href="style.css?v=26.0.39">
+  <link rel="stylesheet" href="style.css?v=26.0.42">
   <script>
     // Redirect trailing slash to resolve relative files correctly
     if (!window.location.pathname.endsWith('/') && !window.location.pathname.endsWith('.html')) {
@@ -358,13 +358,14 @@
   <div id="deliver-page" class="picking-page-overlay" style="z-index: 10000 !important;">
     <!-- Header -->
     <header class="picking-header">
-      <button id="deliver-back-btn" class="preview-back-btn" aria-label="Back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
-          <polyline points="15 18 9 12 15 6"></polyline>
-        </svg>
-        <span>Back</span>
-      </button>
-      <span class="mobile-header-title">Deliver List</span>
+       <button id="deliver-back-btn" class="preview-back-btn" aria-label="Back">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="back-icon">
+           <polyline points="15 18 9 12 15 6"></polyline>
+         </svg>
+         <span>Back</span>
+       </button>
+       <span class="mobile-header-title">Delivery List</span>
+       <button id="deliver-cancel-btn" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); border: none; background: #EF4444; color: #FFFFFF; font-size: 11.5px; font-weight: 800; cursor: pointer; padding: 5px 12px; border-radius: 6px; font-family: 'Outfit', sans-serif; outline: none; -webkit-tap-highlight-color: transparent; letter-spacing: 0.02em; box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);">Cancel</button>
     </header>
 
     <!-- Top Order Card (DO info) - Fixed at the top -->
@@ -440,9 +441,17 @@
     </div>
 
     <!-- Bottom Actions sticky -->
-    <div style="padding: 16px 16px max(32px, calc(16px + env(safe-area-inset-bottom))) 16px; background-color: #FFFFFF; border-top: 1.5px solid #E2E8F0; display: flex; gap: 12px; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 10; width: 100%; box-sizing: border-box;">
-      <button id="deliver-cancel-btn" style="flex: 1; height: 50px; background-color: #EFF6FF; border: none; border-radius: 12px; color: #1e3a8a; font-size: 14px; font-weight: 800; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">Cancel</button>
-      <button id="deliver-submit-btn" class="picking-action-btn disabled-mode" style="flex: 2; height: 50px; border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer; margin: 0; padding: 0;">Deliver Goods</button>
+    <div style="padding: 14px 16px max(28px, calc(14px + env(safe-area-inset-bottom))) 16px; background-color: #FFFFFF; border-top: 1.5px solid #E2E8F0; display: flex; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 10; width: 100%; box-sizing: border-box;">
+      <div id="deliver-slider-container" class="slide-to-deliver-container disabled-mode" style="position: relative; width: 100%; height: 52px; background-color: #F1F5F9; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; box-sizing: border-box; border: 1.5px solid #E2E8F0;">
+        <div id="deliver-slider-fill" class="slide-to-deliver-fill" style="position: absolute; left: 0; top: 0; bottom: 0; width: 0px; background-color: rgba(59, 130, 246, 0.15); z-index: 1; pointer-events: none; border-radius: 12px 0 0 12px;"></div>
+        <div id="deliver-slider-text" style="font-size: 13px; font-weight: 750; color: #64748B; pointer-events: none; z-index: 2; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'Outfit', sans-serif;">Slide to Deliver Goods</div>
+        <div id="deliver-slider-handle" class="slide-to-deliver-handle" style="position: absolute; left: 3px; top: 3px; width: 46px; height: 46px; background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); border-radius: 9px; display: flex; align-items: center; justify-content: center; color: #FFFFFF; cursor: grab; z-index: 3; box-shadow: 0 2px 5px rgba(29, 78, 216, 0.3); touch-action: none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px; pointer-events: none;">
+            <polyline points="13 17 18 12 13 7"></polyline>
+            <polyline points="6 17 11 12 6 7"></polyline>
+          </svg>
+        </div>
+      </div>
     </div>
   </div>
   <!-- WhatsApp Share Drawer overlay -->
@@ -492,6 +501,6 @@
     <img id="lightbox-img" style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" alt="DO Paper Lightbox">
   </div>
 
-  <script src="app.js?v=1.3.2" defer></script>
+  <script src="app.js?v=1.3.5" defer></script>
 </body>
 </html>

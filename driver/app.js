@@ -4623,7 +4623,7 @@ window.openDeliverPage = function(order, isReturn) {
   // Render header title
   const headerTitle = page.querySelector('.mobile-header-title');
   if (headerTitle) {
-    headerTitle.textContent = isReturn ? "Collect Return" : "Deliver List";
+    headerTitle.textContent = isReturn ? "Collect Return" : "Delivery List";
   }
 
   const markBox = document.getElementById('deliver-order-mark');
@@ -4668,26 +4668,26 @@ window.openDeliverPage = function(order, isReturn) {
   const signedCameraBoxLabel = document.getElementById('deliver-signed-placeholder').querySelector('span');
   const proofTitle = document.getElementById('deliver-proof-title');
   const signedTitle = document.getElementById('deliver-signed-title');
-  const submitBtn = document.getElementById('deliver-submit-btn');
+  const sliderText = document.getElementById('deliver-slider-text');
+  const sliderFill = document.getElementById('deliver-slider-fill');
+  const sliderHandle = document.getElementById('deliver-slider-handle');
+
+  if (sliderFill) sliderFill.style.width = '0px';
+  if (sliderHandle) sliderHandle.style.left = '3px';
+  if (sliderText) sliderText.style.opacity = '1';
 
   if (isReturn) {
     if (accordion) accordion.style.display = 'none';
     if (proofTitle) proofTitle.textContent = "Proof of Collected";
     if (signedTitle) signedTitle.textContent = "Signed Return Paper (Mandatory)";
     if (signedCameraBoxLabel) signedCameraBoxLabel.textContent = "TAP TO CAPTURE SIGNED RETURN PAPER";
-    if (submitBtn) {
-      submitBtn.textContent = "Collect Return";
-      submitBtn.className = "picking-action-btn disabled-mode";
-    }
+    if (sliderText) sliderText.textContent = "Slide to Collect Return";
   } else {
     if (accordion) accordion.style.display = 'flex';
     if (proofTitle) proofTitle.textContent = "Proof of Delivery";
     if (signedTitle) signedTitle.textContent = "Signed DO / GRN Photo (Mandatory)";
     if (signedCameraBoxLabel) signedCameraBoxLabel.textContent = "TAP TO CAPTURE SIGNED DO / GRN";
-    if (submitBtn) {
-      submitBtn.textContent = "Deliver Goods";
-      submitBtn.className = "picking-action-btn disabled-mode";
-    }
+    if (sliderText) sliderText.textContent = "Slide to Deliver Goods";
 
     // Populate items
     renderDeliverItemsList(order);
@@ -4783,7 +4783,7 @@ function renderDeliverItemsList(order) {
 
   container.innerHTML = '';
 
-  const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
+  const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || order.items || []);
   if (items.length === 0) {
     container.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748B;">No items to display.</div>';
     return;
@@ -4791,14 +4791,16 @@ function renderDeliverItemsList(order) {
 
   const placeholderImg = "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2264%22%20height%3D%2264%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394A3B8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%20ry%3D%222%22%2F%3E%3Ccircle%20cx%3D%228.5%22%20cy%3D%228.5%22%20r%3D%221.5%22%2F%3E%3Cpolyline%20points%3D%2221%2015%2016%2010%205%2021%22%2F%3E%3C%2Fsvg%3E";
 
-  const mapped = items.map((item, index) => {
-    const prod = allProducts.find(p => (p.SKU || p.sku || '').toUpperCase() === (item.sku || '').toUpperCase());
+  const mapped = items.map((rawItem, index) => {
+    const sku = String(rawItem.sku || rawItem.SKU || rawItem.item || '').trim();
+    const qty = Number(rawItem.qty !== undefined ? rawItem.qty : (rawItem.Qty !== undefined ? rawItem.Qty : (rawItem.quantity || 0)));
+    const prod = allProducts.find(p => (p.SKU || p.sku || '').trim().toUpperCase() === sku.toUpperCase());
     let brandName = 'Other Brands';
-    let prodName = item.sku;
+    let prodName = sku;
     let imgUrl = '';
 
     if (prod) {
-      prodName = prod["Display Name"] || prod.name || item.sku;
+      prodName = prod["Display Name"] || prod.name || sku;
       imgUrl = prod.Image || prod.image || '';
       const brandId = prod["Brands ID"] || prod.Brands_ID || prod.brandId;
       if (brandId) {
@@ -4809,13 +4811,13 @@ function renderDeliverItemsList(order) {
       }
     }
 
-    if (deliverItemQtys[item.sku] === undefined) {
-      deliverItemQtys[item.sku] = item.qty;
+    if (deliverItemQtys[sku] === undefined) {
+      deliverItemQtys[sku] = qty;
     }
 
     return {
-      sku: item.sku,
-      qty: item.qty,
+      sku: sku,
+      qty: qty,
       name: prodName,
       image: imgUrl,
       brand: brandName,
@@ -4917,11 +4919,12 @@ function renderDeliverItemsList(order) {
 window.adjustDeliverQty = function(sku, dir) {
   if (deliverItemTicks.has(sku)) return;
 
-  const item = typeof currentDeliverOrder.Items === 'string' ? JSON.parse(currentDeliverOrder.Items || '[]').find(i => i.sku === sku) : (currentDeliverOrder.Items || []).find(i => i.sku === sku);
-  if (!item) return;
+  const rawItems = typeof currentDeliverOrder.Items === 'string' ? JSON.parse(currentDeliverOrder.Items || '[]') : (currentDeliverOrder.Items || currentDeliverOrder.items || []);
+  const rawItem = rawItems.find(i => String(i.sku || i.SKU || i.item || '').trim() === sku);
+  if (!rawItem) return;
 
-  const originalQty = item.qty;
-  const currentVal = deliverItemQtys[sku] || originalQty;
+  const originalQty = Number(rawItem.qty !== undefined ? rawItem.qty : (rawItem.Qty !== undefined ? rawItem.Qty : (rawItem.quantity || 0)));
+  const currentVal = deliverItemQtys[sku] !== undefined ? deliverItemQtys[sku] : originalQty;
   const newVal = Math.max(0, Math.min(originalQty, currentVal + dir));
 
   deliverItemQtys[sku] = newVal;
@@ -4959,47 +4962,47 @@ window.onDeliverRemarkInput = function(sku, val) {
 };
 
 function updateDeliverSubmitButtonState() {
-  const submitBtn = document.getElementById('deliver-submit-btn');
-  if (!submitBtn) return;
+  const sliderContainer = document.getElementById('deliver-slider-container');
+  if (!sliderContainer) return;
 
-  if (!deliverSignedPhotoFile) {
-    submitBtn.classList.add('disabled-mode');
-    return;
-  }
-
-  if (deliverSupportingPhotoFiles.length === 0) {
-    submitBtn.classList.add('disabled-mode');
+  if (!deliverSignedPhotoFile || deliverSupportingPhotoFiles.length === 0) {
+    sliderContainer.classList.add('disabled-mode');
     return;
   }
 
   if (currentDeliverIsReturn) {
-    submitBtn.classList.remove('disabled-mode');
+    sliderContainer.classList.remove('disabled-mode');
     return;
   }
 
-  const items = typeof currentDeliverOrder.Items === 'string' ? JSON.parse(currentDeliverOrder.Items || '[]') : (currentDeliverOrder.Items || []);
-  const allTicked = items.every(item => deliverItemTicks.has(item.sku));
+  const rawItems = typeof currentDeliverOrder.Items === 'string' ? JSON.parse(currentDeliverOrder.Items || '[]') : (currentDeliverOrder.Items || currentDeliverOrder.items || []);
+  const allTicked = rawItems.every(rawItem => {
+    const sku = String(rawItem.sku || rawItem.SKU || rawItem.item || '').trim();
+    return deliverItemTicks.has(sku);
+  });
+
   if (!allTicked) {
-    submitBtn.classList.add('disabled-mode');
+    sliderContainer.classList.add('disabled-mode');
     return;
   }
 
-  const hasDiscrepancyRemarkEmpty = items.some(item => {
-    const originalQty = item.qty;
-    const currentQty = deliverItemQtys[item.sku] !== undefined ? deliverItemQtys[item.sku] : originalQty;
+  const hasDiscrepancyRemarkEmpty = rawItems.some(rawItem => {
+    const sku = String(rawItem.sku || rawItem.SKU || rawItem.item || '').trim();
+    const originalQty = Number(rawItem.qty !== undefined ? rawItem.qty : (rawItem.Qty !== undefined ? rawItem.Qty : (rawItem.quantity || 0)));
+    const currentQty = deliverItemQtys[sku] !== undefined ? deliverItemQtys[sku] : originalQty;
     if (currentQty < originalQty) {
-      const remark = (deliverItemRemarks[item.sku] || '').trim();
+      const remark = (deliverItemRemarks[sku] || '').trim();
       return remark.length === 0;
     }
     return false;
   });
 
   if (hasDiscrepancyRemarkEmpty) {
-    submitBtn.classList.add('disabled-mode');
+    sliderContainer.classList.add('disabled-mode');
     return;
   }
 
-  submitBtn.classList.remove('disabled-mode');
+  sliderContainer.classList.remove('disabled-mode');
 }
 
 function bindDeliverPageEvents() {
@@ -5050,32 +5053,46 @@ function bindDeliverPageEvents() {
     };
   }
 
-  const submitBtn = document.getElementById('deliver-submit-btn');
-  if (submitBtn) {
-    submitBtn.onclick = () => {
+  // Bind Slide to Deliver Goods
+  const sliderContainer = document.getElementById('deliver-slider-container');
+  const fill = document.getElementById('deliver-slider-fill');
+  const handle = document.getElementById('deliver-slider-handle');
+  const trackText = document.getElementById('deliver-slider-text');
+
+  if (sliderContainer && handle && fill && trackText) {
+    let isDragging = false;
+    let startX = 0;
+    let maxSlide = 0;
+
+    const checkDeliverPrerequisites = () => {
       if (!deliverSignedPhotoFile) {
         showToast("Please capture the Signed DO / GRN photo first!", "warning");
-        return;
+        return false;
       }
 
       if (deliverSupportingPhotoFiles.length === 0) {
         showToast("Please capture at least 1 Supporting Photo!", "warning");
-        return;
+        return false;
       }
 
       if (!currentDeliverIsReturn) {
-        const items = typeof currentDeliverOrder.Items === 'string' ? JSON.parse(currentDeliverOrder.Items || '[]') : (currentDeliverOrder.Items || []);
-        const allTicked = items.every(item => deliverItemTicks.has(item.sku));
+        const rawItems = typeof currentDeliverOrder.Items === 'string' ? JSON.parse(currentDeliverOrder.Items || '[]') : (currentDeliverOrder.Items || currentDeliverOrder.items || []);
+        const allTicked = rawItems.every(rawItem => {
+          const sku = String(rawItem.sku || rawItem.SKU || rawItem.item || '').trim();
+          return deliverItemTicks.has(sku);
+        });
+
         if (!allTicked) {
           showToast("Please tick all items in the checklist!", "warning");
-          return;
+          return false;
         }
 
-        const missingRemark = items.some(item => {
-          const originalQty = item.qty;
-          const currentQty = deliverItemQtys[item.sku] !== undefined ? deliverItemQtys[item.sku] : originalQty;
+        const missingRemark = rawItems.some(rawItem => {
+          const sku = String(rawItem.sku || rawItem.SKU || rawItem.item || '').trim();
+          const originalQty = Number(rawItem.qty !== undefined ? rawItem.qty : (rawItem.Qty !== undefined ? rawItem.Qty : (rawItem.quantity || 0)));
+          const currentQty = deliverItemQtys[sku] !== undefined ? deliverItemQtys[sku] : originalQty;
           if (currentQty < originalQty) {
-            const remark = (deliverItemRemarks[item.sku] || '').trim();
+            const remark = (deliverItemRemarks[sku] || '').trim();
             return remark.length === 0;
           }
           return false;
@@ -5083,27 +5100,101 @@ function bindDeliverPageEvents() {
 
         if (missingRemark) {
           showToast("Please enter shortage reason for adjusted items!", "warning");
-          return;
+          return false;
         }
       }
 
-      if (submitBtn.classList.contains('disabled-mode')) {
-        showToast("Please complete the checklist and upload all required proofs first!", "warning");
+      return true;
+    };
+
+    sliderContainer.addEventListener('click', (e) => {
+      if (sliderContainer.classList.contains('disabled-mode')) {
+        checkDeliverPrerequisites();
+      }
+    });
+
+    handle.addEventListener('pointerdown', (e) => {
+      if (!checkDeliverPrerequisites()) {
+        e.preventDefault();
         return;
       }
-      
-      authPendingAction = {
-        type: 'deliver_goods',
-        orderId: currentDeliverOrder.ID,
-        isReturn: currentDeliverIsReturn,
-        signedFile: deliverSignedPhotoFile,
-        supportingFiles: deliverSupportingPhotoFiles,
-        itemQtys: deliverItemQtys,
-        itemRemarks: deliverItemRemarks
-      };
-      
-      openAuthPage();
-    };
+
+      isDragging = true;
+      startX = e.clientX;
+      maxSlide = sliderContainer.clientWidth - handle.clientWidth - 6;
+      handle.setPointerCapture(e.pointerId);
+      handle.style.transition = 'none';
+      fill.style.transition = 'none';
+      handle.style.cursor = 'grabbing';
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const currentX = e.clientX;
+      let deltaX = currentX - startX;
+      if (deltaX < 0) deltaX = 0;
+      if (deltaX > maxSlide) deltaX = maxSlide;
+
+      handle.style.left = (deltaX + 3) + 'px';
+      fill.style.width = (deltaX + 26) + 'px';
+
+      const ratio = maxSlide > 0 ? (deltaX / maxSlide) : 0;
+      trackText.style.opacity = (1 - ratio).toString();
+    });
+
+    handle.addEventListener('pointerup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      handle.style.cursor = 'grab';
+
+      const currentX = e.clientX;
+      let deltaX = currentX - startX;
+
+      if (maxSlide > 0 && deltaX >= maxSlide * 0.82) {
+        handle.style.transition = 'left 0.15s ease';
+        fill.style.transition = 'width 0.15s ease';
+        handle.style.left = (maxSlide + 3) + 'px';
+        fill.style.width = '100%';
+        trackText.style.opacity = '0';
+
+        setTimeout(() => {
+          handle.style.left = '3px';
+          fill.style.width = '0px';
+          trackText.style.opacity = '1';
+
+          const driverName = getCachedAuth();
+          if (driverName) {
+            performDeliverGoods(
+              currentDeliverOrder,
+              driverName,
+              currentDeliverIsReturn,
+              deliverSignedPhotoFile,
+              deliverSupportingPhotoFiles,
+              deliverItemQtys,
+              deliverItemRemarks
+            );
+            return;
+          }
+
+          authPendingAction = {
+            type: 'deliver_goods',
+            orderId: currentDeliverOrder.ID,
+            isReturn: currentDeliverIsReturn,
+            signedFile: deliverSignedPhotoFile,
+            supportingFiles: deliverSupportingPhotoFiles,
+            itemQtys: deliverItemQtys,
+            itemRemarks: deliverItemRemarks
+          };
+          openAuthPage();
+        }, 150);
+      } else {
+        handle.style.transition = 'left 0.15s ease';
+        fill.style.transition = 'width 0.15s ease';
+        handle.style.left = '3px';
+        fill.style.width = '0px';
+        trackText.style.opacity = '1';
+      }
+    });
   }
 
   const waCloseBtn = document.getElementById('whatsapp-close-btn');
