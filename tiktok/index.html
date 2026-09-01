@@ -175,6 +175,42 @@
       transform: translateX(-50%) translateY(0);
     }
 
+    /* Sub-app Quick Navigation Bar */
+    .tiktok-quick-nav {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 10px 16px;
+      background-color: #FFFFFF;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .btn-subapp-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background-color: #F8FAFC;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 12px;
+      color: #0F172A;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .btn-subapp-link:active {
+      background-color: #E2E8F0;
+      transform: scale(0.97);
+    }
+
+    .btn-subapp-link svg {
+      color: var(--app-color);
+    }
+
     /* Shop Tabs Styling */
     .tabs-scroll-container {
       width: 100%;
@@ -564,7 +600,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
         </svg>
       </button>
-      <span class="app-title">Tiktok Pending</span>
+      <span class="app-title">Tiktok</span>
       <button class="header-btn btn-refresh" onclick="fetchCounts()" title="Refresh">
         <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"></polyline>
@@ -572,6 +608,23 @@
         </svg>
       </button>
     </header>
+
+    <!-- Sub-app Quick Navigation: Packing Proof & Shipping Proof -->
+    <div class="tiktok-quick-nav">
+      <a href="packing-proof/" class="btn-subapp-link">
+        <svg style="width: 17px; height: 17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+        <span>Packing Proof</span>
+      </a>
+      <a href="shipping-proof/" class="btn-subapp-link">
+        <svg style="width: 17px; height: 17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+        </svg>
+        <span>Shipping Proof</span>
+      </a>
+    </div>
 
     <div class="tabs-scroll-container">
       <div id="shop-tabs" class="shop-tabs"></div>

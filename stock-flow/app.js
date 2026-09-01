@@ -18,12 +18,25 @@ let products = [];
 let quantities = {};
 let logs = [];
 let storeKeepers = [];
+let stockMovements = [];
+let currentSelectedBrand = '';
+let lastSummarySourcePage = 'page2';
 let isDataReady = false;
 let isDataStale = false;
 let currentViewData = [];
 let currentViewTitle = "";
 let excludedBrands = new Set();
 let skippedProducts = new Set();
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 // ==========================================
 // LIFE CYCLE & INITIALIZATION
@@ -32,6 +45,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const cachedProducts = localStorage.getItem('inventoryProducts');
   const cachedLogs = localStorage.getItem('inventoryLogs');
   const cachedStoreKeepers = localStorage.getItem('inventoryStoreKeepers');
+  const cachedStockMovements = localStorage.getItem('inventoryStockMovements');
 
   if (cachedProducts) {
     try {
@@ -48,6 +62,9 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   if (cachedLogs) logs = JSON.parse(cachedLogs);
   if (cachedStoreKeepers) storeKeepers = JSON.parse(cachedStoreKeepers);
+  if (cachedStockMovements) {
+    try { stockMovements = JSON.parse(cachedStockMovements); } catch (e) {}
+  }
 
   const cachedQuantities = localStorage.getItem('inventoryQuantities');
   if (cachedQuantities) quantities = JSON.parse(cachedQuantities);
@@ -88,6 +105,19 @@ window.addEventListener('DOMContentLoaded', () => {
   // Auto-scroll input into focus when keyboard opens on mobile
   setupKeyboardScrollHandling();
 
+  // Clean up any heavy image cache to free up mobile localStorage completely
+  try {
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('img_cache_')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (_) {}
+
+  // Initialize Slide To Submit sliders
+  initSlideToSubmit();
+  initSlideToAuditSubmit();
+
   // Run initial sync & fetch
   backgroundSync();
 });
@@ -116,10 +146,7 @@ function updateSyncStatus(status) {
 async function backgroundSync() {
   updateSyncStatus('loading');
   await syncSubmissions();
-  const success = await fetchData(true);
-  if (success) {
-    cacheImagesLocally();
-  }
+  await fetchData(true);
 }
 
 async function fetchData(silent = true) {
@@ -129,11 +156,12 @@ async function fetchData(silent = true) {
     updateSyncStatus('loading');
 
     // Fetch in parallel from Cloudflare Worker secure proxy to Supabase REST API
-    const [prodRes, brandRes, logsRes, usersRes] = await Promise.all([
+    const [prodRes, brandRes, logsRes, usersRes, smRes] = await Promise.all([
       fetch(`${WORKER_URL}/api/app4/products?t=${Date.now()}`),
       fetch(`${WORKER_URL}/api/app4/brands?t=${Date.now()}`),
       fetch(`${WORKER_URL}/api/app4/logs?t=${Date.now()}`),
-      fetch(`${WORKER_URL}/api/app4/users?t=${Date.now()}`)
+      fetch(`${WORKER_URL}/api/app4/users?t=${Date.now()}`),
+      fetch(`${WORKER_URL}/api/app4/stock-movement?t=${Date.now()}`)
     ]);
 
     if (!prodRes.ok || !brandRes.ok || !logsRes.ok || !usersRes.ok) {
@@ -153,25 +181,27 @@ async function fetchData(silent = true) {
     // 1. Map Brands (handle any casing)
     const brandMap = {};
     brandList.forEach(b => {
-      const bId = b.ID || b.id || b.brands_id;
+      const bId = b.ID || b.id || b.brands_id || b.Brands_ID;
+      const bName = b['Display Name'] || b.display_name || b.name || b.Name || "Brand";
+      const bRank = parseInt(b.Rank || b.rank) || 999;
       if (bId) {
-        brandMap[bId] = {
-          name: b['Display Name'] || b.display_name || b.name || "Brand",
-          rank: parseInt(b.Rank || b.rank) || 999
-        };
+        brandMap[bId] = { name: bName, rank: bRank };
       }
+      brandMap[bName.toLowerCase().trim()] = { name: bName, rank: bRank };
     });
 
     // 2. Map Products and normalize - ONLY Active & Non-Archived Products
     products = prodList.filter(p => {
-      const status = String(p.Status || p.status || p.State || p.state || 'Active').trim().toLowerCase();
+      const status = String(p.Status || p.status || p.State || p.state || '').trim().toLowerCase();
       const archived = p.Archived === true || p.archived === true || String(p.Archived) === 'true' || String(p.archived) === 'true';
       if (archived) return false;
-      if (status === 'inactive' || status === 'archived' || status === 'disabled' || status === 'draft' || status === 'deleted') return false;
+      if (p.status === false || p.Status === false) return false;
+      if (status && (status === 'inactive' || status === 'archived' || status === 'disabled' || status === 'draft' || status === 'deleted' || status === 'false' || status === '0')) return false;
       return true;
     }).map(p => {
       const brandId = p['Brands ID'] || p.brands_id || p.brand_id || p.Brand_ID || '';
-      const bInfo = brandMap[brandId] || { name: p.Brand || p.brand || "General", rank: 999 };
+      const rawBrandName = String(p.Brand || p.brand || p['Brand Name'] || p.brand_name || '').trim();
+      const bInfo = brandMap[brandId] || brandMap[rawBrandName.toLowerCase()] || { name: rawBrandName || "General", rank: 999 };
       const sku = p.SKU || p.sku || p.Code || p.code || '';
       const desc = p['Display Name'] || p.display_name || p.Description || p.description || p.name || sku;
       const img = p.Image || p.image || p.ImgLink || '';
@@ -189,6 +219,14 @@ async function fetchData(silent = true) {
         Brand: bInfo.name,
         BrandRank: bInfo.rank
       };
+    });
+
+    // Sort products by BrandRank, Brand Name, Product Rank, and SKU Code
+    products.sort((a, b) => {
+      if (a.BrandRank !== b.BrandRank) return a.BrandRank - b.BrandRank;
+      if (a.Brand !== b.Brand) return a.Brand.localeCompare(b.Brand);
+      if (a.Rank !== b.Rank) return a.Rank - b.Rank;
+      return a.Code.localeCompare(b.Code);
     });
 
     // 3. Map and parse Logs
@@ -230,6 +268,35 @@ async function fetchData(silent = true) {
       pin: String(u.pin || "").trim()
     }));
 
+    // 5. Map Stock Movements (Manage Stock history)
+    try {
+      if (smRes && smRes.ok) {
+        const rawSm = await smRes.json();
+        const smList = Array.isArray(rawSm) ? rawSm : (rawSm.value || rawSm.data || []);
+        stockMovements = smList.map(m => {
+          let itemsList = [];
+          try {
+            const rawItems = typeof m.items === 'string' ? JSON.parse(m.items) : (m.items || []);
+            if (Array.isArray(rawItems)) {
+              itemsList = rawItems.map(it => ({
+                sku: it.sku || it.SKU || it.code || it.Code || '',
+                qty: parseInt(it.qty !== undefined ? it.qty : it.Qty) || 0
+              }));
+            }
+          } catch (e) {}
+          return {
+            id: m.id,
+            timestamp: parseTimestamp(m.timestamp),
+            action_type: String(m.action_type || m.action || '').trim(),
+            items: itemsList
+          };
+        });
+        localStorage.setItem('inventoryStockMovements', JSON.stringify(stockMovements));
+      }
+    } catch (e) {
+      console.warn("Failed to parse stock movements:", e);
+    }
+
     // Sort logs descending
     logs.sort((a, b) => parseTimestamp(b.timestamp) - parseTimestamp(a.timestamp));
 
@@ -241,6 +308,10 @@ async function fetchData(silent = true) {
 
     if (!document.getElementById('page2').classList.contains('hidden')) {
       renderProducts();
+    } else if (!document.getElementById('pageCurrentStock').classList.contains('hidden')) {
+      openCurrentStock();
+    } else if (!document.getElementById('pageCurrentStockBrand').classList.contains('hidden') && currentSelectedBrand) {
+      openBrandProducts(currentSelectedBrand);
     }
 
     updateSyncStatus('loaded');
@@ -263,51 +334,11 @@ async function fetchData(silent = true) {
 }
 
 // ==========================================
-// BACKGROUND IMAGE CACHE (LOW-QUALITY WEBP)
+// IMAGE RESOLVER (LIGHTWEIGHT & FAST)
 // ==========================================
-async function cacheImagesLocally() {
-  if (!products || products.length === 0) return;
-
-  for (const p of products) {
-    const key = 'img_cache_' + p.Code;
-    if (localStorage.getItem(key)) continue;
-
-    const url = getProductImg(p);
-    if (!url || url.startsWith('data:')) continue;
-
-    try {
-      const img = new Image();
-      img.crossOrigin = "Anonymous";
-      img.referrerPolicy = "no-referrer";
-      img.src = url;
-      img.onload = function () {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        try {
-          const dataURL = canvas.toDataURL('image/webp', 0.4); // Compressed WebP to fit localStorage limit
-          localStorage.setItem(key, dataURL);
-        } catch (e) {
-          console.warn("Storage quota full or Canvas security block, stopping image cache.");
-        }
-      };
-    } catch (e) {
-      console.warn("Could not cache image for " + p.Code);
-    }
-
-    // Rate-limit request delays
-    await new Promise(r => setTimeout(r, 600));
-  }
-}
-
 function getProductImg(p) {
   const defaultImg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' font-weight='900' fill='%23475569'%3E?%3C/text%3E%3C/svg%3E";
   if (!p) return defaultImg;
-
-  const cached = localStorage.getItem('img_cache_' + p.Code);
-  if (cached) return cached;
 
   let link = p.ImgLink || p.imglink || p.Image || p.image;
   if (!link) return defaultImg;
@@ -355,7 +386,7 @@ function showPage(pageId) {
     localStorage.removeItem('inventoryScrollPage2');
   }
 
-  const allPages = ['page1', 'page2', 'page3', 'pageManageStock', 'pageManageStockStep2', 'pageStockCardSummary'];
+  const allPages = ['page1', 'page2', 'page3', 'pageManageStock', 'pageManageStockStep2', 'pageStockCardSummary', 'pageCurrentStock', 'pageCurrentStockBrand'];
   allPages.forEach(p => {
     const el = document.getElementById(p);
     if (el) {
@@ -387,46 +418,77 @@ function showPage(pageId) {
 
   if (titleEl) {
     if (pageId === 'pageManageStock') {
-      titleEl.textContent = 'Manage Stock';
+      titleEl.textContent = 'Select Stock';
     } else if (pageId === 'pageManageStockStep2') {
-      titleEl.textContent = 'Stock Details';
+      titleEl.textContent = 'Select Action';
     } else if (pageId === 'pageStockCardSummary') {
-      titleEl.textContent = 'Review Transaction';
+      titleEl.textContent = 'Summary';
+    } else if (pageId === 'pageCurrentStock') {
+      titleEl.textContent = 'Current Stock';
+    } else if (pageId === 'pageCurrentStockBrand') {
+      titleEl.textContent = currentSelectedBrand || 'Brand Products';
+    } else if (pageId === 'page2') {
+      titleEl.textContent = 'Stock Take';
+    } else if (pageId === 'page3') {
+      titleEl.textContent = 'Stock Take Summary';
     } else {
       titleEl.textContent = 'iB - Stock Flow';
     }
   }
 
+  const refreshBtn = document.getElementById('headerRefreshBtn');
+
   if (pageId === 'page1') {
     if (backBtn) backBtn.classList.add('hidden');
     if (searchBtn) searchBtn.classList.add('hidden');
     if (addStockBtn) addStockBtn.classList.add('hidden');
+    if (refreshBtn) refreshBtn.classList.remove('hidden');
   } else if (pageId === 'pageManageStock') {
     if (backBtn) backBtn.classList.remove('hidden');
     if (searchBtn) searchBtn.classList.add('hidden');
     if (addStockBtn) addStockBtn.classList.remove('hidden');
+    if (refreshBtn) refreshBtn.classList.add('hidden');
   } else if (pageId === 'pageManageStockStep2' || pageId === 'pageStockCardSummary') {
     if (backBtn) backBtn.classList.remove('hidden');
     if (searchBtn) searchBtn.classList.add('hidden');
     if (addStockBtn) addStockBtn.classList.add('hidden');
+    if (refreshBtn) refreshBtn.classList.add('hidden');
   } else {
     if (backBtn) backBtn.classList.remove('hidden');
     if (searchBtn) searchBtn.classList.remove('hidden');
     if (addStockBtn) addStockBtn.classList.add('hidden');
+    if (refreshBtn) refreshBtn.classList.add('hidden');
+  }
+}
+
+async function manualRefresh() {
+  const icon = document.querySelector('#headerRefreshBtn i');
+  if (icon) icon.classList.add('fa-spin');
+  try {
+    await refreshAllData();
+  } catch (e) {
+    console.error("Refresh failed:", e);
+  } finally {
+    setTimeout(() => {
+      if (icon) icon.classList.remove('fa-spin');
+    }, 600);
   }
 }
 
 function goBack() {
-  if (!document.getElementById('pageStockCardSummary').classList.contains('hidden')) {
+  if (!document.getElementById('pageCurrentStockBrand').classList.contains('hidden')) {
+    showPage('pageCurrentStock');
+  } else if (!document.getElementById('pageCurrentStock').classList.contains('hidden')) {
+    showPage('page1');
+  } else if (!document.getElementById('pageStockCardSummary').classList.contains('hidden')) {
     showPage('pageManageStockStep2');
   } else if (!document.getElementById('pageManageStockStep2').classList.contains('hidden')) {
     showPage('pageManageStock');
   } else if (!document.getElementById('pageManageStock').classList.contains('hidden')) {
     showPage('page1');
   } else if (!document.getElementById('page3').classList.contains('hidden')) {
-    const title = document.getElementById('summaryTitle').innerText.toLowerCase();
-    if (title.includes('stock as')) {
-      showPage('page1');
+    if (lastSummarySourcePage === 'pageCurrentStock') {
+      showPage('pageCurrentStock');
     } else {
       showPage('page2');
     }
@@ -436,9 +498,174 @@ function goBack() {
 }
 
 // ==========================================
-// HOME PAGE ACTIONS
+// REAL-TIME CURRENT STOCK CALCULATION
 // ==========================================
-function showLatestStockTake() {
+function calculateCurrentStock(productCode) {
+  let baselineQty = 0;
+  let baselineTimestamp = 0;
+  let hasBaseline = false;
+
+  // 1. Find the latest stock take baseline for this productCode
+  if (Array.isArray(logs)) {
+    for (const log of logs) {
+      if (Array.isArray(log.data)) {
+        const item = log.data.find(d => String(d.Code).trim().toLowerCase() === String(productCode).trim().toLowerCase());
+        if (item && item.Qty !== undefined && item.Qty !== null && item.Qty !== "" && item.Qty !== "NOT COUNTED") {
+          baselineQty = parseInt(item.Qty) || 0;
+          baselineTimestamp = parseTimestamp(log.timestamp);
+          hasBaseline = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // 2. Aggregate movements recorded after baselineTimestamp
+  let inQty = 0;
+  let outQty = 0;
+  let transferQty = 0;
+
+  if (Array.isArray(stockMovements)) {
+    stockMovements.forEach(m => {
+      if (m.timestamp > baselineTimestamp) {
+        const item = m.items.find(it => String(it.sku).trim().toLowerCase() === String(productCode).trim().toLowerCase());
+        if (item && item.qty) {
+          const act = m.action_type.toLowerCase();
+          if (act.includes('in')) {
+            inQty += item.qty;
+          } else if (act.includes('transfer')) {
+            transferQty += item.qty;
+          } else if (act.includes('out')) {
+            outQty += item.qty;
+          } else {
+            outQty += item.qty;
+          }
+        }
+      }
+    });
+  }
+
+  const currentQty = baselineQty + inQty - outQty - transferQty;
+  return {
+    currentQty,
+    baselineQty,
+    baselineTimestamp,
+    inQty,
+    outQty,
+    transferQty,
+    hasBaseline
+  };
+}
+
+// ==========================================
+// HOME PAGE ACTIONS & CURRENT STOCK
+// ==========================================
+function openCurrentStock() {
+  if (!isDataReady) {
+    alert("Data is syncing. Please wait a few seconds...");
+    return;
+  }
+
+  // Set top banner last stock take date
+  const lastDateEl = document.getElementById('currentStockLastTakeDate');
+  if (lastDateEl) {
+    let lastDateStr = '';
+    if (Array.isArray(logs) && logs.length > 0 && logs[0].timestamp) {
+      lastDateStr = formatDateFull(logs[0].timestamp);
+    } else {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      lastDateStr = formatDateFull(y);
+    }
+    lastDateEl.textContent = lastDateStr;
+  }
+
+  // Group active products by Brand
+  const brandGroupMap = {};
+  products.forEach(p => {
+    const bName = p.Brand || 'Other';
+    if (!brandGroupMap[bName]) {
+      brandGroupMap[bName] = {
+        name: bName,
+        rank: p.BrandRank || 999,
+        items: []
+      };
+    }
+    brandGroupMap[bName].items.push(p);
+  });
+
+  const brandList = Object.values(brandGroupMap).sort((a, b) => {
+    if (a.rank !== b.rank) return a.rank - b.rank;
+    return a.name.localeCompare(b.name);
+  });
+
+  const grid = document.getElementById('currentStockBrandsGrid');
+  if (grid) {
+    grid.innerHTML = brandList.map(b => `
+      <div class="brand-grid-card" onclick="openBrandProducts(this.getAttribute('data-brand-name'))" data-brand-name="${escapeHtml(b.name)}" data-brand="${escapeHtml(b.name.toLowerCase())}">
+        <span class="brand-grid-card-name">${escapeHtml(b.name)}</span>
+        <span class="brand-grid-card-count">${b.items.length} ${b.items.length === 1 ? 'ITEM' : 'ITEMS'}</span>
+      </div>
+    `).join('');
+  }
+
+  showPage('pageCurrentStock');
+}
+
+function openBrandProducts(brandName) {
+  currentSelectedBrand = brandName;
+  const brandProducts = products.filter(p => p.Brand === brandName);
+
+  const container = document.getElementById('currentStockProductsList');
+  if (container) {
+    container.innerHTML = brandProducts.map(p => {
+      const stockInfo = calculateCurrentStock(p.Code);
+      const qty = stockInfo.currentQty;
+      
+      // Calculate packaging carton breakdown
+      let packStr = "";
+      if (p.Pack && p.Pack > 1) {
+        const ctns = Math.floor(Math.abs(qty) / p.Pack);
+        const pcs = Math.abs(qty) % p.Pack;
+        const sign = qty < 0 ? "-" : "";
+        if (ctns > 0 && pcs > 0) {
+          packStr = `(${sign}${ctns} Ctn ${pcs} Pcs)`;
+        } else if (ctns > 0) {
+          packStr = `(${sign}${ctns} Ctn)`;
+        } else {
+          packStr = `(${sign}${pcs} Pcs)`;
+        }
+      }
+
+      const qtyDisplay = qty === 0 ? "0" : qty.toLocaleString();
+      const qtyClass = qty < 0 ? "text-rose-600 font-bold" : (qty === 0 ? "text-slate-400 font-bold" : "text-slate-900 font-bold");
+
+      return `
+        <div class="summary-item" data-search="${escapeHtml(p.Code.toLowerCase())} ${escapeHtml(p.Description.toLowerCase())}">
+          <div class="summary-item-top">
+            <div class="flex-center" style="flex-direction:row; align-items:center;">
+              <span class="summary-item-sku">${escapeHtml(p.Code)}</span>
+              <button onclick="openImageModal('${escapeHtml(p.Code)}')" class="info-help-btn" style="color:var(--color-text-secondary); padding:0.25rem;">
+                <i class="fa-solid fa-circle-info"></i>
+              </button>
+            </div>
+            <div class="summary-item-dots"></div>
+            <span class="summary-item-qty ${qtyClass}">${qtyDisplay}</span>
+          </div>
+          <div class="summary-item-bottom">
+            <span class="summary-item-desc">${escapeHtml(p.Description)}</span>
+            <span class="summary-item-pack">${packStr}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  showPage('pageCurrentStockBrand');
+}
+
+function showLatestStockTake(sourcePage = 'page2') {
+  lastSummarySourcePage = sourcePage;
   if (!isDataReady) {
     alert("Data is syncing. Please wait a few seconds...");
     return;
@@ -478,6 +705,20 @@ function startCount() {
 function renderProducts() {
   const container = document.getElementById('productsContainer');
   container.innerHTML = '';
+
+  // Update top bar last stock take date text
+  const lastDateEl = document.getElementById('lastStockTakeDateText');
+  if (lastDateEl) {
+    let lastDateStr = '';
+    if (Array.isArray(logs) && logs.length > 0 && logs[0].timestamp) {
+      lastDateStr = formatDateFull(logs[0].timestamp);
+    } else {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      lastDateStr = formatDateFull(y);
+    }
+    lastDateEl.textContent = lastDateStr;
+  }
 
   let yesterdayQuantities = {};
   const yesterdayDate = new Date();
@@ -519,7 +760,7 @@ function renderProducts() {
     header.className = 'brand-group-header';
     header.setAttribute('data-brand-header', brand.toLowerCase());
     header.innerHTML = `
-      <span><i class="fa-solid fa-tag text-purple-400 mr-2"></i>${brand}</span>
+      <span><i class="fa-solid fa-tag text-slate-700 mr-2"></i>${brand}</span>
       <span class="brand-badge">${grouped[brand].length} ITEMS</span>
     `;
     fragment.appendChild(header);
@@ -687,8 +928,6 @@ function skipProduct(code) {
       skuWrapper.appendChild(badge);
     }
   }
-
-  alert(`Product ${code} skiped.\nLast recorded quantity applied: ${lastQty}`);
 }
 
 function removeSkipBadge(code) {
@@ -1033,7 +1272,7 @@ function renderGroupedList(dataArray, title, remark, showSubmit, saveToSession =
     header.innerHTML = `
       <div class="flex-center" style="flex-direction:row; align-items:center;">
         ${checkboxHtml}
-        <span><i class="fa-solid fa-tag text-purple-400 mr-2"></i>${brand}</span>
+        <span><i class="fa-solid fa-tag text-slate-700 mr-2"></i>${brand}</span>
       </div>
       <span class="brand-badge">${grouped[brand].length} ITEMS</span>
     `;
@@ -1062,10 +1301,6 @@ function renderGroupedList(dataArray, title, remark, showSubmit, saveToSession =
       } else {
         let qtyDisplay = item.Qty === 0 ? "OOS" : item.Qty;
         let qtyClass = item.Qty === 0 ? "qty-oos" : "";
-
-        if (item.Skipped) {
-          qtyDisplay = `${qtyDisplay} (skiped)`;
-        }
 
         let packStr = "";
         if (item.Qty > 0) {
@@ -1106,6 +1341,7 @@ function renderGroupedList(dataArray, title, remark, showSubmit, saveToSession =
     });
   });
 
+  resetSlideToAuditSubmit();
   showPage('page3');
 
   // Configure export button visibility in header (only for log reports)
@@ -1134,7 +1370,29 @@ function toggleBrandFilter(brand, isChecked) {
 function handleGlobalSearch() {
   const q = document.getElementById('globalSearchInput').value.trim().toLowerCase();
   
-  if (!document.getElementById('page2').classList.contains('hidden')) {
+  if (!document.getElementById('pageCurrentStock').classList.contains('hidden')) {
+    const cards = document.querySelectorAll('#currentStockBrandsGrid .brand-grid-card');
+    cards.forEach(card => {
+      const b = card.getAttribute('data-brand') || "";
+      if (b.includes(q)) {
+        card.classList.remove('hidden');
+      } else {
+        card.classList.add('hidden');
+      }
+    });
+  }
+  else if (!document.getElementById('pageCurrentStockBrand').classList.contains('hidden')) {
+    const items = document.querySelectorAll('#currentStockProductsList .summary-item');
+    items.forEach(item => {
+      const s = item.getAttribute('data-search') || "";
+      if (s.includes(q)) {
+        item.classList.remove('hidden');
+      } else {
+        item.classList.add('hidden');
+      }
+    });
+  }
+  else if (!document.getElementById('page2').classList.contains('hidden')) {
     const querySet = new Set();
     const cards = document.querySelectorAll('#productsContainer .product-card');
     const headers = document.querySelectorAll('#productsContainer [data-brand-header]');
@@ -1209,10 +1467,14 @@ function submitData() {
 
   if (hasUncounted || auditData.length === 0) {
     alert("Cannot submit. Please make sure all items are counted.");
+    resetSlideToAuditSubmit();
     return;
   }
 
-  openPinModal(auditData);
+  // Directly submit audit using logged in employee session (no PIN auth)
+  const staffName = getLoggedInEmployee() || 'Warehouse Staff';
+  pendingAuditData = auditData;
+  finalizeSubmit({ id: staffName, name: staffName });
 }
 
 function openPinModal(auditData) {
@@ -1244,6 +1506,7 @@ function cancelPinModal() {
   closePinModal();
   pendingAuditData = null;
   pendingStockCardData = null;
+  resetSlideToAuditSubmit();
 }
 
 function handleHiddenPinInput(el) {
@@ -1348,6 +1611,17 @@ let stockCardState = {
 let administratorsList = [];
 let pendingStockCardData = null;
 
+function getLoggedInEmployee() {
+  try {
+    const raw = localStorage.getItem('ib_auth_user') || localStorage.getItem('currentUser') || localStorage.getItem('user');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed.name || parsed.Name || parsed.display_name || parsed.username || '';
+    }
+  } catch (_) {}
+  return '';
+}
+
 async function fetchAdministrators() {
   try {
     const res = await fetch(`${WORKER_URL}/api/app4/admins`);
@@ -1365,7 +1639,7 @@ function populateApprovedByDropdown() {
   if (!select) return;
   
   const currentVal = select.value;
-  select.innerHTML = '<option value="">Select Approval...</option>';
+  select.innerHTML = '<option value="">Select Approval...</option><option value="N/A">N/A</option>';
   
   (administratorsList || []).forEach(adm => {
     const opt = document.createElement('option');
@@ -1374,7 +1648,13 @@ function populateApprovedByDropdown() {
     select.appendChild(opt);
   });
 
-  if (currentVal) select.value = currentVal;
+  const isTransfer = (stockCardState.action === 'Transfer' || stockCardState.action === 'Transfer stock to Tiktok Fulfillment' || stockCardState.action === 'Stock Transfer');
+  if (isTransfer) {
+    select.value = 'N/A';
+    stockCardState.approvedBy = 'N/A';
+  } else if (currentVal) {
+    select.value = currentVal;
+  }
   checkStockFlowFormValidity();
 }
 
@@ -1399,23 +1679,31 @@ function checkStockFlowFormValidity() {
     return false;
   }
 
-  // 3. If hasDoc is true, ref number is required
-  if (stockCardState.hasDoc) {
-    const refVal = (document.getElementById('stockCardRefNumber')?.value || '').trim();
-    if (!refVal) {
+  const isTransfer = (stockCardState.action === 'Transfer' || stockCardState.action === 'Transfer stock to Tiktok Fulfillment' || stockCardState.action === 'Stock Transfer');
+
+  if (isTransfer) {
+    stockCardState.hasDoc = false;
+    stockCardState.refNumber = '';
+    stockCardState.approvedBy = 'N/A';
+  } else {
+    // 3. If hasDoc is true, ref number is required
+    if (stockCardState.hasDoc) {
+      const refVal = (document.getElementById('stockCardRefNumber')?.value || '').trim();
+      if (!refVal) {
+        footer.classList.add('hidden');
+        return false;
+      }
+      stockCardState.refNumber = refVal;
+    }
+
+    // 4. Approved by is required
+    const approvedByVal = (document.getElementById('stockCardApprovedBy')?.value || '').trim();
+    if (!approvedByVal) {
       footer.classList.add('hidden');
       return false;
     }
-    stockCardState.refNumber = refVal;
+    stockCardState.approvedBy = approvedByVal;
   }
-
-  // 4. Approved by is required
-  const approvedByVal = (document.getElementById('stockCardApprovedBy')?.value || '').trim();
-  if (!approvedByVal) {
-    footer.classList.add('hidden');
-    return false;
-  }
-  stockCardState.approvedBy = approvedByVal;
 
   // 5. Photos: Minimum 1 photo, Maximum 8 photos
   const photoCount = (stockCardState.photos || []).length;
@@ -1464,6 +1752,59 @@ function openManageStock() {
   showPage('pageManageStock');
 }
 
+const ACTION_PRETEXT_MAP = {
+  'Stock Out': [
+    'Internal Use',
+    'Sample',
+    'Replacement Tiktok',
+    'Marketing',
+    'Dispose',
+    'Damage',
+    'Expired',
+    'Return to Supplier'
+  ],
+  'Stock In': [
+    'Stock Return',
+    'New Stock',
+    'Cancel Order'
+  ]
+};
+
+function updateDescriptionByAction(action) {
+  const descEl = document.getElementById('stockCardDescription');
+  const badgeContainer = document.getElementById('pretextBadgesContainer');
+  if (!descEl || !badgeContainer) return;
+
+  const isTransfer = (action === 'Transfer' || action === 'Transfer stock to Tiktok Fulfillment' || action === 'Stock Transfer');
+
+  if (isTransfer) {
+    descEl.value = 'Transfer Goods to Tiktok.';
+    descEl.readOnly = true;
+    descEl.style.backgroundColor = '#F1F5F9';
+    descEl.style.color = '#475569';
+    descEl.style.cursor = 'not-allowed';
+    stockCardState.description = 'Transfer Goods to Tiktok.';
+    badgeContainer.innerHTML = '';
+    badgeContainer.classList.add('hidden');
+  } else {
+    descEl.readOnly = false;
+    descEl.style.backgroundColor = '#FFFFFF';
+    descEl.style.color = '#0F172A';
+    descEl.style.cursor = 'text';
+
+    if (descEl.value === 'Transfer Goods to Tiktok.') {
+      descEl.value = '';
+      stockCardState.description = '';
+    }
+
+    badgeContainer.classList.remove('hidden');
+    const badges = ACTION_PRETEXT_MAP[action] || ACTION_PRETEXT_MAP['Stock Out'];
+    badgeContainer.innerHTML = badges.map(b => `
+      <button type="button" class="pretext-badge" onclick="appendPretext('${b.replace(/'/g, "\\'")}')">${b}</button>
+    `).join('');
+  }
+}
+
 function selectStockCardAction(action) {
   stockCardState.action = action;
 
@@ -1478,6 +1819,28 @@ function selectStockCardAction(action) {
     }
   });
 
+  const isTransfer = (action === 'Transfer' || action === 'Transfer stock to Tiktok Fulfillment' || action === 'Stock Transfer');
+  const sectionDocRef = document.getElementById('sectionDocRef');
+  const sectionApproval = document.getElementById('sectionApproval');
+
+  if (isTransfer) {
+    if (sectionDocRef) sectionDocRef.classList.add('hidden');
+    if (sectionApproval) sectionApproval.classList.add('hidden');
+    setDocumentToggle(false);
+    stockCardState.hasDoc = false;
+    stockCardState.refNumber = '';
+    stockCardState.approvedBy = 'N/A';
+    const select = document.getElementById('stockCardApprovedBy');
+    if (select) select.value = 'N/A';
+  } else {
+    if (sectionDocRef) sectionDocRef.classList.remove('hidden');
+    if (sectionApproval) sectionApproval.classList.remove('hidden');
+    const select = document.getElementById('stockCardApprovedBy');
+    if (select && select.value === 'N/A') select.value = '';
+    stockCardState.approvedBy = (select?.value || '').trim();
+  }
+
+  updateDescriptionByAction(action);
   checkStockFlowFormValidity();
 }
 
@@ -1504,13 +1867,14 @@ function setDocumentToggle(hasDoc) {
 
 function appendPretext(text) {
   const desc = document.getElementById('stockCardDescription');
-  if (!desc) return;
+  if (!desc || desc.readOnly) return;
   const current = desc.value.trim();
   if (!current) {
     desc.value = text;
   } else if (!current.includes(text)) {
     desc.value = `${current} - ${text}`;
   }
+  stockCardState.description = desc.value;
   checkStockFlowFormValidity();
 }
 
@@ -1730,8 +2094,59 @@ function toggleProductInStockCard(p) {
   renderStockCardItems();
 }
 
-// Multi-Photo Upload Logic (1 to 8 photos)
-function handleStockCardPhotoSelect(input) {
+// Client-side image compression utility (<200KB per photo instead of 10MB)
+async function compressImage(file, maxDimension = 1200, quality = 0.8) {
+  return new Promise((resolve) => {
+    if (!file.type || !file.type.startsWith('image/') || file.type.includes('svg')) {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve({ file, previewUrl: e.target.result });
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            resolve({ file, previewUrl: e.target.result });
+            return;
+          }
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          const previewUrl = canvas.toDataURL('image/jpeg', 0.6);
+          resolve({ file: compressedFile, previewUrl });
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve({ file, previewUrl: e.target.result });
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Multi-Photo Upload Logic (1 to 8 photos) with instant compression
+async function handleStockCardPhotoSelect(input) {
   if (!input.files || input.files.length === 0) return;
 
   if (!stockCardState.photos) stockCardState.photos = [];
@@ -1750,22 +2165,16 @@ function handleStockCardPhotoSelect(input) {
     alert(`Only ${remainingSlots} photo(s) added. Maximum limit is 8 photos.`);
   }
 
-  let processed = 0;
-  filesToAdd.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      stockCardState.photos.push({
-        file: file,
-        previewUrl: e.target.result
-      });
-      processed++;
-      if (processed === filesToAdd.length) {
-        renderStockCardPhotoGallery();
-      }
-    };
-    reader.readAsDataURL(file);
-  });
+  for (const file of filesToAdd) {
+    try {
+      const compressed = await compressImage(file, 1200, 0.8);
+      stockCardState.photos.push(compressed);
+    } catch (_) {
+      stockCardState.photos.push({ file, previewUrl: URL.createObjectURL(file) });
+    }
+  }
 
+  renderStockCardPhotoGallery();
   input.value = '';
 }
 
@@ -1837,25 +2246,33 @@ function reviewStockCardTransaction() {
   const descVal = (document.getElementById('stockCardDescription')?.value || '').trim();
   stockCardState.description = descVal;
 
-  if (stockCardState.hasDoc) {
-    const refVal = (document.getElementById('stockCardRefNumber')?.value || '').trim();
-    if (!refVal) {
-      alert("Please enter the Delivery Order / Transfer / Stock Issue reference number.");
-      document.getElementById('stockCardRefNumber')?.focus();
+  const isTransfer = (stockCardState.action === 'Transfer' || stockCardState.action === 'Transfer stock to Tiktok Fulfillment' || stockCardState.action === 'Stock Transfer');
+
+  if (isTransfer) {
+    stockCardState.hasDoc = false;
+    stockCardState.refNumber = '';
+    stockCardState.approvedBy = 'N/A';
+  } else {
+    if (stockCardState.hasDoc) {
+      const refVal = (document.getElementById('stockCardRefNumber')?.value || '').trim();
+      if (!refVal) {
+        alert("Please enter the Delivery Order / Transfer / Stock Issue reference number.");
+        document.getElementById('stockCardRefNumber')?.focus();
+        return;
+      }
+      stockCardState.refNumber = refVal;
+    } else {
+      stockCardState.refNumber = '';
+    }
+
+    const approvedByVal = (document.getElementById('stockCardApprovedBy')?.value || '').trim();
+    if (!approvedByVal || approvedByVal === 'N/A') {
+      alert("Please select who gave approval from the Administrator dropdown.");
+      document.getElementById('stockCardApprovedBy')?.focus();
       return;
     }
-    stockCardState.refNumber = refVal;
-  } else {
-    stockCardState.refNumber = '';
+    stockCardState.approvedBy = approvedByVal;
   }
-
-  const approvedByVal = (document.getElementById('stockCardApprovedBy')?.value || '').trim();
-  if (!approvedByVal) {
-    alert("Please select who gave approval from the Administrator dropdown.");
-    document.getElementById('stockCardApprovedBy')?.focus();
-    return;
-  }
-  stockCardState.approvedBy = approvedByVal;
 
   // Check minimum 1 photo, maximum 8 photos
   const photoCount = (stockCardState.photos || []).length;
@@ -1876,37 +2293,62 @@ function reviewStockCardTransaction() {
   const rand4 = Math.floor(1000 + Math.random() * 9000);
   stockCardState.trxId = `SF-${yyyy}${mm}${dd}-${rand4}`;
 
-  // Populate Summary View
-  document.getElementById('scSummaryTrxId').textContent = `Transaction ID: ${stockCardState.trxId}`;
+  // Populate Summary Header
+  const trxEl = document.getElementById('scSummaryTrxId');
+  if (trxEl) trxEl.textContent = `ID: ${stockCardState.trxId}`;
   
-  const actionBanner = document.getElementById('scSummaryActionBanner');
+  // Clean Action Tag: Stock Out, Stock In, Stock Transfer
   const actionText = document.getElementById('scSummaryActionText');
-  actionText.textContent = stockCardState.action.toUpperCase();
-  actionBanner.className = 'summary-action-banner';
-  if (stockCardState.action === 'Stock In') actionBanner.classList.add('stock-in');
-  else if (stockCardState.action === 'Transfer stock to Tiktok Fulfillment') actionBanner.classList.add('transfer');
+  if (actionText) {
+    actionText.className = 'action-tag';
+    if (stockCardState.action === 'Stock In') {
+      actionText.textContent = 'Stock In';
+      actionText.classList.add('stock-in');
+    } else if (stockCardState.action === 'Transfer stock to Tiktok Fulfillment' || stockCardState.action === 'Transfer' || stockCardState.action === 'Stock Transfer') {
+      actionText.textContent = 'Stock Transfer';
+      actionText.classList.add('transfer');
+    } else {
+      actionText.textContent = 'Stock Out';
+      actionText.classList.add('stock-out');
+    }
+  }
 
+  // Populate Items List (Clean & Minimal)
   const itemsList = document.getElementById('scSummaryItemsList');
-  itemsList.innerHTML = '';
-  let totalUnits = 0;
-  stockCardState.items.forEach(item => {
-    totalUnits += item.qty;
-    const row = document.createElement('div');
-    row.className = 'summary-item-row';
-    row.innerHTML = `
-      <div class="flex flex-col min-w-0 flex-1">
-        <span class="font-bold text-slate-800 text-[13px]">${item.sku}</span>
-        <span class="text-xs text-slate-500 truncate mt-0.5">${item.name}</span>
-      </div>
-      <span class="font-bold text-[#0B57D0] text-[13px] ml-2 flex-shrink-0">${item.qty} units</span>
-    `;
-    itemsList.appendChild(row);
-  });
-  document.getElementById('scSummaryTotalQty').textContent = `${totalUnits} units`;
+  if (itemsList) {
+    itemsList.innerHTML = '';
+    let totalUnits = 0;
+    stockCardState.items.forEach(item => {
+      totalUnits += item.qty;
+      const p = products.find(prod => prod.Code === item.sku) || { Code: item.sku, Description: item.name || '', Brand: '' };
 
-  document.getElementById('scSummaryDocRef').textContent = stockCardState.hasDoc ? stockCardState.refNumber : 'None';
-  document.getElementById('scSummaryDescription').textContent = stockCardState.description || '—';
-  document.getElementById('scSummaryApprovedBy').textContent = stockCardState.approvedBy;
+      const row = document.createElement('div');
+      row.className = 'summary-clean-item-row';
+      row.innerHTML = `
+        <div class="summary-clean-item-info">
+          <span class="summary-clean-sku">${item.sku}</span>
+          <span class="summary-clean-desc">${item.name || p.Description || ''}</span>
+        </div>
+        <span class="summary-clean-qty">${item.qty} units</span>
+      `;
+      itemsList.appendChild(row);
+    });
+    
+    const totalQtyEl = document.getElementById('scSummaryTotalQty');
+    if (totalQtyEl) totalQtyEl.textContent = `${totalUnits} units`;
+  }
+
+  // Details
+  const isTransferAction = (stockCardState.action === 'Transfer' || stockCardState.action === 'Transfer stock to Tiktok Fulfillment' || stockCardState.action === 'Stock Transfer');
+
+  const docRefEl = document.getElementById('scSummaryDocRef');
+  if (docRefEl) docRefEl.textContent = stockCardState.hasDoc ? stockCardState.refNumber : (isTransferAction ? 'N/A' : 'None');
+
+  const descSummaryEl = document.getElementById('scSummaryDescription');
+  if (descSummaryEl) descSummaryEl.textContent = stockCardState.description || '—';
+
+  const approvedByEl = document.getElementById('scSummaryApprovedBy');
+  if (approvedByEl) approvedByEl.textContent = isTransferAction ? 'N/A' : (stockCardState.approvedBy || '—');
 
   // Multi-Photo Summary Review
   const photoBlock = document.getElementById('scSummaryPhotoBlock');
@@ -1914,55 +2356,256 @@ function reviewStockCardTransaction() {
   const photoCountEl = document.getElementById('scSummaryPhotoCount');
 
   if (photoCount > 0) {
-    photoBlock.classList.remove('hidden');
-    if (photoCountEl) photoCountEl.textContent = `(${photoCount} photo${photoCount > 1 ? 's' : ''})`;
+    if (photoBlock) photoBlock.classList.remove('hidden');
+    if (photoCountEl) photoCountEl.textContent = `${photoCount}/8 attached`;
     if (photoGrid) {
       photoGrid.innerHTML = '';
       stockCardState.photos.forEach((p, idx) => {
-        const thumb = document.createElement('div');
-        thumb.className = 'summary-photo-thumb';
-        thumb.setAttribute('style', 'width: 100% !important; aspect-ratio: 1 / 1 !important; max-height: 75px !important; border-radius: 8px !important; overflow: hidden !important; border: 1px solid #CBD5E1 !important; background-color: #FFFFFF !important; display: flex !important; align-items: center !important; justify-content: center !important;');
-        thumb.innerHTML = `<img src="${p.previewUrl}" alt="Proof ${idx + 1}" style="width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: cover !important; display: block !important;" />`;
-        photoGrid.appendChild(thumb);
+        const img = document.createElement('img');
+        img.src = p.previewUrl;
+        img.alt = `Proof ${idx + 1}`;
+        img.className = 'summary-photo-thumb';
+        photoGrid.appendChild(img);
       });
     }
   } else {
-    photoBlock.classList.add('hidden');
+    if (photoBlock) photoBlock.classList.add('hidden');
   }
 
+  updateSlideTextByAction();
+  resetSlideToSubmit();
   showPage('pageStockCardSummary');
 }
 
-function promptPinForStockCard() {
-  pendingStockCardData = { ...stockCardState };
-  currentPin = '';
-  const input = document.getElementById('hiddenPinInput');
-  if (input) input.value = '';
-
-  const boxes = document.querySelectorAll('#pin-auth-overlay .pin-digit-display');
-  boxes.forEach(box => {
-    box.innerText = '';
-    box.className = 'pin-digit-display';
-  });
-
-  const overlay = document.getElementById('pin-auth-overlay');
-  if (overlay) overlay.classList.remove('hidden');
-
-  setTimeout(() => input && input.focus(), 150);
+function updateSlideTextByAction() {
+  const textEl = document.getElementById('slideSubmitText');
+  if (!textEl) return;
+  let actionLabel = 'Stock Out';
+  if (stockCardState.action === 'Stock In') {
+    actionLabel = 'Stock In';
+  } else if (stockCardState.action === 'Transfer stock to Tiktok Fulfillment' || stockCardState.action === 'Transfer' || stockCardState.action === 'Stock Transfer') {
+    actionLabel = 'Stock Transfer';
+  }
+  textEl.textContent = `Submit ${actionLabel} >>`;
 }
 
-async function finalizeStockCardSubmit(authorizedStaff) {
+let isSlideDragging = false;
+let slideStartX = 0;
+let slideMaxDrag = 0;
+
+function resetSlideToSubmit() {
+  isSlideDragging = false;
+  const track = document.getElementById('slideSubmitTrack');
+  const handle = document.getElementById('slideSubmitHandle');
+  const fill = document.getElementById('slideSubmitFill');
+  const text = document.getElementById('slideSubmitText');
+  if (!track || !handle) return;
+
+  track.classList.remove('submitting');
+  handle.style.transform = 'translateX(0px)';
+  handle.style.transition = 'transform 0.25s ease';
+  handle.innerHTML = '<i class="fa-solid fa-angles-right"></i>';
+  if (fill) {
+    fill.style.width = '0px';
+    fill.style.transition = 'width 0.25s ease';
+  }
+  if (text) {
+    text.style.opacity = '1';
+    text.style.color = '#0B57D0';
+  }
+  updateSlideTextByAction();
+}
+
+function initSlideToSubmit() {
+  const track = document.getElementById('slideSubmitTrack');
+  const handle = document.getElementById('slideSubmitHandle');
+  const fill = document.getElementById('slideSubmitFill');
+  const text = document.getElementById('slideSubmitText');
+  if (!track || !handle) return;
+
+  function onDragStart(clientX) {
+    if (track.classList.contains('submitting')) return;
+    isSlideDragging = true;
+    slideStartX = clientX;
+    slideMaxDrag = Math.max(10, track.clientWidth - handle.clientWidth - 8);
+    handle.style.transition = 'none';
+    if (fill) fill.style.transition = 'none';
+  }
+
+  function onDragMove(clientX) {
+    if (!isSlideDragging) return;
+    const delta = clientX - slideStartX;
+    const clamped = Math.max(0, Math.min(delta, slideMaxDrag));
+    handle.style.transform = `translateX(${clamped}px)`;
+    if (fill) fill.style.width = `${clamped + 24}px`;
+    if (text && slideMaxDrag > 0) {
+      text.style.opacity = String(Math.max(0.1, 1 - (clamped / slideMaxDrag) * 0.9));
+    }
+  }
+
+  function onDragEnd(clientX) {
+    if (!isSlideDragging) return;
+    isSlideDragging = false;
+    const delta = clientX - slideStartX;
+    const progress = slideMaxDrag > 0 ? (delta / slideMaxDrag) : 0;
+
+    if (progress >= 0.7) {
+      // Confirmed slide!
+      handle.style.transform = `translateX(${slideMaxDrag}px)`;
+      if (fill) fill.style.width = '100%';
+      track.classList.add('submitting');
+      handle.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i>';
+      if (text) {
+        text.textContent = 'Submitting...';
+        text.style.opacity = '1';
+        text.style.color = '#FFFFFF';
+      }
+      executeStockCardSubmission();
+    } else {
+      resetSlideToSubmit();
+    }
+  }
+
+  // Touch handlers
+  handle.addEventListener('touchstart', (e) => {
+    onDragStart(e.touches[0].clientX);
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (isSlideDragging && e.touches && e.touches[0]) {
+      onDragMove(e.touches[0].clientX);
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchend', (e) => {
+    if (isSlideDragging && e.changedTouches && e.changedTouches[0]) {
+      onDragEnd(e.changedTouches[0].clientX);
+    }
+  }, { passive: true });
+
+  // Mouse handlers
+  handle.addEventListener('mousedown', (e) => {
+    onDragStart(e.clientX);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isSlideDragging) {
+      onDragMove(e.clientX);
+    }
+  });
+
+  window.addEventListener('mouseup', (e) => {
+    if (isSlideDragging) {
+      onDragEnd(e.clientX);
+    }
+  });
+}
+
+let isSlideAuditDragging = false;
+let slideAuditStartX = 0;
+let slideAuditMaxDrag = 0;
+
+function resetSlideToAuditSubmit() {
+  isSlideAuditDragging = false;
+  const track = document.getElementById('slideAuditTrack');
+  const handle = document.getElementById('slideAuditHandle');
+  const fill = document.getElementById('slideAuditFill');
+  const text = document.getElementById('slideAuditText');
+  if (!track || !handle) return;
+
+  track.classList.remove('submitting');
+  handle.style.transform = 'translateX(0px)';
+  handle.style.transition = 'transform 0.25s ease';
+  handle.innerHTML = '<i class="fa-solid fa-angles-right"></i>';
+  if (fill) {
+    fill.style.width = '0px';
+    fill.style.transition = 'width 0.25s ease';
+  }
+  if (text) {
+    text.textContent = 'Submit Stock Take >>';
+    text.style.opacity = '1';
+    text.style.color = '#0B57D0';
+  }
+}
+
+function initSlideToAuditSubmit() {
+  const track = document.getElementById('slideAuditTrack');
+  const handle = document.getElementById('slideAuditHandle');
+  const fill = document.getElementById('slideAuditFill');
+  const text = document.getElementById('slideAuditText');
+  if (!track || !handle) return;
+
+  function onDragStart(clientX) {
+    if (track.classList.contains('submitting')) return;
+    isSlideAuditDragging = true;
+    slideAuditStartX = clientX;
+    slideAuditMaxDrag = Math.max(10, track.clientWidth - handle.clientWidth - 8);
+    handle.style.transition = 'none';
+    if (fill) fill.style.transition = 'none';
+  }
+
+  function onDragMove(clientX) {
+    if (!isSlideAuditDragging) return;
+    const delta = clientX - slideAuditStartX;
+    const clamped = Math.max(0, Math.min(delta, slideAuditMaxDrag));
+    handle.style.transform = `translateX(${clamped}px)`;
+    if (fill) fill.style.width = `${clamped + 24}px`;
+    if (text && slideAuditMaxDrag > 0) {
+      text.style.opacity = String(Math.max(0.1, 1 - (clamped / slideAuditMaxDrag) * 0.9));
+    }
+  }
+
+  function onDragEnd(clientX) {
+    if (!isSlideAuditDragging) return;
+    isSlideAuditDragging = false;
+    const delta = clientX - slideAuditStartX;
+    const progress = slideAuditMaxDrag > 0 ? (delta / slideAuditMaxDrag) : 0;
+
+    if (progress >= 0.7) {
+      handle.style.transform = `translateX(${slideAuditMaxDrag}px)`;
+      if (fill) fill.style.width = '100%';
+      track.classList.add('submitting');
+      handle.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i>';
+      if (text) {
+        text.textContent = 'Submitting...';
+        text.style.opacity = '1';
+        text.style.color = '#FFFFFF';
+      }
+      submitData();
+    } else {
+      resetSlideToAuditSubmit();
+    }
+  }
+
+  // Touch
+  handle.addEventListener('touchstart', (e) => onDragStart(e.touches[0].clientX), { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    if (isSlideAuditDragging && e.touches && e.touches[0]) onDragMove(e.touches[0].clientX);
+  }, { passive: true });
+  window.addEventListener('touchend', (e) => {
+    if (isSlideAuditDragging && e.changedTouches && e.changedTouches[0]) onDragEnd(e.changedTouches[0].clientX);
+  }, { passive: true });
+
+  // Mouse
+  handle.addEventListener('mousedown', (e) => onDragStart(e.clientX));
+  window.addEventListener('mousemove', (e) => {
+    if (isSlideAuditDragging) onDragMove(e.clientX);
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (isSlideAuditDragging) onDragEnd(e.clientX);
+  });
+}
+
+async function executeStockCardSubmission() {
   updateSyncStatus('loading');
-  const btn = document.getElementById('btnSubmitStockCard');
-  if (btn) btn.disabled = true;
 
   try {
     let uploadedPhotoUrls = [];
     // 1. Upload photos concurrently (1 to 8 photos)
-    if (pendingStockCardData.photos && pendingStockCardData.photos.length > 0) {
-      const uploadPromises = pendingStockCardData.photos.map(async (p, idx) => {
+    if (stockCardState.photos && stockCardState.photos.length > 0) {
+      const uploadPromises = stockCardState.photos.map(async (p, idx) => {
         try {
-          const fileName = `stock-flow-${pendingStockCardData.trxId}-${idx + 1}-${Date.now()}.jpg`;
+          const fileName = `stock-flow-${stockCardState.trxId}-${idx + 1}-${Date.now()}.jpg`;
           const uploadRes = await fetch(`${WORKER_URL}/api/app4/upload?filename=${encodeURIComponent(fileName)}`, {
             method: 'POST',
             headers: { 'Content-Type': p.file.type || 'image/jpeg' },
@@ -1983,19 +2626,19 @@ async function finalizeStockCardSubmit(authorizedStaff) {
     }
 
     // 2. Submit to stock-flow endpoint
+    const loggedInStaff = getLoggedInEmployee() || 'Staff';
     const payload = {
-      id: pendingStockCardData.trxId,
-      action_type: pendingStockCardData.action,
-      items: pendingStockCardData.items,
-      total_qty: pendingStockCardData.items.reduce((acc, i) => acc + (i.qty || 0), 0),
-      has_document: pendingStockCardData.hasDoc,
-      ref_number: pendingStockCardData.refNumber,
-      description: pendingStockCardData.description,
-      approved_by: pendingStockCardData.approvedBy,
+      id: stockCardState.trxId,
+      action_type: stockCardState.action,
+      items: stockCardState.items,
+      total_qty: stockCardState.items.reduce((acc, i) => acc + (i.qty || 0), 0),
+      has_document: stockCardState.hasDoc,
+      ref_number: stockCardState.refNumber,
+      description: stockCardState.description,
+      approved_by: stockCardState.approvedBy,
       photo_url: uploadedPhotoUrls.join(','),
       photo_urls: uploadedPhotoUrls,
-      created_by: authorizedStaff.name || 'Operator',
-      created_by_pin: authorizedStaff.pin || currentPin,
+      created_by: loggedInStaff,
       created_at: Date.now()
     };
 
@@ -2023,12 +2666,11 @@ async function finalizeStockCardSubmit(authorizedStaff) {
       photos: [],
       trxId: ''
     };
-    pendingStockCardData = null;
     showPage('page1');
   } catch (err) {
     alert("Error saving transaction: " + err.message);
+    resetSlideToSubmit();
   } finally {
-    if (btn) btn.disabled = false;
     updateSyncStatus('success');
   }
 }
@@ -2146,55 +2788,192 @@ function exportToPDF(dataToExport) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  doc.setFontSize(18);
-  doc.text(currentViewTitle, 14, 22);
-  doc.setFontSize(11);
-  doc.setTextColor(100);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+  const formattedDateStr = formatDateFull(new Date());
 
-  const tableData = dataToExport.map(item => {
-    const prod = products.find(p => p.Code === item.Code);
-    const packSize = prod ? prod.Pack : 0;
-    let packDetails = "-";
-    if (item.Qty > 0 && packSize > 0) {
-      const carton = Math.floor(item.Qty / packSize);
-      const loose = item.Qty % packSize;
-      let parts = [];
-      if (carton > 0) parts.push(`${carton} Carton`);
-      if (loose > 0) parts.push(`${loose} Loose`);
-      packDetails = parts.join(' ');
-    } else if (item.Qty === 0) {
-      packDetails = "Out of Stock";
+  // Helper to sort items cleanly by BrandRank, Brand Name, Product Rank, and Code
+  function sortAuditItems(itemsList) {
+    return [...itemsList].sort((a, b) => {
+      const prodA = products.find(p => p.Code === a.Code) || a;
+      const prodB = products.find(p => p.Code === b.Code) || b;
+      const brandRankA = (prodA.BrandRank !== undefined) ? parseInt(prodA.BrandRank) : 999;
+      const brandRankB = (prodB.BrandRank !== undefined) ? parseInt(prodB.BrandRank) : 999;
+      if (brandRankA !== brandRankB) return brandRankA - brandRankB;
+
+      const brandNameA = (a.Brand || prodA.Brand || '').localeCompare(b.Brand || prodB.Brand || '');
+      if (brandNameA !== 0) return brandNameA;
+
+      const rankA = (prodA.Rank !== undefined) ? parseInt(prodA.Rank) : 999;
+      const rankB = (prodB.Rank !== undefined) ? parseInt(prodB.Rank) : 999;
+      if (rankA !== rankB) return rankA - rankB;
+
+      return String(a.Code || '').localeCompare(String(b.Code || ''));
+    });
+  }
+
+  // Helper to construct autoTable rows with brand group subheadings
+  function buildTableRows(itemList) {
+    let currentBrand = null;
+    const rows = [];
+    itemList.forEach(item => {
+      const prod = products.find(p => p.Code === item.Code) || {};
+      const itemBrand = item.Brand || prod.Brand || 'General';
+      if (itemBrand !== currentBrand) {
+        currentBrand = itemBrand;
+        // Group Header row
+        rows.push([
+          {
+            content: currentBrand.toUpperCase(),
+            colSpan: 4,
+            styles: {
+              fillColor: [241, 245, 249],
+              textColor: [15, 23, 42],
+              fontStyle: 'bold',
+              fontSize: 9,
+              cellPadding: 2.5
+            }
+          }
+        ]);
+      }
+
+      const packSize = prod.Pack || 0;
+      let packDetails = "-";
+      if (item.Qty > 0 && packSize > 0) {
+        const carton = Math.floor(item.Qty / packSize);
+        const loose = item.Qty % packSize;
+        let parts = [];
+        if (carton > 0) parts.push(`${carton} Carton`);
+        if (loose > 0) parts.push(`${loose} Loose`);
+        packDetails = parts.join(' ');
+      } else if (item.Qty === 0 || item.Qty === "OOS") {
+        packDetails = "Out of Stock";
+      }
+
+      const qtyText = (item.Qty === 0 || item.Qty === "OOS") ? "OOS" : String(item.Qty);
+
+      rows.push([
+        item.Code,
+        item.Description || prod.Description || item.Code,
+        qtyText,
+        packDetails
+      ]);
+    });
+    return rows;
+  }
+
+  // Separate Unskipped and Skipped items
+  const unskippedItems = sortAuditItems(dataToExport.filter(i => !i.Skipped && !i.skipped));
+  const skippedItems = sortAuditItems(dataToExport.filter(i => i.Skipped || i.skipped));
+
+  // Top Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(15, 23, 42);
+  doc.text("INVENTORY AUDIT REPORT", 14, 18);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 25);
+
+  let currentY = 32;
+
+  // 1. Group 1: Unskipped (Stock Count as [Date])
+  if (unskippedItems.length > 0) {
+    const unskipTitle = currentViewTitle && currentViewTitle.toLowerCase().includes('stock as') 
+      ? currentViewTitle 
+      : `Stock Count as ${formattedDateStr}`;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(unskipTitle, 14, currentY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Stock verified and counted on this stock take date.", 14, currentY + 5);
+
+    const unskippedRows = buildTableRows(unskippedItems);
+
+    doc.autoTable({
+      startY: currentY + 8,
+      head: [['Code', 'Description', 'Qty', 'Packaging Details']],
+      body: unskippedRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [0, 0, 0], // Pure Black Header
+        textColor: [255, 255, 255], // Crisp White font
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      styles: { fontSize: 8.5, cellPadding: 2.5, textColor: [30, 41, 59] },
+      columnStyles: {
+        0: { cellWidth: 32, fontStyle: 'bold' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
+        3: { cellWidth: 40 }
+      }
+    });
+
+    currentY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : currentY + 40) + 12;
+  }
+
+  // 2. Group 2: Skipped (Stock Count not fulfilled by this date...)
+  if (skippedItems.length > 0) {
+    // Find the latest previous stock take date from logs
+    let latestPriorDate = '';
+    if (Array.isArray(logs) && logs.length > 0) {
+      for (const log of logs) {
+        if (log.timestamp) {
+          latestPriorDate = formatDateFull(log.timestamp);
+          break;
+        }
+      }
+    }
+    if (!latestPriorDate) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      latestPriorDate = formatDateFull(yesterday);
     }
 
-    let qtyText = item.Qty === 0 || item.Qty === "OOS" ? "OOS" : item.Qty;
-    if (item.Skipped) {
-      qtyText = `${qtyText} (skiped)`;
-      packDetails = packDetails === "-" ? "skiped" : `${packDetails} (skiped)`;
+    // Check if new page needed
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
     }
 
-    return [
-      item.Code,
-      item.Description,
-      qtyText,
-      packDetails
-    ];
-  });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Stock Count Not Fulfilled as of ${formattedDateStr}`, 14, currentY);
 
-  doc.autoTable({
-    startY: 35,
-    head: [['Code', 'Description', 'Qty', 'Packaging Details']],
-    body: tableData,
-    theme: 'striped',
-    headStyles: { fillColor: [139, 92, 246], textColor: [255, 255, 255] }, // Purple Header
-    styles: { fontSize: 9, cellPadding: 3 },
-    columnStyles: {
-      0: { cellWidth: 30, fontStyle: 'bold' },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 20, halign: 'center' },
-      3: { cellWidth: 35 }
-    }
-  });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`The data is carried forward from previous stock take date: ${latestPriorDate}.`, 14, currentY + 5);
+
+    const skippedRows = buildTableRows(skippedItems);
+
+    doc.autoTable({
+      startY: currentY + 8,
+      head: [['Code', 'Description', 'Qty', 'Packaging Details']],
+      body: skippedRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [0, 0, 0], // Pure Black Header
+        textColor: [255, 255, 255], // Crisp White font
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      styles: { fontSize: 8.5, cellPadding: 2.5, textColor: [30, 41, 59] },
+      columnStyles: {
+        0: { cellWidth: 32, fontStyle: 'bold' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
+        3: { cellWidth: 40 }
+      }
+    });
+  }
 
   doc.save(`${currentViewTitle.replace(/\s+/g, '_')}.pdf`);
 }
@@ -2203,8 +2982,7 @@ function exportToPDF(dataToExport) {
 // MODALS UTILITIES
 // ==========================================
 function openImageModal(code) {
-  const p = products.find(prod => prod.Code === code);
-  if (!p) return;
+  const p = products.find(prod => prod.Code === code || prod.sku === code) || { Code: code, Description: code };
 
   const modal = document.getElementById('imageModal');
   const img = document.getElementById('imageModalImg');
@@ -2212,14 +2990,18 @@ function openImageModal(code) {
   const descEl = document.getElementById('imageModalDesc');
 
   const finalImg = getProductImg(p);
-  img.src = finalImg;
-  img.onerror = () => { img.onerror = null; img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' font-weight='900' fill='%23475569'%3E?%3C/text%3E%3C/svg%3E"; };
+  if (img) {
+    img.src = finalImg;
+    img.onerror = () => { img.onerror = null; img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' font-weight='900' fill='%23475569'%3E?%3C/text%3E%3C/svg%3E"; };
+  }
 
-  codeEl.innerText = p.Code;
-  descEl.innerText = p.Description;
+  if (codeEl) codeEl.innerText = p.Code || p.sku || '';
+  if (descEl) descEl.innerText = p.Description || p.name || '';
 
-  modal.classList.remove('hidden');
-  modal.classList.add('active'); // active uses flex
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('active'); // active uses flex
+  }
 }
 
 function closeImageModal() {

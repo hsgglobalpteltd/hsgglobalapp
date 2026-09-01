@@ -3,14 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' https: http: data: blob: https://cdnjs.cloudflare.com; style-src * 'unsafe-inline' https: http:; img-src * data: blob: https: http:; connect-src * https: http: ws: wss:; font-src * data: https: http:;">
+  <meta name="theme-color" content="#0F172A">
+  <link rel="manifest" href="../manifest.json">
+  <!-- iOS PWA Standalone Mode -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="iB Apps">
+  <link rel="apple-touch-icon" href="../icon.png">
   <title>iB - Stock Flow</title>
-  <link rel="stylesheet" href="style.css?v=20260831_1527">
+  <link rel="stylesheet" href="style.css?v=20260902_0035">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
-  
 </head>
-<body class="bg-[#F8F9FA] text-[#1F1F1F] antialiased selection:bg-[#D3E3FD]">
+<body>
 
   <!-- Mobile Only Container -->
   <div class="mobile-container">
@@ -30,6 +35,9 @@
         </h1>
 
         <div class="header-right">
+          <button id="headerRefreshBtn" onclick="manualRefresh()" class="icon-btn" title="Refresh">
+            <i class="fa-solid fa-arrows-rotate"></i>
+          </button>
           <button id="headerAddStockBtn" onclick="openProductPickerModal()" class="icon-btn hidden" title="Add Stock">
             <i class="fa-solid fa-plus"></i>
           </button>
@@ -51,7 +59,7 @@
     <!-- Page 1: Home Dashboard -->
     <main id="page1" class="page-view active flex-center">
       <div class="home-actions">
-        <!-- 1. Manage Stock Button (New Feature) -->
+        <!-- 1. Manage Stock Button (Blue) -->
         <button id="btnManageStock" onclick="openManageStock()" class="btn-primary-gradient">
           <span class="btn-gradient-content">
             <i class="fa-solid fa-arrow-right-arrow-left mr-2"></i>
@@ -59,28 +67,17 @@
           </span>
         </button>
 
-        <!-- 2. Audit Stock Button (Existing Full Count) -->
-        <button id="btnAuditStock" onclick="startCount()" class="btn-menu-card">
-          <div class="menu-card-left">
-            <div class="menu-card-icon"><i class="fa-solid fa-clipboard-check"></i></div>
-            <div class="menu-card-text">
-              <span class="menu-card-title">Audit Stock</span>
-              <span class="menu-card-subtitle">Full periodic stock take count</span>
-            </div>
-          </div>
-          <i class="fa-solid fa-chevron-right menu-card-arrow"></i>
+        <!-- 2. Current Stock Button (White button, same look) -->
+        <button id="btnCurrentStock" onclick="openCurrentStock()" class="btn-white-card">
+          <span class="btn-white-card-content">
+            <i class="fa-solid fa-boxes-stacked mr-2"></i>
+            CURRENT STOCK
+          </span>
         </button>
 
-        <!-- 3. Current Stock Button (Existing Latest Count) -->
-        <button id="btnCurrentStock" onclick="showLatestStockTake()" class="btn-menu-card">
-          <div class="menu-card-left">
-            <div class="menu-card-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
-            <div class="menu-card-text">
-              <span class="menu-card-title">Current Stock</span>
-              <span class="menu-card-subtitle">View latest audit balance</span>
-            </div>
-          </div>
-          <i class="fa-solid fa-chevron-right menu-card-arrow"></i>
+        <!-- 3. Stock Take Button (Unbordered, no background) -->
+        <button id="btnAuditStock" onclick="startCount()" class="btn-text-action">
+          STOCK TAKE
         </button>
       </div>
 
@@ -102,10 +99,10 @@
         </div>
       </div>
 
-      <!-- Sticky Step 1 Footer (Next Button) -->
+      <!-- Sticky Step 1 Footer (Finish Select Stock Button) -->
       <div id="footerManageStockStep1" class="sticky-footer hidden">
-        <button type="button" id="btnGoToStep2" onclick="goToManageStockStep2()" class="btn-primary w-full flex-center gap-2">
-          <span>Next &gt;&gt;</span>
+        <button type="button" id="btnGoToStep2" onclick="goToManageStockStep2()" class="btn-primary w-full">
+          Finish Select Stock
         </button>
       </div>
     </main>
@@ -115,7 +112,7 @@
       <div class="scroll-container pb-safe-large">
         <div class="manage-stock-form">
           
-          <!-- Step 1: Action Selector -->
+          <!-- 1. Select Action -->
           <div class="form-section">
             <label class="form-section-title mb-3">Select Action</label>
             <div class="action-pills-grid">
@@ -134,48 +131,19 @@
             </div>
           </div>
 
-          <!-- Step 2: Document Reference Toggle -->
-          <div class="form-section">
-            <div class="flex-between mb-3">
-              <label class="form-section-title mb-0">Paper Document Reference</label>
-              <div class="segmented-toggle">
-                <button type="button" id="docToggleNo" class="seg-btn active" onclick="setDocumentToggle(false)">No</button>
-                <button type="button" id="docToggleYes" class="seg-btn" onclick="setDocumentToggle(true)">Yes</button>
-              </div>
-            </div>
-
-            <div id="docRefInputWrapper" class="ref-input-wrapper hidden mt-3">
-              <input type="text" id="stockCardRefNumber" placeholder="Reference Number (e.g. DO-99214 / TR-1024)..." class="form-text-input" oninput="checkStockFlowFormValidity()">
-            </div>
-          </div>
-
-          <!-- Step 3: Description & Quick Badges -->
-          <div class="form-section">
+          <!-- 2. Description & Quick Badges -->
+          <div class="form-section" id="sectionDescription">
             <label class="form-section-title mb-3">Description / Reason</label>
             
             <textarea id="stockCardDescription" rows="2" placeholder="Enter reason, destination, or remarks..." class="form-textarea mb-3" oninput="checkStockFlowFormValidity()"></textarea>
 
-            <div class="pretext-badges-row">
-              <button type="button" class="pretext-badge" onclick="appendPretext('Sample')">Sample</button>
-              <button type="button" class="pretext-badge" onclick="appendPretext('Replacement Tiktok')">Replacement Tiktok</button>
-              <button type="button" class="pretext-badge" onclick="appendPretext('Marketing')">Marketing</button>
-              <button type="button" class="pretext-badge" onclick="appendPretext('Damage / Dispose')">Damage / Dispose</button>
-              <button type="button" class="pretext-badge" onclick="appendPretext('Expired')">Expired</button>
-              <button type="button" class="pretext-badge" onclick="appendPretext('Return to Supplier')">Return to Supplier</button>
-              <button type="button" class="pretext-badge" onclick="appendPretext('Internal Use')">Internal Use</button>
+            <div id="pretextBadgesContainer" class="pretext-badges-row">
+              <!-- Rendered dynamically by action -->
             </div>
           </div>
 
-          <!-- Step 4: Select Approval -->
-          <div class="form-section">
-            <label class="form-section-title mb-3">Select Approval <span class="text-rose-500">*</span></label>
-            <select id="stockCardApprovedBy" class="form-select" onchange="checkStockFlowFormValidity()">
-              <option value="">Select Approval...</option>
-            </select>
-          </div>
-
-          <!-- Step 5: Picture Upload (1 to 8 photos) -->
-          <div class="form-section">
+          <!-- 3. Attach Picture (1 to 8 photos) -->
+          <div class="form-section" id="sectionAttachPicture">
             <div class="flex-between mb-3">
               <label class="form-section-title mb-0">Attach Picture <span class="text-rose-500">*</span></label>
               <span id="photoCountBadge" class="text-xs font-semibold text-slate-500">(0/8)</span>
@@ -195,13 +163,36 @@
             </div>
           </div>
 
+          <!-- 4. Select Approval -->
+          <div class="form-section" id="sectionApproval">
+            <label class="form-section-title mb-3">Select Approval <span class="text-rose-500">*</span></label>
+            <select id="stockCardApprovedBy" class="form-select" onchange="checkStockFlowFormValidity()">
+              <option value="">Select Approval...</option>
+            </select>
+          </div>
+
+          <!-- 5. Document Reference Toggle -->
+          <div class="form-section" id="sectionDocRef">
+            <div class="flex-between mb-3">
+              <label class="form-section-title mb-0">Document Reference</label>
+              <div class="segmented-toggle">
+                <button type="button" id="docToggleNo" class="seg-btn active" onclick="setDocumentToggle(false)">No</button>
+                <button type="button" id="docToggleYes" class="seg-btn" onclick="setDocumentToggle(true)">Yes</button>
+              </div>
+            </div>
+
+            <div id="docRefInputWrapper" class="ref-input-wrapper hidden mt-3">
+              <input type="text" id="stockCardRefNumber" placeholder="Reference Number (e.g. DO-99214 / TR-1024)..." class="form-text-input" oninput="checkStockFlowFormValidity()">
+            </div>
+          </div>
+
         </div>
       </div>
 
-      <!-- Sticky Review Button (Only appears after all mandatory inputs are done) -->
+      <!-- Sticky Review Button -->
       <div id="footerReviewStockFlow" class="sticky-footer hidden">
         <button type="button" id="btnReviewStockFlow" onclick="reviewStockCardTransaction()" class="btn-primary w-full">
-          Review Transaction
+          Review Action
         </button>
       </div>
     </main>
@@ -209,86 +200,103 @@
     <!-- Page Stock Flow Summary Review -->
     <main id="pageStockCardSummary" class="page-view hidden">
       <div class="summary-header">
-        <h2 class="summary-title">Transaction Review</h2>
+        <h2 class="summary-title">Summary</h2>
         <p class="summary-remark" id="scSummaryTrxId">ID: SF-XXXXXXXX-XXXX</p>
       </div>
 
       <div class="scroll-container pb-safe-large">
-        <div class="summary-card-body">
+        <div class="summary-simple-container">
           
-          <div class="summary-action-banner" id="scSummaryActionBanner">
-            <span id="scSummaryActionText">STOCK OUT</span>
-          </div>
+          <div class="summary-card-unified">
+            <!-- Action Pill Row -->
+            <div class="summary-action-row">
+              <span class="summary-section-label">ACTION</span>
+              <span id="scSummaryActionText" class="action-tag stock-out">Stock Out</span>
+            </div>
 
-          <!-- Items Review Table -->
-          <div class="summary-block">
-            <h4 class="summary-block-title">Items & Quantities</h4>
-            <div id="scSummaryItemsList" class="summary-items-list">
-              <!-- Rendered dynamically -->
+            <!-- Items List -->
+            <div class="summary-items-section">
+              <span class="summary-section-label">ITEMS</span>
+              <div id="scSummaryItemsList" class="summary-clean-items-list">
+                <!-- Rendered dynamically -->
+              </div>
+              <div class="summary-clean-total-row">
+                <span>Total Quantity</span>
+                <span id="scSummaryTotalQty" class="text-[#0B57D0]">0 units</span>
+              </div>
             </div>
-            <div class="summary-total-row">
-              <span class="text-xs font-medium text-slate-600">Total Quantity:</span>
-              <span id="scSummaryTotalQty" class="text-sm font-semibold text-[#0B57D0]">0 units</span>
-            </div>
-          </div>
 
-          <!-- Transaction Details Block -->
-          <div class="summary-block">
-            <h4 class="summary-block-title">Details</h4>
-            <div class="summary-detail-row">
-              <span class="detail-label">Documentation:</span>
-              <span id="scSummaryDocRef" class="detail-val">None</span>
+            <!-- Details Section -->
+            <div class="summary-details-section">
+              <div class="summary-clean-detail-row">
+                <span class="detail-label">Document Ref</span>
+                <span id="scSummaryDocRef" class="detail-val">None</span>
+              </div>
+              <div class="summary-clean-detail-row">
+                <span class="detail-label">Description</span>
+                <span id="scSummaryDescription" class="detail-val">—</span>
+              </div>
+              <div class="summary-clean-detail-row">
+                <span class="detail-label">Approved By</span>
+                <span id="scSummaryApprovedBy" class="detail-val text-emerald-700 font-bold">—</span>
+              </div>
             </div>
-            <div class="summary-detail-row">
-              <span class="detail-label">Description:</span>
-              <span id="scSummaryDescription" class="detail-val">—</span>
-            </div>
-            <div class="summary-detail-row">
-              <span class="detail-label">Approved By:</span>
-              <span id="scSummaryApprovedBy" class="detail-val font-medium text-emerald-700">—</span>
-            </div>
-          </div>
 
-          <!-- Photo Review Block (Multi-Photo) -->
-          <div id="scSummaryPhotoBlock" class="summary-block hidden">
-            <div class="flex-between mb-2">
-              <h4 class="summary-block-title mb-0">Attached Pictures</h4>
-              <span id="scSummaryPhotoCount" class="text-xs font-semibold text-slate-500"></span>
-            </div>
-            <div id="scSummaryPhotoGrid" class="summary-photos-grid">
-              <!-- Rendered dynamically -->
+            <!-- Photos Section (if any) -->
+            <div id="scSummaryPhotoBlock" class="summary-photos-section hidden">
+              <div class="flex-between mb-2">
+                <span class="summary-section-label mb-0">ATTACHED PICTURES</span>
+                <span id="scSummaryPhotoCount" class="text-xs text-slate-400 font-medium"></span>
+              </div>
+              <div id="scSummaryPhotoGrid" class="summary-photos-grid">
+                <!-- Rendered dynamically -->
+              </div>
             </div>
           </div>
 
         </div>
       </div>
 
-      <!-- Submit Footer -->
+      <!-- Slide To Submit Footer (No PIN modal) -->
       <div class="sticky-footer">
-        <button type="button" id="btnSubmitStockCard" onclick="promptPinForStockCard()" class="btn-primary w-full">
-          Confirm & Authorize
-        </button>
+        <div class="slide-submit-wrapper">
+          <div id="slideSubmitTrack" class="slide-submit-track">
+            <div id="slideSubmitFill" class="slide-submit-fill"></div>
+            <span id="slideSubmitText" class="slide-submit-text">Slide to Submit Stock Out &gt;&gt;</span>
+            <div id="slideSubmitHandle" class="slide-submit-handle">
+              <i class="fa-solid fa-angles-right"></i>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 
-    <!-- Page 2: Product Count Sheet (Full Audit) -->
+    <!-- Page 2: Product Count Sheet (Full Stock Take) -->
     <main id="page2" class="page-view hidden">
+      <!-- Top Actions Bar with Last Stock Take Date & Button -->
+      <div class="audit-top-bar">
+        <span class="audit-last-date-text">Last stock take is <strong id="lastStockTakeDateText">--</strong></span>
+        <button type="button" onclick="showLatestStockTake()" class="btn-see-summary-btn">
+          See Summary
+        </button>
+      </div>
+
       <div id="productsContainer" class="scroll-container pb-safe">
         <!-- Rendered dynamically by app.js -->
       </div>
 
-      <!-- Sticky Footer Actions -->
+      <!-- Sticky Footer Actions (Preview Stock Take Button) -->
       <div class="sticky-footer">
         <button onclick="prepareSummary()" class="btn-primary w-full">
-          <i class="fa-solid fa-list-check mr-2"></i> REVIEW COUNT
+          Preview Stock Take
         </button>
       </div>
     </main>
 
-    <!-- Page 3: Audit Summary Review (Full Audit) -->
+    <!-- Page 3: Stock Take Summary Review (Full Stock Take) -->
     <main id="page3" class="page-view hidden">
       <div class="summary-header">
-        <h2 id="summaryTitle" class="summary-title">Inventory Review</h2>
+        <h2 id="summaryTitle" class="summary-title">Stock Take Summary</h2>
         <p id="summaryRemark" class="summary-remark"></p>
       </div>
 
@@ -298,17 +306,49 @@
         </div>
       </div>
 
-      <!-- Submit Footer -->
+      <!-- Submit Footer (Slide to Right: Submit Stock Take) -->
       <div id="submitBtnContainer" class="sticky-footer">
-        <button id="submitBtn" onclick="submitData()" class="btn-success w-full">
-          <i class="fa-solid fa-cloud-arrow-up mr-2"></i> SUBMIT INVENTORY
-        </button>
+        <div class="slide-submit-wrapper">
+          <div id="slideAuditTrack" class="slide-submit-track">
+            <div id="slideAuditFill" class="slide-submit-fill"></div>
+            <span id="slideAuditText" class="slide-submit-text">Submit Stock Take &gt;&gt;</span>
+            <div id="slideAuditHandle" class="slide-submit-handle">
+              <i class="fa-solid fa-angles-right"></i>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Floating PDF Button -->
       <button id="headerExportBtn" onclick="handleExportAction('pdf')" class="fab-pdf hidden">
         <i class="fa-solid fa-file-pdf"></i>
       </button>
+    </main>
+
+    <!-- Page Current Stock (Screen 1: Brands 2-Column Grid) -->
+    <main id="pageCurrentStock" class="page-view hidden">
+      <!-- Top Actions Bar with Last Stock Take Date & Button -->
+      <div class="audit-top-bar">
+        <span class="audit-last-date-text">Last stock take is <strong id="currentStockLastTakeDate">--</strong></span>
+        <button type="button" onclick="showLatestStockTake('pageCurrentStock')" class="btn-see-summary-btn">
+          See Summary
+        </button>
+      </div>
+
+      <div class="scroll-container pb-safe">
+        <div id="currentStockBrandsGrid" class="brands-2col-grid p-3">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+      </div>
+    </main>
+
+    <!-- Page Current Stock Brand Products (Screen 2: Products List - Compact Review Style) -->
+    <main id="pageCurrentStockBrand" class="page-view hidden">
+      <div class="scroll-container pb-safe">
+        <div id="currentStockProductsList" class="summary-list">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+      </div>
     </main>
 
     <!-- Product Picker Modal for Manage Stock -->
@@ -447,19 +487,24 @@
     </div>
 
     <!-- 4. Image Fullscreen View Modal -->
-    <div id="imageModal" class="modal-overlay hidden">
-      <div class="absolute-top-right">
-        <button onclick="closeImageModal()" class="icon-btn bg-slate-800 rounded-full border border-gray-700 shadow-md">
-          <i class="fa-solid fa-xmark text-xl"></i>
+    <div id="imageModal" class="modal-overlay hidden" onclick="if(event.target === this) closeImageModal()">
+      <div class="product-preview-card">
+        <button onclick="closeImageModal()" class="product-preview-close">
+          <i class="fa-solid fa-xmark"></i>
         </button>
-      </div>
-      
-      <div class="fullscreen-image-wrapper">
-        <img id="imageModalImg" src="" alt="Product Preview" class="preview-img" />
-        <div class="preview-info-card">
-          <h3 id="imageModalCode" class="preview-sku"></h3>
-          <p id="imageModalDesc" class="preview-description"></p>
+        
+        <div class="product-preview-img-container">
+          <img id="imageModalImg" src="" alt="Product Preview" class="product-preview-image" />
         </div>
+
+        <div class="product-preview-content">
+          <span id="imageModalCode" class="product-preview-sku-badge"></span>
+          <h3 id="imageModalDesc" class="product-preview-title"></h3>
+        </div>
+
+        <button type="button" onclick="closeImageModal()" class="btn-primary w-full py-2.5 mt-3">
+          CLOSE
+        </button>
       </div>
     </div>
 
@@ -469,6 +514,6 @@
   <!-- PDF libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-  <script src="app.js?v=20260831_1527"></script>
+  <script src="app.js?v=20260902_0032"></script>
 </body>
 </html>

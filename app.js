@@ -60,39 +60,13 @@ const APP_REGISTRY = [
     </svg>`
   },
   {
-    id: 'packing-proof',
-    label: 'Tiktok Packing',
-    url: 'packing-proof/index.html',
-    className: 'packing-proof',
+    id: 'tiktok',
+    label: 'Tiktok',
+    url: 'tiktok/index.html',
+    className: 'tiktok',
     roles: ['tiktok', 'warehouse'],
-    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-      <line x1="12" y1="22.08" x2="12" y2="12"></line>
-    </svg>`
-  },
-  {
-    id: 'shipping-proof',
-    label: 'Tiktok Fulfillment',
-    url: 'shipping-proof/index.html',
-    className: 'shipping-proof',
-    roles: ['tiktok', 'warehouse'],
-    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M9 11l3 3L22 4"></path>
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-    </svg>`
-  },
-  {
-    id: 'pending-status',
-    label: 'Tiktok Pending',
-    url: 'pending-status/index.html',
-    className: 'pending-status',
-    roles: ['tiktok', 'warehouse'],
-    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-      <line x1="9" y1="9" x2="15" y2="9"></line>
-      <line x1="9" y1="13" x2="15" y2="13"></line>
-      <line x1="9" y1="17" x2="13" y2="17"></line>
+    icon: `<svg class="app-icon" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.88 2.89 2.89 0 0 1-2.89-2.88 2.89 2.89 0 0 1 2.89-2.88c.32 0 .62.06.9.15V9.42a6.32 6.32 0 0 0-.9-.07A6.33 6.33 0 0 0 3 15.68 6.33 6.33 0 0 0 9.34 22a6.33 6.33 0 0 0 6.33-6.32V8.65a8.21 8.21 0 0 0 3.92 1.35V6.69z"/>
     </svg>`
   },
   {
