@@ -261,14 +261,42 @@ function renderAuthorizedApps(user) {
     </a>
   `).join('');
 
-  // Add click listener to sync sub-app session state
+  // Add prefetch & session sync listeners
   grid.querySelectorAll('.app-card').forEach(card => {
+    const prefetchTarget = () => {
+      const href = card.getAttribute('href');
+      if (href && !card.dataset.prefetched) {
+        card.dataset.prefetched = 'true';
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = href;
+        document.head.appendChild(link);
+      }
+    };
+
+    // Instant prefetch on touch/hover
+    card.addEventListener('touchstart', prefetchTarget, { passive: true });
+    card.addEventListener('mouseenter', prefetchTarget, { passive: true });
+
     card.addEventListener('click', () => {
       // Ensure sub-app recognizes the logged in employee
       const pickerName = user.name || 'picker';
       localStorage.setItem('auth_picker_name', pickerName);
       localStorage.setItem('auth_driver_name', pickerName);
       localStorage.setItem('auth_timestamp', String(Date.now()));
+    });
+  });
+
+  // Background prefetch all authorized apps on idle
+  const idleRunner = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+  idleRunner(() => {
+    authorizedApps.forEach(app => {
+      try {
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = app.url;
+        document.head.appendChild(link);
+      } catch (_) {}
     });
   });
 }
