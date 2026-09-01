@@ -5053,6 +5053,40 @@ function bindDeliverPageEvents() {
   const submitBtn = document.getElementById('deliver-submit-btn');
   if (submitBtn) {
     submitBtn.onclick = () => {
+      if (!deliverSignedPhotoFile) {
+        showToast("Please capture the Signed DO / GRN photo first!", "warning");
+        return;
+      }
+
+      if (deliverSupportingPhotoFiles.length === 0) {
+        showToast("Please capture at least 1 Supporting Photo!", "warning");
+        return;
+      }
+
+      if (!currentDeliverIsReturn) {
+        const items = typeof currentDeliverOrder.Items === 'string' ? JSON.parse(currentDeliverOrder.Items || '[]') : (currentDeliverOrder.Items || []);
+        const allTicked = items.every(item => deliverItemTicks.has(item.sku));
+        if (!allTicked) {
+          showToast("Please tick all items in the checklist!", "warning");
+          return;
+        }
+
+        const missingRemark = items.some(item => {
+          const originalQty = item.qty;
+          const currentQty = deliverItemQtys[item.sku] !== undefined ? deliverItemQtys[item.sku] : originalQty;
+          if (currentQty < originalQty) {
+            const remark = (deliverItemRemarks[item.sku] || '').trim();
+            return remark.length === 0;
+          }
+          return false;
+        });
+
+        if (missingRemark) {
+          showToast("Please enter shortage reason for adjusted items!", "warning");
+          return;
+        }
+      }
+
       if (submitBtn.classList.contains('disabled-mode')) {
         showToast("Please complete the checklist and upload all required proofs first!", "warning");
         return;
