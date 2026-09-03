@@ -66,6 +66,14 @@
       </button>
     </div>
 
+    <!-- Active Resubmission Banner -->
+    <div id="resubmit-alert-banner" class="resubmit-banner" style="display: none;">
+      <div>
+        <strong>Resubmitting Rejected Claim:</strong> <span id="resubmit-batch-id-text" style="font-family: monospace; font-weight: 700;"></span>
+      </div>
+      <button type="button" class="resubmit-cancel-btn" onclick="cancelResubmitBatch()">Cancel</button>
+    </div>
+
     <!-- Missing PayNow Alert Banner (if empty) -->
     <div id="paynow-missing-banner" style="display: none; background-color: #FEF3C7; border-bottom: 1px solid #FDE68A; padding: 8px 14px; font-size: 11px; color: #92400E; align-items: center; justify-content: space-between;">
       <span>⚠️ <strong>PayNow required:</strong> Tap to register number for payout.</span>
@@ -77,6 +85,13 @@
          ========================================== -->
     <main id="view-log" class="mobile-content">
       <form id="log-expense-form" class="form-card" onsubmit="handleSaveExpense(event)">
+        
+        <!-- Editing Mode Banner inside form -->
+        <div id="editing-expense-banner" style="display: none; background-color: #FEF3C7; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #92400E; align-items: center; justify-content: space-between;">
+          <span>✏️ <strong>Editing Expense</strong></span>
+          <button type="button" onclick="cancelEditExpense()" style="padding: 2px 8px; font-size: 11px; font-weight: 700; background: #FFF; border: 1px solid #FDE68A; border-radius: 4px; cursor: pointer;">Cancel</button>
+        </div>
+        <input type="hidden" id="input-expense-id" value="">
         
         <!-- Receipt Camera Upload -->
         <div class="form-group">
@@ -140,7 +155,7 @@
             <polyline points="17 21 17 13 7 13 7 21"></polyline>
             <polyline points="7 3 7 8 15 8"></polyline>
           </svg>
-          Save to Ledger
+          <span id="btn-save-expense-text">Save to Ledger</span>
         </button>
 
       </form>

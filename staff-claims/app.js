@@ -9,7 +9,8 @@ let adminsList = [];
 let unsubmittedExpenses = [];
 let submittedBatches = [];
 let selectedExpenseIds = new Set();
-let capturedReceiptData = null; // { src, name, type }
+let capturedReceiptData = null; // { src, url, name, type }
+let resubmittingBatch = null; // Active rejected batch being edited/resubmitted
 
 // Desktop Redirect Check (Mobile-only constraint)
 if (window.innerWidth > 600) {
@@ -37,12 +38,32 @@ async function initApp() {
   const cachedUser = getCachedAuth();
   if (cachedUser) {
     currentUser = cachedUser;
+    syncPayNowFromEmployees();
     showMainApp();
     await refreshData();
   } else {
     // Unauthenticated: return to main portal PIN gate
     window.location.href = "../index.html";
   }
+}
+
+function syncPayNowFromEmployees() {
+  if (!currentUser) return;
+  const matched = allEmployees.find(
+    (e) => (currentUser.id && String(e.id).trim() === String(currentUser.id).trim()) ||
+           (currentUser.email && String(e.email).toLowerCase().trim() === String(currentUser.email).toLowerCase().trim())
+  );
+  if (matched) {
+    const rawPNow = matched.paynow_number || matched.phone_number || matched.phone || "";
+    const cleanPNow = formatCleanPayNow(rawPNow);
+    if (cleanPNow) {
+      currentUser.paynow_number = cleanPNow;
+    }
+    if (matched.name) currentUser.name = matched.name;
+    if (matched.id) currentUser.id = matched.id;
+    setCachedAuth(currentUser);
+  }
+  updatePayNowBanner();
 }
 
 // Format date helper (dd/mm/yyyy)
@@ -139,14 +160,6 @@ function showMainApp() {
   const mainApp = document.getElementById("main-app");
   if (mainApp) mainApp.classList.add("active");
 
-  // Setup header buttons
-  const logoutBtn = document.getElementById("logout-btn");
-  if (logoutBtn) {
-    logoutBtn.onclick = () => {
-      clearCachedAuth();
-    };
-  }
-
   const paynowHeaderBtn = document.getElementById("header-paynow-btn");
   if (paynowHeaderBtn) {
     paynowHeaderBtn.onclick = () => openPayNowModal();
@@ -170,21 +183,23 @@ function updatePayNowBanner() {
 // DATA FETCHING (EXPENSES, BATCHES, ADMINS)
 // ============================================================================
 async function refreshData() {
-  if (!currentUser || !currentUser.email) return;
+  if (!currentUser || !currentUser.id) return;
 
-  const emailParam = encodeURIComponent(currentUser.email);
+  const empIdParam = encodeURIComponent(currentUser.id);
 
   try {
-    // 1. Fetch expenses
-    const expRes = await fetch(`${WORKER_URL}/api/claims/operator/expenses?email=${emailParam}`);
+    // 1. Fetch expenses tied to employee_id
+    const expRes = await fetch(`${WORKER_URL}/api/claims/operator/expenses?employee_id=${empIdParam}`);
     if (expRes.ok) {
       const exps = await expRes.json();
-      unsubmittedExpenses = (Array.isArray(exps) ? exps : []).filter((e) => e.status === "unsubmitted");
+      const allExps = Array.isArray(exps) ? exps : [];
+      // Show unsubmitted and rejected expenses in the ledger
+      unsubmittedExpenses = allExps.filter((e) => e.status === "unsubmitted" || e.status === "rejected");
       renderLedger();
     }
 
-    // 2. Fetch submitted batches
-    const batRes = await fetch(`${WORKER_URL}/api/claims/operator/batches?email=${emailParam}`);
+    // 2. Fetch submitted batches tied to employee_id
+    const batRes = await fetch(`${WORKER_URL}/api/claims/operator/batches?employee_id=${empIdParam}`);
     if (batRes.ok) {
       const bats = await batRes.json();
       submittedBatches = Array.isArray(bats) ? bats : [];
@@ -341,12 +356,13 @@ async function compressImageToMax250kb(file) {
 async function handleSaveExpense(event) {
   event.preventDefault();
 
-  if (!currentUser || !currentUser.email) {
+  if (!currentUser || !currentUser.id) {
     showToast("Session expired. Please log in again.", "error");
-    showAuthGatekeeper();
+    clearCachedAuth();
     return;
   }
 
+  const expenseId = document.getElementById("input-expense-id").value.trim();
   const amountVal = parseFloat(document.getElementById("input-amount").value);
   const descVal = document.getElementById("input-description").value.trim();
   const dateVal = document.getElementById("input-date").value;
@@ -363,17 +379,15 @@ async function handleSaveExpense(event) {
   }
 
   const saveBtn = document.getElementById("btn-save-expense");
+  const saveBtnText = document.getElementById("btn-save-expense-text");
   saveBtn.disabled = true;
-  saveBtn.textContent = "Saving to Ledger...";
+  if (saveBtnText) saveBtnText.textContent = expenseId ? "Updating Expense..." : "Saving to Ledger...";
 
   try {
     const payload = {
-      user_email: currentUser.email,
-      user_name: currentUser.name,
+      ...(expenseId ? { id: expenseId } : {}),
       employee_id: currentUser.id,
       employee_name: currentUser.name,
-      employee_role: currentUser.role,
-      paynow_number: currentUser.paynow_number,
       date: dateVal,
       description: descVal,
       amount: amountVal,
@@ -387,22 +401,15 @@ async function handleSaveExpense(event) {
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const errRes = await res.json().catch(() => ({}));
+      throw new Error(errRes.error || await res.text());
+    }
 
-    showToast("Expense recorded successfully!", "success");
+    showToast(expenseId ? "Expense updated successfully!" : "Expense recorded successfully!", "success");
 
     // Reset Form
-    document.getElementById("input-amount").value = "";
-    document.getElementById("input-description").value = "";
-    document.getElementById("input-remarks").value = "";
-    const receiptFileInput = document.getElementById("receipt-file-input");
-    if (receiptFileInput) receiptFileInput.value = "";
-    capturedReceiptData = null;
-
-    const previewImg = document.getElementById("receipt-preview-img");
-    const placeholder = document.getElementById("camera-placeholder");
-    if (previewImg) previewImg.style.display = "none";
-    if (placeholder) placeholder.style.display = "flex";
+    cancelEditExpense();
 
     await refreshData();
     switchTab("ledger");
@@ -411,7 +418,160 @@ async function handleSaveExpense(event) {
     showToast("Failed to save expense: " + err.message, "error");
   } finally {
     saveBtn.disabled = false;
-    saveBtn.textContent = "Save to Ledger";
+    if (saveBtnText) saveBtnText.textContent = "Save to Ledger";
+  }
+}
+
+// ============================================================================
+// EDITING & DELETING EXPENSES IN LEDGER
+// ============================================================================
+function handleEditExpense(exp) {
+  if (exp.status === "rejected" && (!resubmittingBatch || resubmittingBatch.id !== exp.batch_id)) {
+    showToast(`This expense is locked under rejected claim ${exp.batch_id}. Tap "Edit & Resubmit" on that claim in Submitted tab to modify it.`, "warning");
+    return;
+  }
+
+  document.getElementById("input-expense-id").value = exp.id;
+  document.getElementById("input-amount").value = Number(exp.amount || 0).toFixed(2);
+  document.getElementById("input-description").value = exp.description || "";
+  document.getElementById("input-date").value = exp.date || new Date().toISOString().split("T")[0];
+  document.getElementById("input-remarks").value = exp.remarks || "";
+
+  if (exp.receipt_url) {
+    capturedReceiptData = {
+      url: exp.receipt_url,
+      src: exp.receipt_url,
+      name: "receipt.jpg",
+      type: "image/jpeg"
+    };
+    const previewImg = document.getElementById("receipt-preview-img");
+    const placeholder = document.getElementById("camera-placeholder");
+    if (previewImg && placeholder) {
+      previewImg.src = exp.receipt_url;
+      previewImg.style.display = "block";
+      placeholder.style.display = "none";
+    }
+  }
+
+  const editBanner = document.getElementById("editing-expense-banner");
+  if (editBanner) editBanner.style.display = "flex";
+
+  const saveBtnText = document.getElementById("btn-save-expense-text");
+  if (saveBtnText) saveBtnText.textContent = "Update Expense";
+
+  switchTab("log");
+}
+
+function cancelEditExpense() {
+  document.getElementById("input-expense-id").value = "";
+  document.getElementById("input-amount").value = "";
+  document.getElementById("input-description").value = "";
+  document.getElementById("input-remarks").value = "";
+  document.getElementById("input-date").value = new Date().toISOString().split("T")[0];
+
+  const receiptFileInput = document.getElementById("receipt-file-input");
+  if (receiptFileInput) receiptFileInput.value = "";
+  capturedReceiptData = null;
+
+  const previewImg = document.getElementById("receipt-preview-img");
+  const placeholder = document.getElementById("camera-placeholder");
+  if (previewImg) previewImg.style.display = "none";
+  if (placeholder) placeholder.style.display = "flex";
+
+  const editBanner = document.getElementById("editing-expense-banner");
+  if (editBanner) editBanner.style.display = "none";
+
+  const saveBtnText = document.getElementById("btn-save-expense-text");
+  if (saveBtnText) saveBtnText.textContent = "Save to Ledger";
+}
+
+async function handleDeleteExpense(exp) {
+  if (exp.status === "rejected" && (!resubmittingBatch || resubmittingBatch.id !== exp.batch_id)) {
+    showToast(`This expense is locked under rejected claim ${exp.batch_id}. Tap "Edit & Resubmit" on that claim in Submitted tab to modify it.`, "warning");
+    return;
+  }
+
+  if (!confirm(`Delete expense "${exp.description}" ($${Number(exp.amount || 0).toFixed(2)})?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${WORKER_URL}/api/claims/operator/expense/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: exp.id, employee_id: currentUser.id })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    selectedExpenseIds.delete(exp.id);
+    showToast("Expense deleted successfully.", "info");
+    await refreshData();
+  } catch (err) {
+    showToast("Failed to delete expense: " + err.message, "error");
+  }
+}
+
+// ============================================================================
+// RESUBMISSION MANAGEMENT FOR REJECTED CLAIMS
+// ============================================================================
+function startResubmitBatch(batchId) {
+  const targetBatch = submittedBatches.find((b) => b.id === batchId);
+  if (!targetBatch) {
+    showToast("Claim not found.", "error");
+    return;
+  }
+
+  resubmittingBatch = targetBatch;
+  selectedExpenseIds = new Set(targetBatch.expense_ids || []);
+
+  const banner = document.getElementById("resubmit-alert-banner");
+  const bannerText = document.getElementById("resubmit-batch-id-text");
+  if (banner && bannerText) {
+    bannerText.textContent = targetBatch.id;
+    banner.style.display = "flex";
+  }
+
+  switchTab("ledger");
+  showToast(`Resubmission mode active for ${targetBatch.id}. Modify items as needed.`, "info");
+}
+
+function cancelResubmitBatch() {
+  resubmittingBatch = null;
+  selectedExpenseIds.clear();
+
+  const banner = document.getElementById("resubmit-alert-banner");
+  if (banner) banner.style.display = "none";
+
+  renderLedger();
+  showToast("Exited claim resubmission mode.", "info");
+}
+
+async function handleDeleteRejectedBatch(batchId) {
+  const batch = submittedBatches.find((b) => b.id === batchId);
+  if (!batch) return;
+
+  if (!confirm(`Delete rejected claim ${batch.id}?\n\nAll ${batch.items?.length || 0} expense items will be returned to your active ledger as unsubmitted.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${WORKER_URL}/api/claims/operator/batch/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: batch.id, employee_id: currentUser.id })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    if (resubmittingBatch?.id === batch.id) {
+      cancelResubmitBatch();
+    }
+
+    showToast("Claim deleted. All items returned to your ledger.", "success");
+    await refreshData();
+  } catch (err) {
+    showToast("Failed to delete claim: " + err.message, "error");
   }
 }
 
@@ -442,10 +602,12 @@ function renderLedger() {
 
   let html = "";
   unsubmittedExpenses.forEach((exp) => {
+    const isLocked = exp.status === "rejected" && (!resubmittingBatch || resubmittingBatch.id !== exp.batch_id);
     const isSelected = selectedExpenseIds.has(exp.id);
+
     html += `
-      <div class="ledger-item-card ${isSelected ? 'selected' : ''}" onclick="toggleSelectExpense('${exp.id}')">
-        <div class="ledger-item-checkbox">
+      <div class="ledger-item-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}" onclick="${isLocked ? `showToast('Locked under rejected claim ${exp.batch_id}. Tap Edit & Resubmit on that claim in Submitted tab.', 'warning')` : `toggleSelectExpense('${exp.id}')`}">
+        <div class="ledger-item-checkbox" style="${isLocked ? 'opacity: 0.4; cursor: not-allowed;' : ''}">
           ${isSelected ? `
             <svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" style="width: 16px; height: 16px;">
               <polyline points="20 6 9 17 4 12"></polyline>
@@ -465,11 +627,32 @@ function renderLedger() {
         `}
 
         <div class="ledger-item-info">
-          <span class="ledger-item-desc">${exp.description}</span>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="ledger-item-desc">${exp.description}</span>
+            ${isLocked ? `<span style="font-size: 9px; color: #DC2626; font-weight: 700; background: #FEE2E2; padding: 1px 5px; border-radius: 4px; border: 1px solid #FECACA; white-space: nowrap;">Locked</span>` : ''}
+          </div>
           <span class="ledger-item-date">${formatDateDisplay(exp.date)} ${exp.remarks ? `• ${exp.remarks}` : ''}</span>
         </div>
 
-        <span class="ledger-item-amount">$${Number(exp.amount || 0).toFixed(2)}</span>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+          <span class="ledger-item-amount">$${Number(exp.amount || 0).toFixed(2)}</span>
+          
+          <div class="ledger-item-actions" onclick="event.stopPropagation()">
+            <button type="button" class="ledger-action-btn" title="Edit Expense" onclick="handleEditExpense(${JSON.stringify(exp).replace(/"/g, '&quot;')})" ${isLocked ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </button>
+            <button type="button" class="ledger-action-btn delete" title="Delete Expense" onclick="handleDeleteExpense(${JSON.stringify(exp).replace(/"/g, '&quot;')})" ${isLocked ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
       </div>
     `;
   });
@@ -479,6 +662,12 @@ function renderLedger() {
 }
 
 function toggleSelectExpense(expId) {
+  const exp = unsubmittedExpenses.find((e) => e.id === expId);
+  if (exp && exp.status === "rejected" && (!resubmittingBatch || resubmittingBatch.id !== exp.batch_id)) {
+    showToast(`This expense is locked under rejected claim ${exp.batch_id}.`, "warning");
+    return;
+  }
+
   if (selectedExpenseIds.has(expId)) {
     selectedExpenseIds.delete(expId);
   } else {
@@ -510,7 +699,9 @@ function updateLedgerCalculations() {
   if (submitBtn) {
     if (selectedExps.length > 0 && !isOverLimit) {
       submitBtn.disabled = false;
-      submitBtn.textContent = `Submit Claim Batch ($${roundedTotal.toFixed(2)})`;
+      submitBtn.textContent = resubmittingBatch
+        ? `Resubmit Claim ($${roundedTotal.toFixed(2)})`
+        : `Submit Claim ($${roundedTotal.toFixed(2)})`;
     } else if (isOverLimit) {
       submitBtn.disabled = true;
       submitBtn.textContent = `Limit Exceeded ($${roundedTotal.toFixed(2)} / $100 max)`;
@@ -545,8 +736,9 @@ function openSubmitBatchModal() {
     if (adminsList.length === 0) {
       selectEl.innerHTML = '<option value="">No administrators found</option>';
     } else {
+      const defaultEmail = resubmittingBatch?.target_admin_email || "";
       selectEl.innerHTML = adminsList
-        .map((a) => `<option value="${a.email}">${a.name} (${a.email})</option>`)
+        .map((a) => `<option value="${a.email}" ${defaultEmail.toLowerCase() === a.email.toLowerCase() ? 'selected' : ''}>${a.name} (${a.email})</option>`)
         .join("");
     }
   }
@@ -572,32 +764,42 @@ async function executeBatchSubmit() {
 
   const confirmBtn = document.getElementById("btn-confirm-batch-submit");
   confirmBtn.disabled = true;
-  confirmBtn.textContent = "Submitting...";
+  confirmBtn.textContent = resubmittingBatch ? "Resubmitting..." : "Submitting...";
 
   try {
+    const isResubmit = !!resubmittingBatch;
+    const endpoint = isResubmit
+      ? `${WORKER_URL}/api/claims/operator/batch/resubmit`
+      : `${WORKER_URL}/api/claims/operator/batch/submit`;
+
     const payload = {
-      user_email: currentUser.email,
-      user_name: currentUser.name,
+      ...(isResubmit ? { id: resubmittingBatch.id } : {}),
       employee_id: currentUser.id,
       employee_name: currentUser.name,
-      employee_role: currentUser.role,
       paynow_number: currentUser.paynow_number,
       target_admin_email: targetAdminEmail,
       target_admin_name: adminName,
       expense_ids: Array.from(selectedExpenseIds)
     };
 
-    const res = await fetch(`${WORKER_URL}/api/claims/operator/batch/submit`, {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const errRes = await res.json().catch(() => ({}));
+      throw new Error(errRes.error || await res.text());
+    }
 
-    showToast(`Claim batch submitted to ${adminName}!`, "success");
+    showToast(isResubmit ? `Claim ${resubmittingBatch.id} resubmitted to ${adminName}!` : `Claim submitted to ${adminName}!`, "success");
     closeSubmitBatchModal();
     selectedExpenseIds.clear();
+    resubmittingBatch = null;
+
+    const banner = document.getElementById("resubmit-alert-banner");
+    if (banner) banner.style.display = "none";
 
     await refreshData();
     switchTab("batches");
@@ -625,7 +827,7 @@ function renderBatches() {
           <polyline points="12 6 12 12 16 14"></polyline>
         </svg>
         <div style="font-size: 14px; font-weight: 700; color: #475569;">No claims submitted yet</div>
-        <div style="font-size: 12px; margin-top: 4px;">Submitted batches will show review and PayNow payout status here.</div>
+        <div style="font-size: 12px; margin-top: 4px;">Submitted claims will show review and PayNow payout status here.</div>
       </div>
     `;
     return;
@@ -669,7 +871,7 @@ function renderBatches() {
 
         ${isRejected && batch.reject_reason ? `
           <div style="font-size: 11px; color: #991B1B; background-color: #FEF2F2; padding: 6px 10px; border-radius: 6px;">
-            Reason: ${batch.reject_reason}
+            <strong>Rejection Note:</strong> ${batch.reject_reason}
           </div>
         ` : ''}
 
@@ -690,6 +892,25 @@ function renderBatches() {
             </div>
           `).join('')}
         </div>
+
+        ${isRejected ? `
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <button type="button" class="btn-resubmit-batch" style="flex: 1; margin-top: 0;" onclick="startResubmitBatch('${batch.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Edit & Resubmit
+            </button>
+            <button type="button" class="btn-delete-batch" onclick="handleDeleteRejectedBatch('${batch.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Delete
+            </button>
+          </div>
+        ` : ''}
       </div>
     `;
   });

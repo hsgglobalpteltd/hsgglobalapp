@@ -509,6 +509,104 @@ body {
   color: #B91C1C;
 }
 
+.btn-resubmit-batch {
+  margin-top: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background-color: #DC2626;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+}
+
+.btn-resubmit-batch:active {
+  background-color: #B91C1C;
+}
+
+.btn-delete-batch {
+  padding: 8px 12px;
+  background-color: #FEF2F2;
+  color: #B91C1C;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.btn-delete-batch:active {
+  background-color: #FEE2E2;
+}
+
+.ledger-item-card.locked {
+  opacity: 0.75;
+  background-color: #F8FAFC;
+  border-color: #E2E8F0;
+}
+
+.ledger-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+
+.ledger-action-btn {
+  background: none;
+  border: none;
+  padding: 5px;
+  border-radius: 6px;
+  color: #94A3B8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ledger-action-btn:active {
+  background-color: #F1F5F9;
+  color: #0F172A;
+}
+
+.ledger-action-btn.delete:active {
+  background-color: #FEE2E2;
+  color: #DC2626;
+}
+
+.resubmit-banner {
+  background-color: #FEF2F2;
+  border-bottom: 1.5px solid #FECACA;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #991B1B;
+}
+
+.resubmit-cancel-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #FFFFFF;
+  color: #B91C1C;
+  border: 1px solid #FECACA;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
 /* ==========================================================================
    Universal Gatekeeper Auth Overlay
    ========================================================================== */
