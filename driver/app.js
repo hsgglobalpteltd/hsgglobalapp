@@ -3400,6 +3400,11 @@ function renderMapOrderDetails(order, pin) {
               showToast("Please capture the return paper photo first!", "warning");
               return;
             }
+            const driverName = getCachedAuth();
+            if (driverName) {
+              performPickReturnPaper(order, driverName, returnPaperPhotoFile);
+              return;
+            }
             authPendingAction = {
               type: 'pick_return',
               orderId: order.ID,
@@ -5399,8 +5404,9 @@ function openUnloadModal() {
   const cameraBox = document.getElementById('unload-camera-box');
   if (cameraBox) cameraBox.style.display = 'block';
   const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  const cachedDriver = getCachedAuth();
   const pinWrapper = document.getElementById('unload-pin-digits-wrapper');
-  if (isOutsource) {
+  if (isOutsource || cachedDriver) {
     if (pinLabel) pinLabel.style.display = 'none';
     if (pinWrapper) pinWrapper.style.display = 'none';
   } else {
@@ -5540,15 +5546,16 @@ function bindUnloadProofModal() {
   if (confirmBtn) {
     confirmBtn.onclick = async () => {
       const isOutsource = localStorage.getItem('is_outsource') === 'true';
+      const cachedDriver = getCachedAuth();
       const pinInput = document.getElementById('unload-pin-input');
       const pinVal = pinInput ? pinInput.value : '';
-      if (!unloadPhotoFile || (!isOutsource && pinVal.length !== 4)) {
-        showToast(isOutsource ? "Please capture a photo first" : "Please capture a photo and enter your PIN", "error");
+      if (!unloadPhotoFile || (!isOutsource && !cachedDriver && pinVal.length !== 4)) {
+        showToast(isOutsource || cachedDriver ? "Please capture a photo first" : "Please capture a photo and enter your PIN", "error");
         return;
       }
 
-      let driverName = getCachedAuth() || "Driver";
-      if (!isOutsource) {
+      let driverName = cachedDriver || (isOutsource ? (getCachedAuth() || "Driver") : "Driver");
+      if (!isOutsource && !cachedDriver) {
         // Verify PIN
         const enteredPin = parseInt(pinVal);
         const matchedUser = allUsers.find(u => parseInt(u.PIN || u.pin) === enteredPin);
@@ -5740,11 +5747,12 @@ function clearUnloadForm() {
 
 function validateUnloadForm() {
   const isOutsource = localStorage.getItem('is_outsource') === 'true';
+  const cachedDriver = getCachedAuth();
   const pinInput = document.getElementById('unload-pin-input');
   const pinVal = pinInput ? pinInput.value : '';
   const confirmBtn = document.getElementById('unload-modal-confirm-btn');
 
-  const isValid = unloadPhotoFile !== null && (isOutsource || pinVal.length === 4);
+  const isValid = unloadPhotoFile !== null && (isOutsource || cachedDriver || pinVal.length === 4);
 
   if (confirmBtn) {
     if (isValid) {
