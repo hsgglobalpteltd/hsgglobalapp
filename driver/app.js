@@ -4,7 +4,7 @@ if (window.innerWidth > 600) {
 }
 
 const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
-const APP_VERSION = "v1.3.2";
+const APP_VERSION = "v1.3.7";
 
 // Sync Queue / Failed submissions State
 let failedSyncs = [];
@@ -309,7 +309,29 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const resubmitBtn = document.getElementById('resubmit-btn');
   if (resubmitBtn) {
-    resubmitBtn.addEventListener('click', retryFailedSyncs);
+    resubmitBtn.addEventListener('click', () => retryFailedSyncs(false));
+  }
+
+  // Automatically retry failed submissions when device regains network or app returns from WhatsApp
+  window.addEventListener('online', () => {
+    console.log("Device back online, auto-retrying pending syncs...");
+    retryFailedSyncs(true);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      console.log("App brought to foreground, checking pending syncs...");
+      retryFailedSyncs(true);
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    retryFailedSyncs(true);
+  });
+
+  // Attempt auto-retry immediately on startup if any items are in queue
+  if (failedSyncs.length > 0) {
+    setTimeout(() => retryFailedSyncs(true), 2000);
   }
 
   // Check URL parameters for outsource session recovery
@@ -2733,7 +2755,7 @@ function initMapSearch() {
   });
 }
 
-// Instantly update LocalStorage and silently sync updates to GAS proxy endpoint
+// Instantly update LocalStorage and sync updates to Worker endpoint
 async function silentSyncOrderUpdate(orderId, fields) {
   // 1. Instantly update local state
   const order = allOrders.find(o => o.ID === orderId);
@@ -2758,7 +2780,7 @@ async function silentSyncOrderUpdate(orderId, fields) {
     }
   }
 
-  // 2. Silently POST update to Worker
+  // 2. Await write to Worker with retry queue on failure
   try {
     const payload = {
       sheet: "Track_Orders",
@@ -2769,22 +2791,11 @@ async function silentSyncOrderUpdate(orderId, fields) {
       }
     };
     
-    fetch(`${WORKER_URL}/api/app3/write`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    }).then(res => {
-      if (!res.ok) {
-        console.warn("Background update sync failed with status:", res.status);
-        queueStatusUpdate(orderId, fields, `Server status ${res.status}`);
-      }
-    }).catch(err => {
-      console.warn("Background update sync failed:", err);
-      queueStatusUpdate(orderId, fields, err.message || "Network offline");
-    });
-  } catch (e) {
-    console.warn("Failed to schedule background sync:", e);
-    queueStatusUpdate(orderId, fields, e.message || "Execution exception");
+    await writeWithRetry(payload);
+  } catch (err) {
+    console.warn("Background update sync failed:", err);
+    queueStatusUpdate(orderId, fields, err.message || "Network offline");
+    throw err;
   }
 }
 
@@ -2884,12 +2895,16 @@ async function writeWithRetry(payload) {
   return data;
 }
 
-async function retryFailedSyncs() {
+let isSyncingFailedSyncs = false;
+async function retryFailedSyncs(isBackground = false) {
   const resubmitBtn = document.getElementById('resubmit-btn');
-  if (!resubmitBtn || failedSyncs.length === 0) return;
+  if (failedSyncs.length === 0 || isSyncingFailedSyncs) return;
 
-  resubmitBtn.disabled = true;
-  resubmitBtn.textContent = 'Syncing...';
+  isSyncingFailedSyncs = true;
+  if (resubmitBtn) {
+    resubmitBtn.disabled = true;
+    resubmitBtn.textContent = 'Syncing...';
+  }
 
   const itemsToSync = [...failedSyncs];
   let hasFailed = false;
@@ -3149,14 +3164,17 @@ async function retryFailedSyncs() {
     }
   }
 
-  resubmitBtn.disabled = false;
-  resubmitBtn.textContent = 'Re-Submit';
+  isSyncingFailedSyncs = false;
+  if (resubmitBtn) {
+    resubmitBtn.disabled = false;
+    resubmitBtn.textContent = 'Re-Submit';
+  }
   updateSyncUI();
 
   if (hasFailed) {
-    showToast("Some submissions failed to sync. Try again.", "error");
+    if (!isBackground) showToast("Some submissions failed to sync. Try again.", "error");
   } else {
-    showToast("All submissions synced successfully!", "success");
+    showToast("All pending delivery submissions synced!", "success");
     fetchData();
   }
 }
