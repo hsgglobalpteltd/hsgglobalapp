@@ -585,7 +585,7 @@ function renderDeliverOrderPage() {
       const isCorrectMethod = isOutsource 
         ? (deliverMethodClean === 'external delivery' || isAssignedToMe) 
         : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
-      return isCorrectMethod && isAssignedToMe && (statusClean === "load" || statusClean === "out for delivery");
+      return isCorrectMethod && isAssignedToMe && (statusClean === "pending" || statusClean === "load" || statusClean === "out for delivery");
     });
   } else {
     filtered = allOrders.filter(o => {
@@ -602,10 +602,10 @@ function renderDeliverOrderPage() {
       if (isOutsource) {
         return deliverMethodClean === 'external delivery' && 
                driverClean === "" && 
-               statusClean === 'ready to deliver';
+               (statusClean === 'pending' || statusClean === 'ready to deliver');
       } else {
         const isCorrectMethod = deliverMethodClean === 'company delivery' || deliverMethodClean === '';
-        return isCorrectMethod && (statusClean === "ready to pick" || statusClean === "picking" || statusClean === "ready to deliver");
+        return isCorrectMethod && (statusClean === "pending" || statusClean === "ready to pick" || statusClean === "picking" || statusClean === "ready to deliver");
       }
     });
   }
@@ -618,9 +618,10 @@ function renderDeliverOrderPage() {
   }
 
   cardsContainer.innerHTML = filtered.map(order => {
-    let statusText = "Ready to Pick";
+    let statusText = "Pending Delivery";
     const st = (order.Status || "").trim().toLowerCase();
-    if (st === "picking") statusText = "Picking in Progress";
+    if (st === "ready to pick") statusText = "Ready to Pick";
+    else if (st === "picking") statusText = "Picking in Progress";
     else if (st === "ready to deliver") statusText = "Goods Ready";
     else if (st === "load") statusText = "Loaded on Vehicle";
     else if (st === "out for delivery") statusText = "Out for Delivery";
@@ -2343,8 +2344,10 @@ function initMap() {
       attributionControl: false
     }).setView([1.3521, 103.8198], 11);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19
+    L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+      maxZoom: 20,
+      subdomains: ["mt0", "mt1", "mt2", "mt3"],
+      opacity: 0.5
     }).addTo(mapInstance);
 
     markersGroup = L.featureGroup().addTo(mapInstance);
@@ -2435,6 +2438,7 @@ function renderMapPins() {
     // ON Job Mode: Only show active Out for Delivery / Pending Return assigned to current driver
     deliveryOrders = allOrders.filter(o => {
       if (isReturnOrder(o)) return false;
+      const statusClean = (o.Status || "").trim().toLowerCase();
       const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
       const isAssignedToMe = isOrderAssignedToDriver(o.Driver, driverName);
       const isCorrectMethod = isOutsource 
@@ -2442,7 +2446,7 @@ function renderMapPins() {
         : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
       return (
         isCorrectMethod &&
-        (o.Status || "").trim().toLowerCase() === "out for delivery" &&
+        (statusClean === "out for delivery" || statusClean === "pending" || statusClean === "load") &&
         isAssignedToMe &&
         o.Poscode && 
         validatePoscode(o.Poscode)
@@ -2456,7 +2460,7 @@ function renderMapPins() {
       o.Poscode
     );
   } else {
-    // OFF Job Mode: Show all unassigned or self-assigned prepare/ready/load orders
+    // OFF Job Mode: Show all unassigned or self-assigned prepare/ready/load/pending orders
     deliveryOrders = allOrders.filter(o => {
       if (isReturnOrder(o)) return false;
       const statusClean = (o.Status || "").trim().toLowerCase();
@@ -2471,11 +2475,11 @@ function renderMapPins() {
       if (isOutsource) {
         const isCorrectMethod = deliverMethodClean === 'external delivery' || isAssignedToMe;
         const isUnassignedOrMine = isOrderUnassignedOrMine(o.Driver, driverName);
-        const isReadyStatus = ["ready to deliver", "load", "out for delivery"].includes(statusClean);
+        const isReadyStatus = ["pending", "ready to deliver", "load", "out for delivery"].includes(statusClean);
         return isCorrectMethod && isUnassignedOrMine && isReadyStatus && o.Poscode && validatePoscode(o.Poscode);
       } else {
         const isCorrectMethod = deliverMethodClean === 'company delivery' || deliverMethodClean === '';
-        return isCorrectMethod && ["ready to pick", "picking", "ready to deliver", "load", "out for delivery"].includes(statusClean) && o.Poscode && validatePoscode(o.Poscode);
+        return isCorrectMethod && ["pending", "ready to pick", "picking", "ready to deliver", "load", "out for delivery"].includes(statusClean) && o.Poscode && validatePoscode(o.Poscode);
       }
     });
 
@@ -2495,12 +2499,16 @@ function renderMapPins() {
       lng = coords.lng;
     }
 
-    let color = "#9CA3AF"; // Default Gray
+    let color = "#007A87"; // Default Teal Blue
     let textColor = "#FFFFFF";
-    let displayStatus = "Preparing Goods";
+    let displayStatus = "Pending Delivery";
 
     const st = (o.Status || "").trim().toLowerCase();
-    if (st === "ready to pick" || st === "picking") {
+    if (st === "pending") {
+      color = "#007A87"; // Teal Blue
+      textColor = "#FFFFFF";
+      displayStatus = "Pending Delivery";
+    } else if (st === "ready to pick" || st === "picking") {
       color = "#D47A8E"; // Dusty Rose
       textColor = "#FFFFFF";
       displayStatus = "Preparing Goods";
@@ -4075,10 +4083,10 @@ function initJobToggle() {
           });
         }
 
-        // 2. Gather active order IDs (Out for Delivery + Pending returns)
+        // 2. Gather active order IDs (Out for Delivery + Pending + Loaded + Pending returns)
         const activeDeliverOrders = allOrders.filter(o => {
           const statusClean = (o.Status || '').trim().toLowerCase();
-          return statusClean === 'out for delivery' && isOrderAssignedToDriver(o.Driver, driverName);
+          return (statusClean === 'out for delivery' || statusClean === 'pending' || statusClean === 'load') && isOrderAssignedToDriver(o.Driver, driverName);
         });
         const activeReturnOrders = allOrders.filter(o => {
           const statusClean = (o.Status || '').trim().toLowerCase();
@@ -4130,7 +4138,11 @@ function initJobToggle() {
           }
 
           // 2. Gather remaining active IDs
-          const remainingDeliverIds = activeUndelivered.map(o => o.ID);
+          const remainingDeliverIds = allOrders.filter(o => {
+            const statusClean = (o.Status || '').trim().toLowerCase();
+            const isReturn = String(o.Mark || '').startsWith('R');
+            return !isReturn && (statusClean === 'out for delivery' || statusClean === 'pending' || statusClean === 'load') && isOrderAssignedToDriver(o.Driver, driverName);
+          }).map(o => o.ID);
           const isOutsource = localStorage.getItem('is_outsource') === 'true';
           const remainingReturnIds = isOutsource ? [] : allOrders.filter(o => {
             const statusClean = (o.Status || '').trim().toLowerCase();
@@ -4295,17 +4307,18 @@ function renderOnModeList() {
 
   const isOutsource = localStorage.getItem('is_outsource') === 'true';
 
-  // Find all active Out for Delivery / Pending Return assigned to current driver
+  // Find all active Out for Delivery / Pending / Load / Pending Return assigned to current driver
   const activeDeliverOrders = allOrders.filter(o => {
     if (isReturnOrder(o)) return false;
     const deliverMethodClean = (o.Deliver_Method || o.deliver_method || '').trim().toLowerCase();
     const isAssignedToMe = isOrderAssignedToDriver(o.Driver, driverName);
+    const statusClean = (o.Status || "").trim().toLowerCase();
     const isCorrectMethod = isOutsource 
       ? (deliverMethodClean === 'external delivery' || isAssignedToMe) 
       : (deliverMethodClean === 'company delivery' || deliverMethodClean === '');
     return (
       isCorrectMethod &&
-      (o.Status || "").trim().toLowerCase() === "out for delivery" &&
+      (statusClean === "out for delivery" || statusClean === "pending" || statusClean === "load") &&
       isAssignedToMe
     );
   });
