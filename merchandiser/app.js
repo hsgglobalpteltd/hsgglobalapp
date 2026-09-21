@@ -2045,10 +2045,10 @@ function initLeafletMap() {
     attributionControl: false
   }).setView([centerLat, centerLng], 12);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 20
+  L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    opacity: 0.5
   }).addTo(leafletMap);
 
   markersGroup = L.featureGroup().addTo(leafletMap);
