@@ -254,6 +254,92 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Bind Batch Load Job Code Modal
+  const batchLoadBtn = document.getElementById('drawer-batch-load-btn');
+  const batchLoadModal = document.getElementById('batch-load-modal');
+  const batchLoadCancelBtn = document.getElementById('batch-load-cancel-btn');
+  const batchLoadSubmitBtn = document.getElementById('batch-load-submit-btn');
+  const batchTokenInput = document.getElementById('batch-job-token-input');
+  const batchBtnText = document.getElementById('batch-load-btn-text');
+
+  if (batchLoadBtn && batchLoadModal) {
+    batchLoadBtn.addEventListener('click', () => {
+      closeDrawer();
+      const driverName = getCachedAuth();
+      if (!driverName) {
+        showToast("Please log in first before loading orders", "error");
+        openAuthPage(true);
+        return;
+      }
+      batchLoadModal.style.display = 'flex';
+      if (batchTokenInput) {
+        batchTokenInput.value = '';
+        setTimeout(() => batchTokenInput.focus(), 150);
+      }
+    });
+  }
+
+  if (batchLoadCancelBtn && batchLoadModal) {
+    batchLoadCancelBtn.addEventListener('click', () => {
+      batchLoadModal.style.display = 'none';
+    });
+  }
+
+  if (batchLoadSubmitBtn && batchTokenInput) {
+    batchLoadSubmitBtn.addEventListener('click', async () => {
+      const driverName = getCachedAuth();
+      if (!driverName) {
+        showToast("Please log in first", "error");
+        openAuthPage(true);
+        return;
+      }
+
+      const tokenVal = batchTokenInput.value.trim().toUpperCase();
+      if (!tokenVal || tokenVal.length < 5) {
+        showToast("Please enter a valid 5-character Job Code", "error");
+        return;
+      }
+
+      batchLoadSubmitBtn.disabled = true;
+      if (batchBtnText) batchBtnText.textContent = "Loading...";
+
+      try {
+        const res = await fetch("https://ib-v2.hsgglobalpteltd.workers.dev/api/track-orders/job", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "claim_and_load",
+            token: tokenVal,
+            driver: driverName
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Failed to load job orders");
+        }
+
+        if (batchLoadModal) batchLoadModal.style.display = 'none';
+        showToast(data.message || `Loaded ${data.loaded_count || ''} orders into vehicle!`, "success");
+
+        // Refresh live data
+        await fetchData();
+
+        // Prompt driver to start delivery immediately if not already active
+        const hasActiveJob = localStorage.getItem('active_job_id') !== null;
+        if (!hasActiveJob) {
+          showJobConfirmModal(true);
+        }
+
+      } catch (err) {
+        showToast(err.message || "Failed to claim job code", "error");
+      } finally {
+        batchLoadSubmitBtn.disabled = false;
+        if (batchBtnText) batchBtnText.textContent = "Load Orders";
+      }
+    });
+  }
+
   // Bind Logs Page Back Button
   const logsBackBtn = document.getElementById('logs-back-btn');
   if (logsBackBtn) {

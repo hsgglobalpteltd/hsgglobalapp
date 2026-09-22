@@ -6,6 +6,41 @@ if (window.innerWidth > 600) {
 const WORKER_URL = 'https://ib-v2.hsgglobalpteltd.workers.dev';
 const APP_VERSION = "v1.3.2";
 
+// Safe localStorage setter that intercepts QuotaExceededError and purges bloated data
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`localStorage quota warning on setting '${key}', running emergency cleanup:`, e);
+    try {
+      // 1. Purge legacy base64 strings from shelf logs
+      if (Array.isArray(allShelfLogs) && allShelfLogs.length > 0) {
+        allShelfLogs.forEach(log => {
+          if (log["Image Link"] && typeof log["Image Link"] === 'string' && log["Image Link"].startsWith("data:")) {
+            log["Image Link"] = "";
+          }
+        });
+        localStorage.setItem('merch_shelf_logs', JSON.stringify(allShelfLogs.slice(-50)));
+      }
+      // 2. Purge legacy base64 strings from failed syncs
+      if (Array.isArray(failedSyncs) && failedSyncs.length > 0) {
+        failedSyncs.forEach(item => {
+          if (item.payload && item.payload.shelfLogs) {
+            item.payload.shelfLogs.forEach(b => {
+              b.base64 = '';
+            });
+          }
+        });
+        localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
+      }
+      // 3. Retry setting key
+      localStorage.setItem(key, value);
+    } catch (err2) {
+      console.error(`Final localStorage safeSetItem failed for '${key}':`, err2);
+    }
+  }
+}
+
 // Refresh and Auto-refresh State
 let lastRefreshTime = Date.now();
 let isFetchingData = false;
@@ -1313,6 +1348,40 @@ function loadCachedData() {
     } catch (e) {
       failedSyncs = [];
     }
+  }
+
+  // Automatic Storage Sanitization: Purge bloated base64 strings from local storage
+  try {
+    let shelfNeedsClean = false;
+    if (Array.isArray(allShelfLogs) && allShelfLogs.length > 0) {
+      allShelfLogs.forEach(log => {
+        if (log["Image Link"] && typeof log["Image Link"] === 'string' && log["Image Link"].startsWith("data:")) {
+          log["Image Link"] = "";
+          shelfNeedsClean = true;
+        }
+      });
+      if (shelfNeedsClean) {
+        safeSetItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
+      }
+    }
+    let syncNeedsClean = false;
+    if (Array.isArray(failedSyncs) && failedSyncs.length > 0) {
+      failedSyncs.forEach(item => {
+        if (item.payload && item.payload.shelfLogs) {
+          item.payload.shelfLogs.forEach(b => {
+            if (b.base64) {
+              b.base64 = '';
+              syncNeedsClean = true;
+            }
+          });
+        }
+      });
+      if (syncNeedsClean) {
+        safeSetItem('merch_failed_syncs', JSON.stringify(failedSyncs));
+      }
+    }
+  } catch (cleanErr) {
+    console.warn("Storage auto-sanitization error:", cleanErr);
   }
 
   // Merge failed syncs on top of loaded cached data
@@ -3112,14 +3181,28 @@ function renderAuditBrandsList() {
       
       // Image preview source
       let imgPreviewSrc = '';
-      if (brand.newBase64) {
-        imgPreviewSrc = brand.newBase64;
+      if (brand.imgUrl) {
+        imgPreviewSrc = brand.imgUrl;
       } else if (brand.oldImg) {
         imgPreviewSrc = brand.oldImg;
+      } else if (brand.newBase64) {
+        imgPreviewSrc = brand.newBase64;
       }
       
       let shelfImageHtml = '';
-      if (imgPreviewSrc) {
+      if (brand.isUploading) {
+        shelfImageHtml = `
+          <div class="shelf-image-container" style="display:flex;align-items:center;justify-content:center;min-height:90px;background:#F8FAFC;border:2px dashed #93C5FD;border-radius:8px;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;color:#0B57D0;font-size:12px;font-weight:600;">
+              <svg class="spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px;height:20px;">
+                <circle cx="12" cy="12" r="10" stroke="rgba(11,87,208,0.2)"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10"></path>
+              </svg>
+              <span>Uploading to storage...</span>
+            </div>
+          </div>
+        `;
+      } else if (imgPreviewSrc) {
         shelfImageHtml = `
           <div class="shelf-image-container has-image">
             <img src="${imgPreviewSrc}" class="shelf-image-preview-45" alt="Shelf Preview">
@@ -3412,7 +3495,7 @@ function compressImage(file, maxWidth, maxHeight, quality) {
   });
 }
 
-// Handle file input for brand card (with compression & resize)
+// Handle file input for brand card (with compression & DIRECT R2 upload)
 async function handleShelfImageUpload(e, brandId) {
   const file = e.target.files[0];
   if (!file) return;
@@ -3420,28 +3503,58 @@ async function handleShelfImageUpload(e, brandId) {
   const brand = currentAuditBrands.find(b => b.id === brandId);
   if (!brand) return;
   
-  showToast("Processing and compressing photo...", "info");
+  brand.isUploading = true;
+  renderAuditBrandsList();
+  showToast(`Uploading shelf photo for ${brand.displayName}...`, "info");
   
   try {
-    // Resize image to max 1600x1600 resolution and 80% JPEG quality
-    // This results in files typically around 200KB - 400KB (perfectly in the user's ideal 500KB range)
-    const result = await compressImage(file, 1600, 1600, 0.80);
-    brand.newBase64 = result.base64;
-    brand.newFile = result.file;
-    renderAuditBrandsList();
-    showToast("Photo processed successfully!", "success");
-  } catch (error) {
-    console.error("Image compression failed, using original file:", error);
-    showToast("Failed to compress image. Using original photo.", "warning");
+    // 1. Compress image to max 1600x1600 resolution and 80% JPEG quality
+    let uploadBlob = null;
+    try {
+      const result = await compressImage(file, 1600, 1600, 0.80);
+      uploadBlob = result.file || base64ToBlob(result.base64) || file;
+    } catch (compErr) {
+      console.warn("Image compression failed, using original file blob:", compErr);
+      uploadBlob = file;
+    }
     
-    // Fallback: Use original file directly
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      brand.newBase64 = event.target.result;
-      brand.newFile = file;
-      renderAuditBrandsList();
-    };
-    reader.readAsDataURL(file);
+    // 2. Direct upload to R2 storage via Worker
+    const storeIdStr = selectedStore ? (selectedStore.ID || selectedStore.id || "").toString().trim() : "store";
+    const fileName = `shelf_${storeIdStr}_${brand.id}_${Date.now()}.jpg`;
+    let uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
+    if (brand.oldImg && typeof brand.oldImg === 'string' && brand.oldImg.startsWith('http') && brand.oldImg.includes('shelf_')) {
+      uploadUrl += `&deleteUrl=${encodeURIComponent(brand.oldImg)}`;
+    }
+    
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': uploadBlob.type || 'image/jpeg' },
+      body: uploadBlob
+    });
+    
+    if (!uploadRes.ok) {
+      throw new Error(`Upload HTTP error (${uploadRes.status})`);
+    }
+    
+    const uploadData = await uploadRes.json();
+    if (!uploadData.success || !uploadData.url) {
+      throw new Error(uploadData.error || "Upload response did not return a valid URL");
+    }
+    
+    // 3. Save URL to brand and clear heavy base64 to avoid localStorage quota issues
+    brand.imgUrl = uploadData.url;
+    brand.oldImg = uploadData.url;
+    brand.newBase64 = null;
+    brand.newFile = null;
+    brand.isUploading = false;
+    
+    renderAuditBrandsList();
+    showToast("Shelf photo uploaded successfully!", "success");
+  } catch (error) {
+    console.error("Direct photo upload to R2 failed:", error);
+    brand.isUploading = false;
+    renderAuditBrandsList();
+    showToast("Failed to upload photo: " + (error.message || error), "error");
   }
 }
 
@@ -3694,7 +3807,11 @@ function validateAndGoToRemark() {
     // Validate shelf images and remarks are present for all brands
     for (let i = 0; i < currentAuditBrands.length; i++) {
       const brand = currentAuditBrands[i];
-      if (!brand.oldImg && !brand.newBase64) {
+      if (brand.isUploading) {
+        showToast(`Photo for ${brand.displayName} is still uploading. Please wait a moment.`, "warning");
+        return;
+      }
+      if (!brand.imgUrl && !brand.oldImg && !brand.newBase64) {
         showToast(`Please upload/replace a shelf image for ${brand.displayName}. Shelf images are mandatory.`, "error");
         return;
       }
@@ -3863,7 +3980,7 @@ async function submitAudit() {
       if (matchingTask['task action']) matchingTask['task action'] = "Call";
       if (matchingTask['TaskAction']) matchingTask['TaskAction'] = "Call";
       
-      localStorage.setItem('merch_tasks', JSON.stringify(allTasks));
+      safeSetItem('merch_tasks', JSON.stringify(allTasks));
       processTasksData(allTasks);
     }
     
@@ -3882,7 +3999,7 @@ async function submitAudit() {
     }
     
     // Save locally in allStores
-    localStorage.setItem('merch_stores', JSON.stringify(allStores));
+    safeSetItem('merch_stores', JSON.stringify(allStores));
     
     // Collect audited SKU quantities
     const auditedSkus = [];
@@ -3904,25 +4021,25 @@ async function submitAudit() {
     };
     
     allAuditLogs.push(newAuditLog);
-    localStorage.setItem('merch_audit_logs', JSON.stringify(allAuditLogs));
+    safeSetItem('merch_audit_logs', JSON.stringify(allAuditLogs));
     
-    // Push new shelf logs locally immediately using local base64/existing URLs for instant sharing
+    // Push new shelf logs locally immediately using R2 URLs (NO heavy base64 in localStorage!)
     if (!isNotCarry) {
       const now = Date.now();
       currentAuditBrands.forEach(brand => {
-        const imgData = brand.newBase64 || brand.oldImg || "";
-        if (imgData) {
+        const finalUrl = brand.imgUrl || brand.oldImg || "";
+        if (finalUrl) {
           allShelfLogs.push({
             "Timestamp": now,
             "Merch ID": merchId,
             "Retailer Stores ID": storeIdStr,
             "Brands ID": brand.id,
-            "Image Link": imgData,
+            "Image Link": finalUrl,
             "Remark": (brand.remark || "").trim()
           });
         }
       });
-      localStorage.setItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
+      safeSetItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
     }
     
     // Update view silently
@@ -3939,7 +4056,7 @@ async function submitAudit() {
     const productAuditId = `${productAuditDateStr}_${merchId}_${storeIdStr}`;
     const taskCreatedDate = matchingTask ? (matchingTask['Created Date'] || matchingTask.CreatedDate) : null;
 
-    // Build queue payload
+    // Build queue payload (Stores URLs only, keeping queue size tiny)
     const auditPayload = {
       storeId: storeIdStr,
       status: newStatus,
@@ -3954,8 +4071,7 @@ async function submitAudit() {
       shelfLogs: currentAuditBrands.map(brand => ({
         id: brand.id,
         displayName: brand.displayName,
-        base64: brand.newBase64 || '',
-        imgUrl: brand.oldImg || '',
+        imgUrl: brand.imgUrl || brand.oldImg || '',
         remark: (brand.remark || "").trim()
       }))
     };
@@ -3970,7 +4086,7 @@ async function submitAudit() {
     };
 
     failedSyncs.push(queueItem);
-    localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
+    safeSetItem('merch_failed_syncs', JSON.stringify(failedSyncs));
     updateSyncUI();
 
     // Silent background sync
@@ -3978,15 +4094,16 @@ async function submitAudit() {
       try {
         const shelfUpdates = [];
         
-        // 1. Upload new shelf images to R2
+        // 1. Process shelf image links (already uploaded directly on photo snap)
         for (const brand of auditPayload.shelfLogs) {
           let finalUrl = brand.imgUrl || '';
+          // Fallback if there was any legacy base64
           if (brand.base64 && brand.base64.startsWith('data:')) {
             const blob = base64ToBlob(brand.base64);
             if (blob) {
               const fileName = `shelf_${storeIdStr}_${brand.id}_${Date.now()}.jpg`;
               let uploadUrl = `${WORKER_URL}/api/upload?filename=${encodeURIComponent(fileName)}`;
-              if (brand.imgUrl) {
+              if (brand.imgUrl && brand.imgUrl.startsWith('http')) {
                 uploadUrl += `&deleteUrl=${encodeURIComponent(brand.imgUrl)}`;
               }
               
@@ -4079,13 +4196,13 @@ async function submitAudit() {
         
         // Success! Remove from sync queue
         failedSyncs = failedSyncs.filter(q => q.id !== queueItem.id);
-        localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
-        localStorage.setItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
+        safeSetItem('merch_failed_syncs', JSON.stringify(failedSyncs));
+        safeSetItem('merch_shelf_logs', JSON.stringify(allShelfLogs));
         updateSyncUI();
       } catch (e) {
         console.error("Background sync failed after retries:", e);
         queueItem.error = e.message || 'Background sync failed';
-        localStorage.setItem('merch_failed_syncs', JSON.stringify(failedSyncs));
+        safeSetItem('merch_failed_syncs', JSON.stringify(failedSyncs));
         updateSyncUI();
       }
     })();
