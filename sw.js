@@ -42,6 +42,11 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  // Ignore non-http requests (e.g. chrome-extension://)
+  if (!e.request.url.startsWith('http')) {
+    return;
+  }
+
   // Always bypass worker API data queries and live endpoints
   if (e.request.url.includes('/api/') || e.request.url.includes('workers.dev')) {
     return;

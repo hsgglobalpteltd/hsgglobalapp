@@ -282,6 +282,8 @@ window.addEventListener('DOMContentLoaded', () => {
   if (batchLoadCancelBtn && batchLoadModal) {
     batchLoadCancelBtn.addEventListener('click', () => {
       batchLoadModal.style.display = 'none';
+      if (batchTokenInput) batchTokenInput.value = '';
+      switchPage('Route Map');
     });
   }
 
@@ -426,7 +428,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (osSessionId) {
     restoreOutsourceSessionFromUrl(osSessionId);
   } else if (!isSessionAuthenticated()) {
-    window.location.href = '../index.html';
+    openAuthPage(true);
   } else {
     enforceNavigationRestrictions();
   }
@@ -1282,9 +1284,9 @@ async function restoreOutsourceSessionFromUrl(sessionId) {
     console.warn("Could not restore outsource session from URL:", err);
   }
 
-  // If restore failed, fallback to main portal
+  // If restore failed, prompt login directly
   if (!isSessionAuthenticated()) {
-    window.location.href = '../index.html';
+    openAuthPage(true);
   } else {
     enforceNavigationRestrictions();
   }
