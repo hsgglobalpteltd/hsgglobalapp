@@ -17,7 +17,7 @@
   <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
-  <link rel="stylesheet" href="style.css?v=26.0.42">
+  <link rel="stylesheet" href="style.css?v=26.0.44">
   <script>
     // Redirect trailing slash to resolve relative files correctly
     if (!window.location.pathname.endsWith('/') && !window.location.pathname.endsWith('.html')) {
@@ -130,13 +130,6 @@
         </svg>
         <span>Complete</span>
       </button>
-
-      <button class="drawer-item" id="drawer-batch-load-btn" style="color: #0B57D0; font-weight: 750;">
-        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-        </svg>
-        <span>Batch Load</span>
-      </button>
     </nav>
     
     <div class="drawer-footer">
@@ -221,6 +214,17 @@
       </div>
       <div id="map-details-container" class="map-details-container" style="padding-bottom: 80px;">
         <div class="map-placeholder-text">Click the pin location mark in maps to see details order.</div>
+        
+        <!-- Bottom Load Job Action Section -->
+        <div id="map-load-job-section" style="margin-top: 14px; padding: 16px 12px; background-color: #F8FAFC; border: 1.5px dashed #CBD5E1; border-radius: 16px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+          <button id="map-load-job-btn" style="width: 100%; height: 48px; background-color: #0B57D0; color: #FFFFFF; border: none; border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 6px rgba(11, 87, 208, 0.25); outline: none; -webkit-tap-highlight-color: transparent;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px;">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span>Load Job</span>
+          </button>
+          <span style="font-size: 11px; color: #64748B; line-height: 1.4; padding: 0 8px; font-weight: 500;">Enter the job code from the printed loading sheet given by the office to load your orders.</span>
+        </div>
       </div>
       <div id="on-mode-list-container" class="map-details-container hidden" style="padding-bottom: 80px;">
         <!-- Card_Order_Out_for_Delivery cards will be dynamically rendered here -->
@@ -280,6 +284,29 @@
         <button id="job-modal-confirm-btn" class="modal-btn confirm" style="background-color: #10B981; border: none; color: white;">Start Delivery</button>
         <button id="job-modal-cancel-btn" class="modal-btn cancel">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Job Loaded Notification / Instruction Modal -->
+  <div id="job-loaded-notify-modal" class="exit-modal-overlay" style="z-index: 10960; background-color: rgba(15, 23, 42, 0.75); display: none; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background-color: #FFFFFF; border-radius: 20px; width: 100%; max-width: 380px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25); text-align: center; box-sizing: border-box; font-family: var(--font-primary, sans-serif);">
+      
+      <!-- Top Success Icon -->
+      <div style="width: 52px; height: 52px; border-radius: 50%; background-color: #ECFDF5; color: #10B981; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.15);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="width: 26px; height: 26px;">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+
+      <h3 id="job-loaded-notify-title" style="font-size: 18px; font-weight: 850; color: #0F172A; margin: 0 0 10px 0;">Orders Loaded!</h3>
+      
+      <div id="job-loaded-notify-desc" style="font-size: 13px; color: #475569; margin: 0 0 20px 0; line-height: 1.5; font-weight: 500; text-align: center;">
+        <!-- Injected dynamically via JS with visual toggle & pin indicators -->
+      </div>
+
+      <button id="job-loaded-notify-close-btn" style="width: 100%; height: 46px; background-color: #0B57D0; border: none; border-radius: 12px; color: #FFFFFF; font-size: 14px; font-weight: 800; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">
+        Got it / Close
+      </button>
     </div>
   </div>
 
@@ -448,7 +475,7 @@
     </div>
 
     <!-- Bottom Actions sticky -->
-    <div style="padding: 14px 16px max(28px, calc(14px + env(safe-area-inset-bottom))) 16px; background-color: #FFFFFF; border-top: 1.5px solid #E2E8F0; display: flex; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 10; width: 100%; box-sizing: border-box;">
+    <div style="padding: 14px 16px max(34px, calc(16px + env(safe-area-inset-bottom, 0px))) 16px; background-color: #FFFFFF; border-top: 1.5px solid #E2E8F0; display: flex; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 10; width: 100%; box-sizing: border-box;">
       <div id="deliver-slider-container" class="slide-to-deliver-container disabled-mode" style="position: relative; width: 100%; height: 52px; background-color: #F1F5F9; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; box-sizing: border-box; border: 1.5px solid #E2E8F0;">
         <div id="deliver-slider-fill" class="slide-to-deliver-fill" style="position: absolute; left: 0; top: 0; bottom: 0; width: 0px; background-color: rgba(59, 130, 246, 0.15); z-index: 1; pointer-events: none; border-radius: 12px 0 0 12px;"></div>
         <div id="deliver-slider-text" style="font-size: 13px; font-weight: 750; color: #64748B; pointer-events: none; z-index: 2; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'Outfit', sans-serif;">Slide to Deliver Goods</div>
@@ -463,7 +490,7 @@
   </div>
   <!-- WhatsApp Share Drawer overlay -->
   <div id="whatsapp-share-drawer" class="exit-modal-overlay" style="z-index: 10800; background-color: rgba(15, 23, 42, 0.6); display: none; align-items: flex-end; justify-content: center; padding: 0;">
-    <div style="width: 100%; max-width: 500px; background-color: #FFFFFF; border-top-left-radius: 20px; border-top-right-radius: 20px; box-shadow: 0 -8px 24px rgba(0,0,0,0.15); display: flex; flex-direction: column; max-height: 80vh; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-sizing: border-box; padding: 24px 24px max(36px, calc(32px + env(safe-area-inset-bottom))) 24px;" id="whatsapp-share-drawer-card">
+    <div style="width: 100%; max-width: 500px; background-color: #FFFFFF; border-top-left-radius: 20px; border-top-right-radius: 20px; box-shadow: 0 -8px 24px rgba(0,0,0,0.15); display: flex; flex-direction: column; max-height: 80dvh; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-sizing: border-box; padding: 24px 24px max(38px, calc(32px + env(safe-area-inset-bottom, 0px))) 24px;" id="whatsapp-share-drawer-card">
       
       <!-- Top Drag Handle Pill -->
       <div style="width: 36px; height: 4px; border-radius: 2px; background-color: #E2E8F0; margin: 0 auto 20px auto; flex-shrink: 0;"></div>
@@ -524,6 +551,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.3.10" defer></script>
+  <script src="app.js?v=1.3.16" defer></script>
 </body>
 </html>

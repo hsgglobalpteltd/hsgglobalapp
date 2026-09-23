@@ -716,7 +716,7 @@ body {
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10000; /* Above modals and overlays */
+  z-index: 999999 !important; /* Above all modals, backdrops and overlays */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1107,7 +1107,7 @@ body {
   right: 0;
   background-color: #FFFFFF;
   border-top: 1.5px solid var(--border-color);
-  padding: 12px 16px max(28px, calc(12px + env(safe-area-inset-bottom))) 16px;
+  padding: 12px 16px max(32px, calc(14px + env(safe-area-inset-bottom, 0px))) 16px;
   box-sizing: border-box;
   z-index: 10;
 }

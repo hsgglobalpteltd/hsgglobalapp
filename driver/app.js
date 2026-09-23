@@ -43,7 +43,13 @@ let unloadModalMode = "unload"; // "unload" | "pick_return" | "unpick_return"
 let currentDeliverOrder = null;
 let currentDeliverIsReturn = false;
 let deliverSignedPhotoFile = null;
+let deliverSignedPhotoUrl = null;
+let isUploadingSignedPhoto = false;
+
 let deliverSupportingPhotoFiles = []; // up to 5 files
+let deliverSupportingPhotoUrls = []; // matching URLs
+let isUploadingSupportingPhotos = [false, false, false, false, false];
+
 let deliverItemTicks = new Set();
 let deliverItemQtys = {};
 let deliverItemRemarks = {};
@@ -167,6 +173,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // Bind Refresh button
+  // Bind Refresh button
   const refreshBtn = document.getElementById('refresh-btn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
@@ -182,10 +189,10 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Auto-refresh every 60 seconds (directly fetching from GAS)
+  // Fast Auto-refresh every 15 seconds in background
   setInterval(() => {
-    fetchData();
-  }, 60000);
+    silentRefreshInBackground();
+  }, 15000);
 
   // Bind Exit button inside Drawer
   const exitBtn = document.getElementById('exit-btn');
@@ -255,6 +262,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // Bind Batch Load Job Code Modal
+  const mapLoadJobBtn = document.getElementById('map-load-job-btn');
   const batchLoadBtn = document.getElementById('drawer-batch-load-btn');
   const batchLoadModal = document.getElementById('batch-load-modal');
   const batchLoadCancelBtn = document.getElementById('batch-load-cancel-btn');
@@ -262,21 +270,29 @@ window.addEventListener('DOMContentLoaded', () => {
   const batchTokenInput = document.getElementById('batch-job-token-input');
   const batchBtnText = document.getElementById('batch-load-btn-text');
 
-  if (batchLoadBtn && batchLoadModal) {
-    batchLoadBtn.addEventListener('click', () => {
-      closeDrawer();
-      const driverName = getCachedAuth();
-      if (!driverName) {
-        showToast("Please log in first before loading orders", "error");
-        openAuthPage(true);
-        return;
-      }
+  const openBatchLoadModal = () => {
+    closeDrawer();
+    const driverName = getCachedAuth();
+    if (!driverName) {
+      showToast("Please log in first before loading orders", "error");
+      openAuthPage(true);
+      return;
+    }
+    if (batchLoadModal) {
       batchLoadModal.style.display = 'flex';
       if (batchTokenInput) {
         batchTokenInput.value = '';
         setTimeout(() => batchTokenInput.focus(), 150);
       }
-    });
+    }
+  };
+
+  if (mapLoadJobBtn) {
+    mapLoadJobBtn.addEventListener('click', openBatchLoadModal);
+  }
+
+  if (batchLoadBtn) {
+    batchLoadBtn.addEventListener('click', openBatchLoadModal);
   }
 
   if (batchLoadCancelBtn && batchLoadModal) {
@@ -284,6 +300,15 @@ window.addEventListener('DOMContentLoaded', () => {
       batchLoadModal.style.display = 'none';
       if (batchTokenInput) batchTokenInput.value = '';
       switchPage('Route Map');
+    });
+  }
+
+  // Bind Job Loaded Notification Modal
+  const jobLoadedNotifyModal = document.getElementById('job-loaded-notify-modal');
+  const jobLoadedNotifyCloseBtn = document.getElementById('job-loaded-notify-close-btn');
+  if (jobLoadedNotifyCloseBtn && jobLoadedNotifyModal) {
+    jobLoadedNotifyCloseBtn.addEventListener('click', () => {
+      jobLoadedNotifyModal.style.display = 'none';
     });
   }
 
@@ -324,14 +349,66 @@ window.addEventListener('DOMContentLoaded', () => {
         if (batchLoadModal) batchLoadModal.style.display = 'none';
         showToast(data.message || `Loaded ${data.loaded_count || ''} orders into vehicle!`, "success");
 
-        // Refresh live data
-        await fetchData();
-
-        // Prompt driver to start delivery immediately if not already active
-        const hasActiveJob = localStorage.getItem('active_job_id') !== null;
-        if (!hasActiveJob) {
-          showJobConfirmModal(true);
+        // 1. Instant Optimistic UI & localStorage Update
+        const claimedIds = data.order_ids || [];
+        const isOutsource = localStorage.getItem('is_outsource') === 'true';
+        if (Array.isArray(claimedIds) && claimedIds.length > 0) {
+          const idSet = new Set(claimedIds.map(id => String(id).trim()));
+          allOrders.forEach(o => {
+            const oId = String(o.ID || o.id).trim();
+            if (idSet.has(oId)) {
+              const isRet = String(o.Type || '').toLowerCase() === 'return' || String(o.Mark || '').startsWith('R');
+              o.Status = isRet ? 'Pick Return' : 'Load';
+              o.Driver = driverName;
+              o.Deliver_Method = isOutsource ? 'External Delivery' : 'Company Delivery';
+            }
+          });
+          localStorage.setItem('driver_orders', JSON.stringify(allOrders));
         }
+
+        // 2. Instantly update active view (Route Map, Delivery Order tabs, etc.)
+        switchPage('Route Map');
+        renderActivePage();
+        if (typeof mapInstance !== 'undefined' && mapInstance) {
+          mapInstance.invalidateSize();
+          renderMapPins();
+        }
+
+        // 3. Show informative notification explaining green pins and visual top-right toggle switch
+        if (jobLoadedNotifyModal) {
+          const titleEl = document.getElementById('job-loaded-notify-title');
+          const descEl = document.getElementById('job-loaded-notify-desc');
+          if (titleEl) titleEl.textContent = `${data.loaded_count || 'All'} Orders Loaded!`;
+          if (descEl) {
+            descEl.innerHTML = `
+              <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px;">
+                <div style="width: 22px; height: 22px; border-radius: 50%; background-color: #007A87; color: #FFFFFF; font-size: 10px; font-weight: 900; display: flex; align-items: center; justify-content: center; border: 1.5px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2);">
+                  S1
+                </div>
+                <span style="font-size: 12.5px; font-weight: 700; color: #166534;">All orders pinned with Green / Teal marks</span>
+              </div>
+
+              <div style="font-size: 13px; color: #334155; line-height: 1.5; margin-bottom: 14px;">
+                Your delivery route is ready on the map.
+              </div>
+
+              <div style="background-color: #0F172A; border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+                <div style="text-align: left;">
+                  <div style="font-size: 12px; font-weight: 800; color: #FFFFFF;">Start Delivery</div>
+                  <div style="font-size: 10.5px; color: #94A3B8;">Turn ON toggle switch at top right</div>
+                </div>
+                <!-- Visual Toggle Mockup -->
+                <div style="width: 44px; height: 24px; background-color: #334155; border: 2px solid #64748B; border-radius: 12px; position: relative; display: flex; align-items: center; padding: 2px; box-sizing: border-box;">
+                  <div style="width: 16px; height: 16px; background-color: #FFFFFF; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>
+                </div>
+              </div>
+            `;
+          }
+          jobLoadedNotifyModal.style.display = 'flex';
+        }
+
+        // 4. Background silent sync with server to ensure 100% data fidelity
+        fetchData().catch(e => console.warn("Background refresh after load:", e));
 
       } catch (err) {
         showToast(err.message || "Failed to claim job code", "error");
@@ -532,6 +609,7 @@ function switchPage(pageName) {
   }
 
   renderActivePage();
+  silentRefreshInBackground();
 }
 
 function renderActivePage() {
@@ -552,11 +630,13 @@ function renderActivePage() {
 function setDeliverOrderTab(tab) {
   activeDeliverOrderTab = tab;
   renderDeliverOrderPage();
+  silentRefreshInBackground();
 }
 
 function setReturnOrderTab(tab) {
   activeReturnOrderTab = tab;
   renderReturnOrderPage();
+  silentRefreshInBackground();
 }
 
 window.setDeliverOrderTab = setDeliverOrderTab;
@@ -868,6 +948,30 @@ async function checkActiveJobFromDatabase() {
     }
   } catch (err) {
     console.error("Failed to check active job from database:", err);
+  }
+}
+
+// Silent Background Refresh without disruptive toasts
+async function silentRefreshInBackground() {
+  if (isFetchingData) return;
+  try {
+    const response = await fetch(`${WORKER_URL}/api/app3/Track_Orders?t=${Date.now()}`);
+    if (response.ok) {
+      const data = await response.json();
+      let ordersList = [];
+      if (Array.isArray(data)) {
+        ordersList = data;
+      } else if (data && Array.isArray(data.value)) {
+        ordersList = data.value;
+      }
+      if (ordersList.length > 0) {
+        allOrders = ordersList;
+        localStorage.setItem('driver_orders', JSON.stringify(ordersList));
+        renderActivePage();
+      }
+    }
+  } catch (err) {
+    console.debug("Silent background refresh error:", err);
   }
 }
 
@@ -1522,8 +1626,8 @@ function initOutsourceDriverLogin() {
         return;
       }
 
-      // Format driver name: Outsource - Name (Plate) - Phone
-      const combinedName = `Outsource - ${name} (${plate}) - ${phone}`;
+      // Format driver name: Name | Plate (Phone)
+      const combinedName = `${name} | ${plate} (${phone})`;
 
       localStorage.setItem('auth_driver_name', combinedName);
       localStorage.setItem('is_outsource', 'true');
@@ -1568,8 +1672,8 @@ function initOutsourceDriverLogin() {
               order,
               combinedName,
               authPendingAction.isReturn,
-              authPendingAction.signedFile,
-              authPendingAction.supportingFiles,
+              authPendingAction.signedUrl,
+              authPendingAction.supportingUrls,
               authPendingAction.itemQtys,
               authPendingAction.itemRemarks
             );
@@ -1741,8 +1845,8 @@ async function submitProofPIN(pin) {
           order,
           driverName,
           authPendingAction.isReturn,
-          authPendingAction.signedFile,
-          authPendingAction.supportingFiles,
+          authPendingAction.signedUrl,
+          authPendingAction.supportingUrls,
           authPendingAction.itemQtys,
           authPendingAction.itemRemarks
         );
@@ -1863,171 +1967,141 @@ async function uploadToR2(fileName, file) {
   return data.url;
 }
 
-async function performDeliverGoods(order, driverName, isReturn, signedFile, supportingFiles, itemQtys, itemRemarks) {
-  // --- 1. INSTANT OPTIMISTIC UI UPDATE ---
-  const previousStatus = order.Status;
-  
-  // Update status locally in memory immediately
-  order.Status = isReturn ? "Collected" : "Delivered";
-
-  // Close the deliver page overlay instantly
+async function performDeliverGoods(order, driverName, isReturn, signedPhotoUrl, supportingPhotoUrls, itemQtys, itemRemarks) {
   const deliverPage = document.getElementById('deliver-page');
-  if (deliverPage) deliverPage.classList.remove('active');
+  const sliderContainer = document.getElementById('deliver-slider-container');
+  const sliderText = document.getElementById('deliver-slider-text');
 
-  // Re-render map and timeline immediately (the completed card hides instantly)
-  renderMapPins();
-  renderOnModeList();
+  if (sliderContainer) sliderContainer.classList.add('disabled-mode');
+  if (sliderText) sliderText.textContent = "Saving Delivery...";
 
-  const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
+  try {
+    showToast("Saving delivery...", "info");
 
-  // Display WhatsApp share drawer instantly using local photo files
-  showWhatsAppShare(order, isReturn, items, itemQtys);
+    const signedUrl = (typeof signedPhotoUrl === 'string' && signedPhotoUrl.startsWith('http')) 
+      ? signedPhotoUrl 
+      : (deliverSignedPhotoUrl || "");
+      
+    const supportingUrls = Array.isArray(supportingPhotoUrls) 
+      ? supportingPhotoUrls.filter(u => typeof u === 'string' && u.startsWith('http'))
+      : (Array.isArray(deliverSupportingPhotoUrls) ? deliverSupportingPhotoUrls.filter(u => typeof u === 'string' && u.startsWith('http')) : []);
 
-  // --- 2. SILENT BACKGROUND SYNCHRONIZATION ---
-  runSilentBackgroundSync(order, driverName, isReturn, signedFile, supportingFiles, itemQtys, itemRemarks, previousStatus).catch(async err => {
-    console.warn("Background sync failed, saving to retry queue:", err);
-    showToast("Network sync issue. Saved to Re-Submit queue.", "warning");
-    
+    const supportingPhotoVal = JSON.stringify(supportingUrls);
+
+    let logs = [];
     try {
-      // Convert files to base64
-      const signedBase64 = await fileToBase64(signedFile);
-      const supportingBase64Promises = supportingFiles.map(fileToBase64);
-      const supportingBase64s = await Promise.all(supportingBase64Promises);
-      
-      const activeJobId = localStorage.getItem('active_job_id');
-      const driverLogs = JSON.parse(localStorage.getItem('active_job_driver_logs') || '[]');
-      
-      const queueItem = {
-        id: 'delivery_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-        type: 'delivery',
-        storeName: order.Deliver_To || order.deliver_to || order.DeliverTo || 'Order ' + order.ID,
+      logs = JSON.parse(order.Logs || '[]');
+    } catch (_) {}
+
+    const activeJobId = localStorage.getItem('active_job_id');
+    let driverLogs = [];
+    try {
+      driverLogs = JSON.parse(localStorage.getItem('active_job_driver_logs') || '[]');
+    } catch (_) {}
+
+    if (isReturn) {
+      // --- COLLECT RETURN FLOW ---
+      logs.push({
+        action: "Unpick Return Paper",
+        actionBy: driverName,
+        remark: "Returned paper given to admin",
         timestamp: Date.now(),
-        payload: {
-          orderId: order.ID,
-          driverName,
-          isReturn,
-          signedBase64,
-          supportingBase64s,
-          itemQtys,
-          itemRemarks,
-          previousStatus,
-          activeJobId,
-          driverLogs
-        },
-        error: 'Pending sync...'
-      };
-      
-      failedSyncs.push(queueItem);
-      localStorage.setItem('driver_failed_syncs', JSON.stringify(failedSyncs));
-      updateSyncUI();
-    } catch (e) {
-      console.error("Failed to queue failed delivery sync:", e);
+        photoUrl: signedUrl
+      });
+
+      // Await direct backend update
+      await silentSyncOrderUpdate(order.ID, {
+        Status: "Collected",
+        Photo_Return_Paper_Admin: signedUrl,
+        Photo_Delivered_Proof: supportingPhotoVal,
+        Logs: JSON.stringify(logs)
+      });
+
+      // Update Driver_Log details
+      driverLogs.push({
+        id: order.ID,
+        timestamp: Date.now(),
+        signed_paper_img: signedUrl
+      });
+      await saveJobAndRemoveOrder(activeJobId, order.ID, driverLogs);
+
+      order.Status = "Collected";
+      order.Photo_Return_Paper_Admin = signedUrl;
+      order.Photo_Delivered_Proof = supportingPhotoVal;
+      order.Logs = JSON.stringify(logs);
+
+      showToast("Return collected successfully!", "success");
+
+    } else {
+      // --- DELIVER GOODS FLOW ---
+      const discrepancies = [];
+      const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
+      items.forEach(item => {
+        const currentQty = itemQtys[item.sku] !== undefined ? itemQtys[item.sku] : item.qty;
+        if (currentQty < item.qty) {
+          discrepancies.push({
+            sku: item.sku,
+            qty_ordered: item.qty,
+            qty_delivered: currentQty,
+            remark: itemRemarks[item.sku] || ''
+          });
+        }
+      });
+
+      const remarkText = discrepancies.length > 0
+        ? `Delivered with discrepancies: ${discrepancies.map(d => `${d.sku} qty ${d.qty_delivered}/${d.qty_ordered} (${d.remark})`).join(', ')}`
+        : "Delivered successfully";
+
+      logs.push({
+        action: "Delivered",
+        actionBy: driverName,
+        remark: remarkText,
+        timestamp: Date.now(),
+        photoUrl: signedUrl
+      });
+
+      // Await direct backend update
+      await silentSyncOrderUpdate(order.ID, {
+        Status: "Delivered",
+        Photo_DO_Paper_Signed: signedUrl,
+        Photo_Delivered_Proof: supportingPhotoVal,
+        Logs: JSON.stringify(logs)
+      });
+
+      // Update Driver_Log details
+      driverLogs.push({
+        id: order.ID,
+        timestamp: Date.now(),
+        signed_paper_img: signedUrl,
+        discrepancies: discrepancies
+      });
+      await saveJobAndRemoveOrder(activeJobId, order.ID, driverLogs);
+
+      order.Status = "Delivered";
+      order.Photo_DO_Paper_Signed = signedUrl;
+      order.Photo_Delivered_Proof = supportingPhotoVal;
+      order.Logs = JSON.stringify(logs);
+
+      showToast("Goods delivered successfully!", "success");
     }
-  });
-}
 
-async function runSilentBackgroundSync(order, driverName, isReturn, signedFile, supportingFiles, itemQtys, itemRemarks, previousStatus) {
-  const doNumber = order.DO_Number || order.do_number || 'UNKNOWN';
+    // Close the deliver page overlay
+    if (deliverPage) deliverPage.classList.remove('active');
 
-  // 1. Upload Signed DO / Return Paper
-  const compSigned = await compressImageToMax250kb(signedFile);
-  const signedFolder = isReturn ? "Return_Proof_Admin" : "Signed_DO";
-  const signedFileName = `Track_Orders/${signedFolder}/${doNumber}_signed_${Date.now()}.jpg`;
-  const signedUrl = await uploadToR2(signedFileName, compSigned);
+    // Re-render map and timeline immediately
+    renderMapPins();
+    renderOnModeList();
 
-  // 2. Upload Supporting photos
-  const supportingUrls = [];
-  for (let i = 0; i < supportingFiles.length; i++) {
-    const comp = await compressImageToMax250kb(supportingFiles[i]);
-    const fileName = `Track_Orders/Delivery_Proof/${doNumber}_proof_${i}_${Date.now()}.jpg`;
-    const url = await uploadToR2(fileName, comp);
-    supportingUrls.push(url);
-  }
-  const supportingPhotoVal = JSON.stringify(supportingUrls);
-
-  let logs = [];
-  try {
-    logs = JSON.parse(order.Logs || '[]');
-  } catch (_) {}
-
-  const activeJobId = localStorage.getItem('active_job_id');
-  let driverLogs = [];
-  try {
-    driverLogs = JSON.parse(localStorage.getItem('active_job_driver_logs') || '[]');
-  } catch (_) {}
-
-  if (isReturn) {
-    // --- COLLECT RETURN FLOW ---
-    logs.push({
-      action: "Unpick Return Paper",
-      actionBy: driverName,
-      remark: "Returned paper given to admin",
-      timestamp: Date.now(),
-      photoUrl: signedUrl
-    });
-
-    await silentSyncOrderUpdate(order.ID, {
-      Status: "Collected",
-      Photo_Return_Paper_Admin: signedUrl,
-      Photo_Delivered_Proof: supportingPhotoVal,
-      Logs: JSON.stringify(logs)
-    });
-
-    // Update Driver_Log details
-    driverLogs.push({
-      id: order.ID,
-      timestamp: Date.now(),
-      signed_paper_img: signedUrl
-    });
-    await saveJobAndRemoveOrder(activeJobId, order.ID, driverLogs);
-
-    showToast("Return collected successfully!", "success");
-
-  } else {
-    // --- DELIVER GOODS FLOW ---
-    const discrepancies = [];
     const items = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
-    items.forEach(item => {
-      const currentQty = itemQtys[item.sku] !== undefined ? itemQtys[item.sku] : item.qty;
-      if (currentQty < item.qty) {
-        discrepancies.push({
-          sku: item.sku,
-          qty_ordered: item.qty,
-          qty_delivered: currentQty,
-          remark: itemRemarks[item.sku] || ''
-        });
-      }
-    });
 
-    const remarkText = discrepancies.length > 0
-      ? `Delivered with discrepancies: ${discrepancies.map(d => `${d.sku} qty ${d.qty_delivered}/${d.qty_ordered} (${d.remark})`).join(', ')}`
-      : "Delivered successfully";
+    // Display WhatsApp share drawer
+    showWhatsAppShare(order, isReturn, items, itemQtys);
 
-    logs.push({
-      action: "Delivered",
-      actionBy: driverName,
-      remark: remarkText,
-      timestamp: Date.now(),
-      photoUrl: signedUrl
-    });
-
-    await silentSyncOrderUpdate(order.ID, {
-      Status: "Delivered",
-      Photo_DO_Paper_Signed: signedUrl,
-      Photo_Delivered_Proof: supportingPhotoVal,
-      Logs: JSON.stringify(logs)
-    });
-
-    // Update Driver_Log details
-    driverLogs.push({
-      id: order.ID,
-      timestamp: Date.now(),
-      signed_paper_img: signedUrl,
-      discrepancies: discrepancies
-    });
-    await saveJobAndRemoveOrder(activeJobId, order.ID, driverLogs);
-
-    showToast("Goods delivered successfully!", "success");
+  } catch (err) {
+    console.error("Delivery completion failed:", err);
+    showToast("Failed to save delivery: " + (err.message || "Network error. Please retry."), "error");
+    if (sliderContainer) sliderContainer.classList.remove('disabled-mode');
+    if (sliderText) sliderText.textContent = isReturn ? "Slide to Collect Return" : "Slide to Deliver Goods";
   }
 }
 
@@ -2158,13 +2232,19 @@ function showWhatsAppShare(order, isReturn, items, itemQtys) {
     const fileUrls = [];
     
     // Add local memory photos if they exist (just completed)
-    if (deliverSignedPhotoFile) {
+    if (deliverSignedPhotoUrl && deliverSignedPhotoUrl.startsWith('http')) {
+      fileUrls.push(deliverSignedPhotoUrl);
+    } else if (deliverSignedPhotoFile) {
       fileUrls.push(URL.createObjectURL(deliverSignedPhotoFile));
     }
     if (returnPaperPhotoFile) {
       fileUrls.push(URL.createObjectURL(returnPaperPhotoFile));
     }
-    if (Array.isArray(deliverSupportingPhotoFiles)) {
+    if (Array.isArray(deliverSupportingPhotoUrls) && deliverSupportingPhotoUrls.length > 0) {
+      deliverSupportingPhotoUrls.forEach(url => {
+        if (url && url.startsWith('http') && !fileUrls.includes(url)) fileUrls.push(url);
+      });
+    } else if (Array.isArray(deliverSupportingPhotoFiles)) {
       deliverSupportingPhotoFiles.forEach(file => {
         if (file) fileUrls.push(URL.createObjectURL(file));
       });
@@ -2718,6 +2798,9 @@ function navigateToMapPin(pin) {
 
   // Directly pan and zoom to the pin location
   mapInstance.setView([pin.lat, pin.lng], Math.max(mapInstance.getZoom(), 16), { animate: true });
+
+  // Trigger silent background refresh for all other orders whenever user interacts with a pin
+  silentRefreshInBackground();
 
   const activeJobId = localStorage.getItem('active_job_id');
   if (activeJobId) {
@@ -4045,7 +4128,32 @@ function clearMapOrderDetails() {
   returnPaperPhotoFile = null;
   const container = document.getElementById('map-details-container');
   if (container) {
-    container.innerHTML = `<div class="map-placeholder-text">Click the pin location mark in maps to see details order.</div>`;
+    container.innerHTML = `
+      <div class="map-placeholder-text">Click the pin location mark in maps to see details order.</div>
+      <div id="map-load-job-section" style="margin-top: 14px; padding: 16px 12px; background-color: #F8FAFC; border: 1.5px dashed #CBD5E1; border-radius: 16px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <button id="map-load-job-btn" style="width: 100%; height: 48px; background-color: #0B57D0; color: #FFFFFF; border: none; border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 6px rgba(11, 87, 208, 0.25); outline: none; -webkit-tap-highlight-color: transparent;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px;">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          <span>Load Job</span>
+        </button>
+        <span style="font-size: 11px; color: #64748B; line-height: 1.4; padding: 0 8px; font-weight: 500;">Enter the job code from the printed loading sheet given by the office to load your orders.</span>
+      </div>
+    `;
+    const newBtn = container.querySelector('#map-load-job-btn');
+    if (newBtn) {
+      newBtn.onclick = () => {
+        const batchModal = document.getElementById('batch-load-modal');
+        const tokenInput = document.getElementById('batch-job-token-input');
+        if (batchModal) {
+          batchModal.style.display = 'flex';
+          if (tokenInput) {
+            tokenInput.value = '';
+            setTimeout(() => tokenInput.focus(), 150);
+          }
+        }
+      };
+    }
   }
   
   // Expand map back to 60vh
@@ -4749,7 +4857,13 @@ window.openDeliverPage = function(order, isReturn) {
   currentDeliverOrder = order;
   currentDeliverIsReturn = !!isReturn;
   deliverSignedPhotoFile = null;
+  deliverSignedPhotoUrl = null;
+  isUploadingSignedPhoto = false;
+
   deliverSupportingPhotoFiles = [];
+  deliverSupportingPhotoUrls = [];
+  isUploadingSupportingPhotos = [false, false, false, false, false];
+
   deliverItemTicks.clear();
   deliverItemQtys = {};
   deliverItemRemarks = {};
@@ -4811,20 +4925,21 @@ window.openDeliverPage = function(order, isReturn) {
 
   if (sliderFill) sliderFill.style.width = '0px';
   if (sliderHandle) sliderHandle.style.left = '3px';
-  if (sliderText) sliderText.style.opacity = '1';
+  if (sliderText) {
+    sliderText.style.opacity = '1';
+    sliderText.textContent = isReturn ? "Slide to Collect Return" : "Slide to Deliver Goods";
+  }
 
   if (isReturn) {
     if (accordion) accordion.style.display = 'none';
     if (proofTitle) proofTitle.textContent = "Proof of Collected";
     if (signedTitle) signedTitle.textContent = "Signed Return Paper (Mandatory)";
     if (signedCameraBoxLabel) signedCameraBoxLabel.textContent = "TAP TO CAPTURE SIGNED RETURN PAPER";
-    if (sliderText) sliderText.textContent = "Slide to Collect Return";
   } else {
     if (accordion) accordion.style.display = 'flex';
     if (proofTitle) proofTitle.textContent = "Proof of Delivery";
     if (signedTitle) signedTitle.textContent = "Signed DO / GRN Photo (Mandatory)";
     if (signedCameraBoxLabel) signedCameraBoxLabel.textContent = "TAP TO CAPTURE SIGNED DO / GRN";
-    if (sliderText) sliderText.textContent = "Slide to Deliver Goods";
 
     // Populate items
     renderDeliverItemsList(order);
@@ -4854,6 +4969,7 @@ function renderSupportingPhotoGrid() {
   for (let i = 0; i < 5; i++) {
     const isSlotFilled = i < deliverSupportingPhotoFiles.length;
     const isSlotActive = i === deliverSupportingPhotoFiles.length;
+    const isUploading = isUploadingSupportingPhotos[i];
 
     const slotDiv = document.createElement('div');
     slotDiv.className = 'camera-upload-box';
@@ -4872,9 +4988,19 @@ function renderSupportingPhotoGrid() {
     if (isSlotFilled) {
       const file = deliverSupportingPhotoFiles[i];
       const imgUrl = URL.createObjectURL(file);
+      const isUploaded = deliverSupportingPhotoUrls[i] && deliverSupportingPhotoUrls[i].startsWith('http');
 
       slotDiv.innerHTML = `
         <img src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover;">
+        ${isUploading ? `
+          <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: white;">
+            <div style="width: 16px; height: 16px; border: 2px solid #FFFFFF; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+            <span style="font-size: 9px; font-weight: 800;">UPLOADING</span>
+          </div>
+        ` : ''}
+        ${isUploaded ? `
+          <div style="position: absolute; bottom: 4px; left: 4px; background: rgba(16, 185, 129, 0.9); color: white; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">✓</div>
+        ` : ''}
         <button onclick="removeSupportingPhoto(${i}, event)" style="position: absolute; top: 4px; right: 4px; border: none; background: rgba(0,0,0,0.6); color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">&times;</button>
       `;
     } else {
@@ -4898,18 +5024,43 @@ function renderSupportingPhotoGrid() {
   }
 }
 
-window.onSupportingPhotoSelected = function(input, index) {
+window.onSupportingPhotoSelected = async function(input, index) {
   if (input.files && input.files[0]) {
-    const file = input.files[0];
-    deliverSupportingPhotoFiles.push(file);
+    const rawFile = input.files[0];
+    const newIdx = deliverSupportingPhotoFiles.length;
+    deliverSupportingPhotoFiles.push(rawFile);
+    deliverSupportingPhotoUrls.push(null);
+    isUploadingSupportingPhotos[newIdx] = true;
+    
     renderSupportingPhotoGrid();
     updateDeliverSubmitButtonState();
+
+    try {
+      // 1. Direct instant client-side compression
+      const comp = await compressImageToMax250kb(rawFile);
+      const doNumber = currentDeliverOrder.DO_Number || currentDeliverOrder.do_number || 'UNKNOWN';
+      const fileName = `Track_Orders/Delivery_Proof/${doNumber}_proof_${newIdx}_${Date.now()}.jpg`;
+
+      // 2. Direct instant upload to R2
+      const url = await uploadToR2(fileName, comp);
+      deliverSupportingPhotoUrls[newIdx] = url;
+    } catch (err) {
+      console.error("Failed to upload supporting photo:", err);
+      showToast("Photo upload failed. Please retake photo.", "error");
+    } finally {
+      isUploadingSupportingPhotos[newIdx] = false;
+      renderSupportingPhotoGrid();
+      updateDeliverSubmitButtonState();
+    }
   }
 };
 
 window.removeSupportingPhoto = function(index, e) {
   if (e) e.stopPropagation();
   deliverSupportingPhotoFiles.splice(index, 1);
+  deliverSupportingPhotoUrls.splice(index, 1);
+  isUploadingSupportingPhotos.splice(index, 1);
+  isUploadingSupportingPhotos.push(false);
   renderSupportingPhotoGrid();
   updateDeliverSubmitButtonState();
 };
@@ -5100,18 +5251,36 @@ window.onDeliverRemarkInput = function(sku, val) {
 
 function updateDeliverSubmitButtonState() {
   const sliderContainer = document.getElementById('deliver-slider-container');
+  const sliderText = document.getElementById('deliver-slider-text');
   if (!sliderContainer) return;
 
-  if (!deliverSignedPhotoFile || deliverSupportingPhotoFiles.length === 0) {
+  // 1. Check if uploads are currently in flight
+  const isAnyPhotoUploading = isUploadingSignedPhoto || isUploadingSupportingPhotos.some(Boolean);
+  if (isAnyPhotoUploading) {
     sliderContainer.classList.add('disabled-mode');
+    if (sliderText) sliderText.textContent = "Uploading Photos (Please wait)...";
+    return;
+  }
+
+  // 2. Check if mandatory Signed DO and at least 1 Supporting Photo are uploaded
+  const hasSignedUrl = !!deliverSignedPhotoUrl && deliverSignedPhotoUrl.startsWith('http');
+  const hasSupportingUrls = deliverSupportingPhotoUrls.length > 0 && deliverSupportingPhotoUrls.every(u => u && u.startsWith('http'));
+
+  if (!hasSignedUrl || !hasSupportingUrls) {
+    sliderContainer.classList.add('disabled-mode');
+    if (sliderText) {
+      sliderText.textContent = currentDeliverIsReturn ? "Slide to Collect Return" : "Slide to Deliver Goods";
+    }
     return;
   }
 
   if (currentDeliverIsReturn) {
     sliderContainer.classList.remove('disabled-mode');
+    if (sliderText) sliderText.textContent = "Slide to Collect Return";
     return;
   }
 
+  // 3. Check items checklist and discrepancy remarks
   const rawItems = typeof currentDeliverOrder.Items === 'string' ? JSON.parse(currentDeliverOrder.Items || '[]') : (currentDeliverOrder.Items || currentDeliverOrder.items || []);
   const allTicked = rawItems.every(rawItem => {
     const sku = String(rawItem.sku || rawItem.SKU || rawItem.item || '').trim();
@@ -5120,6 +5289,7 @@ function updateDeliverSubmitButtonState() {
 
   if (!allTicked) {
     sliderContainer.classList.add('disabled-mode');
+    if (sliderText) sliderText.textContent = "Slide to Deliver Goods";
     return;
   }
 
@@ -5136,10 +5306,12 @@ function updateDeliverSubmitButtonState() {
 
   if (hasDiscrepancyRemarkEmpty) {
     sliderContainer.classList.add('disabled-mode');
+    if (sliderText) sliderText.textContent = "Slide to Deliver Goods";
     return;
   }
 
   sliderContainer.classList.remove('disabled-mode');
+  if (sliderText) sliderText.textContent = "Slide to Deliver Goods";
 }
 
 function bindDeliverPageEvents() {
@@ -5156,10 +5328,12 @@ function bindDeliverPageEvents() {
   if (cameraBox && fileInput) {
     cameraBox.onclick = () => fileInput.click();
     
-    fileInput.onchange = (e) => {
+    fileInput.onchange = async (e) => {
       if (fileInput.files && fileInput.files[0]) {
         const file = fileInput.files[0];
         deliverSignedPhotoFile = file;
+        deliverSignedPhotoUrl = null;
+        isUploadingSignedPhoto = true;
         
         const preview = document.getElementById('deliver-signed-preview');
         const placeholder = document.getElementById('deliver-signed-placeholder');
@@ -5170,6 +5344,23 @@ function bindDeliverPageEvents() {
         if (placeholder) placeholder.classList.add('hidden');
         
         updateDeliverSubmitButtonState();
+
+        try {
+          // Direct client-side compression and upload
+          const comp = await compressImageToMax250kb(file);
+          const doNumber = currentDeliverOrder.DO_Number || currentDeliverOrder.do_number || 'UNKNOWN';
+          const signedFolder = currentDeliverIsReturn ? "Return_Proof_Admin" : "Signed_DO";
+          const signedFileName = `Track_Orders/${signedFolder}/${doNumber}_signed_${Date.now()}.jpg`;
+          
+          const url = await uploadToR2(signedFileName, comp);
+          deliverSignedPhotoUrl = url;
+        } catch (err) {
+          console.error("Failed to upload signed DO photo:", err);
+          showToast("Failed to upload Signed DO photo. Please tap to retry.", "error");
+        } finally {
+          isUploadingSignedPhoto = false;
+          updateDeliverSubmitButtonState();
+        }
       }
     };
   }
@@ -5202,12 +5393,17 @@ function bindDeliverPageEvents() {
     let maxSlide = 0;
 
     const checkDeliverPrerequisites = () => {
-      if (!deliverSignedPhotoFile) {
+      if (isUploadingSignedPhoto || isUploadingSupportingPhotos.some(Boolean)) {
+        showToast("Photos are still uploading. Please wait a moment...", "warning");
+        return false;
+      }
+
+      if (!deliverSignedPhotoUrl) {
         showToast("Please capture the Signed DO / GRN photo first!", "warning");
         return false;
       }
 
-      if (deliverSupportingPhotoFiles.length === 0) {
+      if (deliverSupportingPhotoUrls.length === 0 || deliverSupportingPhotoUrls.some(u => !u)) {
         showToast("Please capture at least 1 Supporting Photo!", "warning");
         return false;
       }
@@ -5305,8 +5501,8 @@ function bindDeliverPageEvents() {
               currentDeliverOrder,
               driverName,
               currentDeliverIsReturn,
-              deliverSignedPhotoFile,
-              deliverSupportingPhotoFiles,
+              deliverSignedPhotoUrl,
+              deliverSupportingPhotoUrls,
               deliverItemQtys,
               deliverItemRemarks
             );
@@ -5317,8 +5513,8 @@ function bindDeliverPageEvents() {
             type: 'deliver_goods',
             orderId: currentDeliverOrder.ID,
             isReturn: currentDeliverIsReturn,
-            signedFile: deliverSignedPhotoFile,
-            supportingFiles: deliverSupportingPhotoFiles,
+            signedUrl: deliverSignedPhotoUrl,
+            supportingUrls: deliverSupportingPhotoUrls,
             itemQtys: deliverItemQtys,
             itemRemarks: deliverItemRemarks
           };

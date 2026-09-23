@@ -1078,7 +1078,7 @@ body {
   right: 0;
   background-color: #FFFFFF;
   border-top: 1.5px solid var(--border-color);
-  padding: 12px 16px max(28px, calc(12px + env(safe-area-inset-bottom))) 16px;
+  padding: 12px 16px max(32px, calc(14px + env(safe-area-inset-bottom, 0px))) 16px;
   box-sizing: border-box;
   z-index: 10;
 }

@@ -415,7 +415,7 @@ body {
 .sticky-footer-bar {
   background-color: #FFFFFF;
   border-top: 1.5px solid var(--border-color);
-  padding: 12px 14px max(24px, calc(12px + env(safe-area-inset-bottom))) 14px;
+  padding: 12px 14px max(30px, calc(14px + env(safe-area-inset-bottom, 0px))) 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;

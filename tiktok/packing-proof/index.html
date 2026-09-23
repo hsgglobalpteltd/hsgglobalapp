@@ -327,7 +327,7 @@
       position: relative;
       z-index: 10;
       padding-top: 12px;
-      padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
+      padding-bottom: max(32px, calc(16px + env(safe-area-inset-bottom, 0px)));
     }
 
     .list-btn {
