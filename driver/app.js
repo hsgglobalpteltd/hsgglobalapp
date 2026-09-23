@@ -1363,7 +1363,7 @@ function clearCachedAuth() {
     item.style.display = 'flex';
   });
 
-  openAuthPage(true); // Always force login again when logging out
+  window.location.replace('login/index.html');
 }
 
 function updateDrawerLogoutButton() {
@@ -1436,6 +1436,19 @@ function autofillOutsourceInputs() {
 
 // Auth Page View Controllers
 function openAuthPage(isMandatory = false) {
+  // If session is already authenticated as outsource driver, keep in app
+  if (localStorage.getItem('is_outsource') === 'true' && localStorage.getItem('auth_driver_name')) {
+    closeAuthPage();
+    enforceNavigationRestrictions();
+    return;
+  }
+
+  // Redirect unauthenticated outsource flow to dedicated login gate
+  if (isMandatory) {
+    window.location.replace('login/index.html');
+    return;
+  }
+
   const authPage = document.getElementById('auth-page');
   if (!authPage) return;
 

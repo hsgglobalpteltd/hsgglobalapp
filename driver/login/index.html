@@ -301,6 +301,7 @@
       localStorage.setItem('outsource_details', JSON.stringify({ name, plate, phone }));
       localStorage.setItem('saved_outsource_details', JSON.stringify({ name, plate, phone }));
       localStorage.setItem('auth_timestamp', Date.now().toString());
+      sessionStorage.setItem('from_pools', 'true');
 
       // 3. Register outsource session on backend
       try {
@@ -319,8 +320,8 @@
 
       showToast('Logged in successfully!');
       setTimeout(() => {
-        window.location.href = '../index.html';
-      }, 400);
+        window.location.replace('../index.html');
+      }, 300);
     });
   </script>
 </body>

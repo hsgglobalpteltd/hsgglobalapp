@@ -27,9 +27,9 @@
     else if (window.innerWidth > 600) {
       window.location.replace('../index.html');
     }
-    // Direct Access Redirect: if not accessed via Pools App, redirect to Pools App
-    else if (sessionStorage.getItem('from_pools') !== 'true' && !document.referrer.includes('index.html')) {
-      window.location.replace('../index.html');
+    // Direct Access Redirect: if not logged in as outsource driver and not from pools
+    else if (localStorage.getItem('is_outsource') !== 'true' && sessionStorage.getItem('from_pools') !== 'true' && !document.referrer.includes('index.html')) {
+      window.location.replace('login/index.html');
     }
 
     // iOS Safari gesture zoom prevention
