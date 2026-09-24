@@ -21,6 +21,7 @@ let lastRefreshTime = Date.now();
 let toastTimeout = null;
 let allProducts = [];
 let allBrands = [];
+const pendingOptimisticUpdates = {};
 
 // Leaflet Map state variables
 let mapInstance = null;
@@ -309,6 +310,10 @@ window.addEventListener('DOMContentLoaded', () => {
   if (jobLoadedNotifyCloseBtn && jobLoadedNotifyModal) {
     jobLoadedNotifyCloseBtn.addEventListener('click', () => {
       jobLoadedNotifyModal.style.display = 'none';
+      if (typeof mapInstance !== 'undefined' && mapInstance) {
+        mapInstance.invalidateSize();
+        renderMapPins();
+      }
     });
   }
 
@@ -354,13 +359,38 @@ window.addEventListener('DOMContentLoaded', () => {
         const isOutsource = localStorage.getItem('is_outsource') === 'true';
         if (Array.isArray(claimedIds) && claimedIds.length > 0) {
           const idSet = new Set(claimedIds.map(id => String(id).trim()));
+          claimedIds.forEach(id => {
+            const cleanId = String(id).trim();
+            pendingOptimisticUpdates[cleanId] = {
+              status: 'Load',
+              driver: driverName,
+              deliverMethod: isOutsource ? 'External Delivery' : 'Company Delivery',
+              timestamp: Date.now()
+            };
+          });
+
           allOrders.forEach(o => {
-            const oId = String(o.ID || o.id).trim();
-            if (idSet.has(oId)) {
-              const isRet = String(o.Type || '').toLowerCase() === 'return' || String(o.Mark || '').startsWith('R');
-              o.Status = isRet ? 'Pick Return' : 'Load';
+            const oId = String(o.ID || o.id || '').trim();
+            const doNum = String(o.DO_Number || o.do_number || '').trim();
+            if (idSet.has(oId) || (doNum && idSet.has(doNum))) {
+              const isRet = String(o.Type || o.type || '').toLowerCase() === 'return' || String(o.Mark || o.mark || '').startsWith('R');
+              const targetStatus = isRet ? 'Pick Return' : 'Load';
+              o.Status = targetStatus;
+              o.status = targetStatus;
               o.Driver = driverName;
+              o.driver = driverName;
               o.Deliver_Method = isOutsource ? 'External Delivery' : 'Company Delivery';
+              o.deliver_method = o.Deliver_Method;
+
+              // Also store under DO number key for robust matching
+              if (doNum) {
+                pendingOptimisticUpdates[doNum] = {
+                  status: targetStatus,
+                  driver: driverName,
+                  deliverMethod: o.Deliver_Method,
+                  timestamp: Date.now()
+                };
+              }
             }
           });
           localStorage.setItem('driver_orders', JSON.stringify(allOrders));
@@ -951,11 +981,47 @@ async function checkActiveJobFromDatabase() {
   }
 }
 
+// Helper to safeguard optimistic updates against temporary server replication lag or cache
+function applyOptimisticUpdates(ordersList) {
+  if (!ordersList || !Array.isArray(ordersList) || Object.keys(pendingOptimisticUpdates).length === 0) {
+    return ordersList;
+  }
+  const now = Date.now();
+  ordersList.forEach(o => {
+    const oId = String(o.ID || o.id || '').trim();
+    const doNum = String(o.DO_Number || o.do_number || '').trim();
+    const opt = pendingOptimisticUpdates[oId] || (doNum && pendingOptimisticUpdates[doNum]);
+    if (opt) {
+      if (now - opt.timestamp > 120000) {
+        delete pendingOptimisticUpdates[oId];
+        if (doNum) delete pendingOptimisticUpdates[doNum];
+      } else {
+        const stClean = (o.Status || o.status || '').trim().toLowerCase();
+        // If server hasn't updated to 'load' or 'out for delivery' or 'delivered' yet, preserve optimistic status
+        if (stClean === 'ready to deliver' || stClean === 'pending' || stClean === 'ready to pick' || stClean === 'picking') {
+          const isRet = String(o.Type || o.type || '').toLowerCase() === 'return' || String(o.Mark || o.mark || '').startsWith('R');
+          const targetStatus = isRet ? 'Pick Return' : opt.status;
+          o.Status = targetStatus;
+          o.status = targetStatus;
+          o.Driver = opt.driver;
+          o.driver = opt.driver;
+          o.Deliver_Method = opt.deliverMethod;
+          o.deliver_method = opt.deliverMethod;
+        } else {
+          delete pendingOptimisticUpdates[oId];
+          if (doNum) delete pendingOptimisticUpdates[doNum];
+        }
+      }
+    }
+  });
+  return ordersList;
+}
+
 // Silent Background Refresh without disruptive toasts
 async function silentRefreshInBackground() {
   if (isFetchingData) return;
   try {
-    const response = await fetch(`${WORKER_URL}/api/app3/Track_Orders?t=${Date.now()}`);
+    const response = await fetch(`${WORKER_URL}/api/app3/Track_Orders?t=${Date.now()}&force=true`);
     if (response.ok) {
       const data = await response.json();
       let ordersList = [];
@@ -965,6 +1031,7 @@ async function silentRefreshInBackground() {
         ordersList = data.value;
       }
       if (ordersList.length > 0) {
+        ordersList = applyOptimisticUpdates(ordersList);
         allOrders = ordersList;
         localStorage.setItem('driver_orders', JSON.stringify(ordersList));
         renderActivePage();
@@ -986,7 +1053,7 @@ async function fetchData() {
   if (drawerRefreshIcon) drawerRefreshIcon.classList.add('spinning');
 
   try {
-    const response = await fetch(`${WORKER_URL}/api/app3/Track_Orders?t=${Date.now()}`);
+    const response = await fetch(`${WORKER_URL}/api/app3/Track_Orders?t=${Date.now()}&force=true`);
     if (!response.ok) {
       throw new Error(`Worker API returned status ${response.status}`);
     }
@@ -1001,6 +1068,7 @@ async function fetchData() {
       throw new Error("Invalid database format response");
     }
 
+    ordersList = applyOptimisticUpdates(ordersList);
     allOrders = ordersList;
     localStorage.setItem('driver_orders', JSON.stringify(ordersList));
     await checkActiveJobFromDatabase();
@@ -2684,8 +2752,16 @@ function renderMapPins() {
     let textColor = "#FFFFFF";
     let displayStatus = "Pending Delivery";
 
+    const oId = String(o.ID || o.id || '').trim();
+    const doNum = String(o.DO_Number || o.do_number || '').trim();
+    const hasOptimisticLoad = !!(pendingOptimisticUpdates[oId] || (doNum && pendingOptimisticUpdates[doNum]));
+
     const st = (o.Status || "").trim().toLowerCase();
-    if (st === "pending") {
+    if (hasOptimisticLoad || st === "load") {
+      color = "#007A87"; // Teal Blue
+      textColor = "#FFFFFF";
+      displayStatus = "Goods Ready";
+    } else if (st === "pending") {
       color = "#007A87"; // Teal Blue
       textColor = "#FFFFFF";
       displayStatus = "Pending Delivery";
@@ -2695,10 +2771,6 @@ function renderMapPins() {
       displayStatus = "Preparing Goods";
     } else if (st === "ready to deliver") {
       color = "#E28B54"; // Soft Orange
-      textColor = "#FFFFFF";
-      displayStatus = "Goods Ready";
-    } else if (st === "load") {
-      color = "#007A87"; // Teal Blue
       textColor = "#FFFFFF";
       displayStatus = "Goods Ready";
     } else if (st === "out for delivery") {
