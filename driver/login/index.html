@@ -301,14 +301,23 @@
         return;
       }
 
-      // Format full international phone number: e.g. +65 91234567 or +6591234567
-      const cleanPhoneDigits = rawPhone.replace(/^\+?[0-9]{1,4}/, '').trim() || rawPhone;
-      const fullPhone = `${countryCode} ${rawPhone.replace(/^\+?[0-9]{1,4}\s*/, '').trim() || rawPhone}`;
+      // Format full international phone number without stripping valid digits
+      let cleanPhone = rawPhone.trim();
+      if (cleanPhone.startsWith('+')) {
+        const prefixes = ['+65', '+60', '+62', '+880', '+91', '+86', '+84', '+63', '+66'];
+        const matched = prefixes.find(p => cleanPhone.startsWith(p));
+        if (matched) {
+          cleanPhone = cleanPhone.substring(matched.length).trim();
+        } else {
+          cleanPhone = cleanPhone.replace(/^\+\d{1,4}\s*/, '');
+        }
+      }
+      const fullPhone = `${countryCode} ${cleanPhone}`;
 
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span>Entering...</span>';
 
-      const combinedDriverName = `${name} | ${plate} (${fullPhone})`;
+      const combinedDriverName = `${name} (${plate}) | ${fullPhone}`;
 
       // 1. Clear any conflicting in-house session
       localStorage.removeItem('ib_auth_user');

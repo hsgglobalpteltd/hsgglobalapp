@@ -310,7 +310,7 @@
 
         const data = await res.json();
         if (data.success && data.session_id) {
-          const combinedName = `Outsource - ${name} (${plate}) - ${phone}`;
+          const combinedName = `${name} (${plate}) | ${phone}`;
           localStorage.setItem('auth_driver_name', combinedName);
           localStorage.setItem('is_outsource', 'true');
           localStorage.setItem('outsource_details', JSON.stringify({ name, plate, phone }));

@@ -1694,8 +1694,8 @@ function initOutsourceDriverLogin() {
         return;
       }
 
-      // Format driver name: Name | Plate (Phone)
-      const combinedName = `${name} | ${plate} (${phone})`;
+      // Format driver name: Name (Plate) | Phone
+      const combinedName = `${name} (${plate}) | ${phone}`;
 
       localStorage.setItem('auth_driver_name', combinedName);
       localStorage.setItem('is_outsource', 'true');
