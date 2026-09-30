@@ -2022,17 +2022,29 @@ async function performPickReturnPaper(order, driverName, photoFile) {
   }
 }
 
-async function uploadToR2(fileName, file) {
-  const uploadUrl = `${WORKER_URL}/api/app3/upload?filename=${encodeURIComponent(fileName)}`;
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'image/jpeg' },
-    body: file
-  });
-  if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
-  const data = await res.json();
-  if (!data.success) throw new Error("Upload response success=false");
-  return data.url;
+async function uploadToR2(fileName, file, retries = 3) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const uploadUrl = `${WORKER_URL}/api/app3/upload?filename=${encodeURIComponent(fileName)}`;
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'image/jpeg' },
+        body: file
+      });
+      if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || "Upload response success=false");
+      return data.url;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`uploadToR2 attempt ${attempt}/${retries} failed:`, err);
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 800 * attempt));
+      }
+    }
+  }
+  throw lastErr || new Error("Upload failed after retries");
 }
 
 async function performDeliverGoods(order, driverName, isReturn, signedPhotoUrl, supportingPhotoUrls, itemQtys, itemRemarks) {
@@ -5018,10 +5030,7 @@ window.openDeliverPage = function(order, isReturn) {
   }
 
   // Clear Signed Paper preview and resets
-  const signedPreview = document.getElementById('deliver-signed-preview');
-  const signedPlaceholder = document.getElementById('deliver-signed-placeholder');
-  if (signedPreview) signedPreview.classList.add('hidden');
-  if (signedPlaceholder) signedPlaceholder.classList.remove('hidden');
+  renderSignedPhotoState();
 
   const accordionBody = document.getElementById('deliver-accordion-body');
   const arrowSvg = document.getElementById('deliver-accordion-toggle-btn').querySelector('svg');
@@ -5030,6 +5039,104 @@ window.openDeliverPage = function(order, isReturn) {
 
   renderSupportingPhotoGrid();
   updateDeliverSubmitButtonState();
+};
+
+function renderSignedPhotoState() {
+  const preview = document.getElementById('deliver-signed-preview');
+  const placeholder = document.getElementById('deliver-signed-placeholder');
+  const overlay = document.getElementById('deliver-signed-overlay');
+  const cameraBox = document.getElementById('deliver-signed-camera-box');
+  if (!cameraBox) return;
+
+  if (deliverSignedPhotoFile) {
+    if (placeholder) placeholder.classList.add('hidden');
+    if (preview) {
+      preview.src = URL.createObjectURL(deliverSignedPhotoFile);
+      preview.classList.remove('hidden');
+    }
+    
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      if (isUploadingSignedPhoto) {
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.55)';
+        overlay.style.pointerEvents = 'auto';
+        overlay.innerHTML = `
+          <div style="width: 24px; height: 24px; border: 2.5px solid #FFFFFF; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+          <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.05em; color: #FFFFFF;">UPLOADING SIGNED DO...</span>
+        `;
+      } else if (deliverSignedPhotoUrl && deliverSignedPhotoUrl.startsWith('http')) {
+        overlay.style.backgroundColor = 'transparent';
+        overlay.style.pointerEvents = 'none';
+        overlay.innerHTML = `
+          <div style="position: absolute; bottom: 8px; left: 8px; background: rgba(16, 185, 129, 0.95); color: white; padding: 4px 10px; border-radius: 20px; display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width: 13px; height: 13px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            UPLOADED
+          </div>
+        `;
+      } else {
+        // Upload failed
+        overlay.style.backgroundColor = 'rgba(220, 38, 38, 0.78)';
+        overlay.style.pointerEvents = 'auto';
+        overlay.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 28px; height: 28px;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span style="font-size: 12px; font-weight: 800;">UPLOAD FAILED</span>
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <button onclick="retrySignedPhotoUpload(event)" style="background: #FFFFFF; color: #DC2626; border: none; border-radius: 8px; font-size: 12px; font-weight: 800; padding: 6px 14px; display: flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 14px; height: 14px;">
+                <path d="M23 4v6h-6"></path>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              RETRY UPLOAD
+            </button>
+            <button onclick="event.stopPropagation(); document.getElementById('deliver-signed-input').click();" style="background: rgba(255,255,255,0.25); color: #FFFFFF; border: 1.5px solid #FFFFFF; border-radius: 8px; font-size: 12px; font-weight: 700; padding: 6px 12px; cursor: pointer;">
+              RETAKE
+            </button>
+          </div>
+        `;
+      }
+    }
+  } else {
+    if (placeholder) placeholder.classList.remove('hidden');
+    if (preview) {
+      preview.classList.add('hidden');
+      preview.src = '';
+    }
+    if (overlay) {
+      overlay.innerHTML = '';
+      overlay.classList.add('hidden');
+    }
+  }
+}
+
+window.retrySignedPhotoUpload = async function(e) {
+  if (e) e.stopPropagation();
+  if (!deliverSignedPhotoFile) return;
+
+  isUploadingSignedPhoto = true;
+  renderSignedPhotoState();
+  updateDeliverSubmitButtonState();
+
+  try {
+    const comp = await compressImageToMax250kb(deliverSignedPhotoFile);
+    const doNumber = currentDeliverOrder.DO_Number || currentDeliverOrder.do_number || 'UNKNOWN';
+    const signedFolder = currentDeliverIsReturn ? "Return_Proof_Admin" : "Signed_DO";
+    const signedFileName = `Track_Orders/${signedFolder}/${doNumber}_signed_${Date.now()}.jpg`;
+
+    const url = await uploadToR2(signedFileName, comp);
+    deliverSignedPhotoUrl = url;
+    showToast("Signed DO uploaded successfully!", "success");
+  } catch (err) {
+    console.error("Failed to upload signed DO photo on retry:", err);
+    showToast("Upload failed. Please tap to retry.", "error");
+  } finally {
+    isUploadingSignedPhoto = false;
+    renderSignedPhotoState();
+    updateDeliverSubmitButtonState();
+  }
 };
 
 function renderSupportingPhotoGrid() {
@@ -5061,19 +5168,37 @@ function renderSupportingPhotoGrid() {
       const file = deliverSupportingPhotoFiles[i];
       const imgUrl = URL.createObjectURL(file);
       const isUploaded = deliverSupportingPhotoUrls[i] && deliverSupportingPhotoUrls[i].startsWith('http');
+      const isFailed = !isUploading && !isUploaded;
 
       slotDiv.innerHTML = `
         <img src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover;">
         ${isUploading ? `
-          <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: white;">
-            <div style="width: 16px; height: 16px; border: 2px solid #FFFFFF; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
-            <span style="font-size: 9px; font-weight: 800;">UPLOADING</span>
+          <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.55); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: white;">
+            <div style="width: 18px; height: 18px; border: 2px solid #FFFFFF; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+            <span style="font-size: 9px; font-weight: 800; letter-spacing: 0.04em;">UPLOADING</span>
+          </div>
+        ` : ''}
+        ${isFailed ? `
+          <div style="position: absolute; inset: 0; background: rgba(220, 38, 38, 0.78); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: white; padding: 4px; box-sizing: border-box;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px;">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span style="font-size: 9px; font-weight: 800; text-transform: uppercase;">FAILED</span>
+            <button onclick="retrySupportingPhotoUpload(${i}, event)" style="background: #FFFFFF; color: #DC2626; border: none; border-radius: 5px; font-size: 10px; font-weight: 800; padding: 3px 8px; display: flex; align-items: center; gap: 3px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.25); margin-top: 1px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 11px; height: 11px;">
+                <path d="M23 4v6h-6"></path>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              RETRY
+            </button>
           </div>
         ` : ''}
         ${isUploaded ? `
-          <div style="position: absolute; bottom: 4px; left: 4px; background: rgba(16, 185, 129, 0.9); color: white; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">✓</div>
+          <div style="position: absolute; bottom: 4px; left: 4px; background: rgba(16, 185, 129, 0.95); color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.25);">✓</div>
         ` : ''}
-        <button onclick="removeSupportingPhoto(${i}, event)" style="position: absolute; top: 4px; right: 4px; border: none; background: rgba(0,0,0,0.6); color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">&times;</button>
+        <button onclick="removeSupportingPhoto(${i}, event)" style="position: absolute; top: 4px; right: 4px; border: none; background: rgba(0,0,0,0.65); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; z-index: 5;">&times;</button>
       `;
     } else {
       const strokeColor = isSlotActive ? 'var(--app-color)' : '#94A3B8';
@@ -5095,6 +5220,33 @@ function renderSupportingPhotoGrid() {
     grid.appendChild(slotDiv);
   }
 }
+
+window.retrySupportingPhotoUpload = async function(index, e) {
+  if (e) e.stopPropagation();
+  const rawFile = deliverSupportingPhotoFiles[index];
+  if (!rawFile) return;
+
+  isUploadingSupportingPhotos[index] = true;
+  renderSupportingPhotoGrid();
+  updateDeliverSubmitButtonState();
+
+  try {
+    const comp = await compressImageToMax250kb(rawFile);
+    const doNumber = currentDeliverOrder.DO_Number || currentDeliverOrder.do_number || 'UNKNOWN';
+    const fileName = `Track_Orders/Delivery_Proof/${doNumber}_proof_${index}_${Date.now()}.jpg`;
+
+    const url = await uploadToR2(fileName, comp);
+    deliverSupportingPhotoUrls[index] = url;
+    showToast("Photo uploaded successfully!", "success");
+  } catch (err) {
+    console.error("Failed to upload supporting photo on retry:", err);
+    showToast("Photo upload failed. Please tap Retry.", "error");
+  } finally {
+    isUploadingSupportingPhotos[index] = false;
+    renderSupportingPhotoGrid();
+    updateDeliverSubmitButtonState();
+  }
+};
 
 window.onSupportingPhotoSelected = async function(input, index) {
   if (input.files && input.files[0]) {
@@ -5118,7 +5270,7 @@ window.onSupportingPhotoSelected = async function(input, index) {
       deliverSupportingPhotoUrls[newIdx] = url;
     } catch (err) {
       console.error("Failed to upload supporting photo:", err);
-      showToast("Photo upload failed. Please retake photo.", "error");
+      showToast("Photo upload failed. Please tap Retry on the photo.", "error");
     } finally {
       isUploadingSupportingPhotos[newIdx] = false;
       renderSupportingPhotoGrid();
@@ -5336,9 +5488,11 @@ function updateDeliverSubmitButtonState() {
 
   // 2. Check if mandatory Signed DO and at least 1 Supporting Photo are uploaded
   const hasSignedUrl = !!deliverSignedPhotoUrl && deliverSignedPhotoUrl.startsWith('http');
-  const hasSupportingUrls = deliverSupportingPhotoUrls.length > 0 && deliverSupportingPhotoUrls.every(u => u && u.startsWith('http'));
+  const hasSupportingFiles = deliverSupportingPhotoFiles.length > 0;
+  const validSupportingUrls = deliverSupportingPhotoUrls.filter(u => u && typeof u === 'string' && u.startsWith('http'));
+  const allSupportingUploaded = hasSupportingFiles && validSupportingUrls.length === deliverSupportingPhotoFiles.length;
 
-  if (!hasSignedUrl || !hasSupportingUrls) {
+  if (!hasSignedUrl || !allSupportingUploaded) {
     sliderContainer.classList.add('disabled-mode');
     if (sliderText) {
       sliderText.textContent = currentDeliverIsReturn ? "Slide to Collect Return" : "Slide to Deliver Goods";
@@ -5398,7 +5552,10 @@ function bindDeliverPageEvents() {
   const cameraBox = document.getElementById('deliver-signed-camera-box');
   const fileInput = document.getElementById('deliver-signed-input');
   if (cameraBox && fileInput) {
-    cameraBox.onclick = () => fileInput.click();
+    cameraBox.onclick = (e) => {
+      if (e.target.closest('button')) return;
+      fileInput.click();
+    };
     
     fileInput.onchange = async (e) => {
       if (fileInput.files && fileInput.files[0]) {
@@ -5407,14 +5564,7 @@ function bindDeliverPageEvents() {
         deliverSignedPhotoUrl = null;
         isUploadingSignedPhoto = true;
         
-        const preview = document.getElementById('deliver-signed-preview');
-        const placeholder = document.getElementById('deliver-signed-placeholder');
-        if (preview) {
-          preview.src = URL.createObjectURL(file);
-          preview.classList.remove('hidden');
-        }
-        if (placeholder) placeholder.classList.add('hidden');
-        
+        renderSignedPhotoState();
         updateDeliverSubmitButtonState();
 
         try {
@@ -5431,6 +5581,7 @@ function bindDeliverPageEvents() {
           showToast("Failed to upload Signed DO photo. Please tap to retry.", "error");
         } finally {
           isUploadingSignedPhoto = false;
+          renderSignedPhotoState();
           updateDeliverSubmitButtonState();
         }
       }
@@ -5470,13 +5621,24 @@ function bindDeliverPageEvents() {
         return false;
       }
 
-      if (!deliverSignedPhotoUrl) {
+      if (!deliverSignedPhotoFile) {
         showToast("Please capture the Signed DO / GRN photo first!", "warning");
         return false;
       }
 
-      if (deliverSupportingPhotoUrls.length === 0 || deliverSupportingPhotoUrls.some(u => !u)) {
+      if (!deliverSignedPhotoUrl || !deliverSignedPhotoUrl.startsWith('http')) {
+        showToast("Signed DO photo failed to upload. Please tap Retry.", "warning");
+        return false;
+      }
+
+      if (deliverSupportingPhotoFiles.length === 0) {
         showToast("Please capture at least 1 Supporting Photo!", "warning");
+        return false;
+      }
+
+      const validSupportingUrls = deliverSupportingPhotoUrls.filter(u => u && typeof u === 'string' && u.startsWith('http'));
+      if (validSupportingUrls.length < deliverSupportingPhotoFiles.length) {
+        showToast("Some supporting photos failed to upload. Please tap Retry on the photo or remove it.", "warning");
         return false;
       }
 
