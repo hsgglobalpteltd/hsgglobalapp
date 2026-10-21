@@ -1030,7 +1030,7 @@ async function silentRefreshInBackground() {
       } else if (data && Array.isArray(data.value)) {
         ordersList = data.value;
       }
-      if (ordersList.length > 0) {
+      if (Array.isArray(ordersList)) {
         ordersList = applyOptimisticUpdates(ordersList);
         allOrders = ordersList;
         localStorage.setItem('driver_orders', JSON.stringify(ordersList));
@@ -3783,17 +3783,18 @@ function renderMapOrderDetails(order, pin) {
            }
 
            const isChecking = loadingGoodsOrderId === order.ID;
-           const isTicked = tickedSKUs.has(item.sku);
+           const itemKey = `${index}_${item.sku || 'item'}`;
+           const isTicked = tickedSKUs.has(itemKey);
 
            let rightSectionHtml = '';
            if (isChecking) {
              rightSectionHtml = `
-               <div style="border-left: 1.5px solid var(--border-color); display: flex; align-items: center; padding: 0 12px; height: 64px; flex-shrink: 0; background-color: #FFFFFF; justify-content: space-between; gap: 10px;">
+               <div class="picking-item-check-area" data-item-key="${itemKey}" style="border-left: 1.5px solid var(--border-color); display: flex; align-items: center; padding: 0 12px; height: 64px; flex-shrink: 0; background-color: #FFFFFF; justify-content: space-between; gap: 10px; cursor: pointer;">
                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; min-width: 28px;">
                    <span style="font-size: 18px; font-weight: 850; color: #0F172A;">${item.qty}</span>
                    <span style="font-size: 9px; font-weight: 700; color: #64748B; letter-spacing: 0.05em; margin-top: 2px;">QTY</span>
                  </div>
-                 <div class="picking-item-checkbox ${isTicked ? 'checked' : ''}" data-sku="${item.sku}">
+                 <div class="picking-item-checkbox ${isTicked ? 'checked' : ''}" data-item-key="${itemKey}" data-sku="${item.sku}">
                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; stroke: ${isTicked ? '#FFFFFF' : 'transparent'};">
                      <polyline points="20 6 9 17 4 12"></polyline>
                    </svg>
@@ -3915,7 +3916,7 @@ function renderMapOrderDetails(order, pin) {
 
         if (loadingGoodsOrderId === order.ID) {
           const allItems = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
-          const allTicked = tickedSKUs.size === allItems.length;
+          const allTicked = allItems.length > 0 && tickedSKUs.size === allItems.length;
 
           if (allTicked) {
             actionBtn.className = "picking-action-btn ready-mode"; // Green
@@ -4167,24 +4168,26 @@ function renderMapOrderDetails(order, pin) {
 
   // Bind Checklist Item Click Actions
   if (loadingGoodsOrderId === order.ID) {
-    container.querySelectorAll('.picking-item-checkbox').forEach(cb => {
-      cb.addEventListener('click', (e) => {
+    container.querySelectorAll('.picking-item-check-area, .picking-item-checkbox').forEach(elem => {
+      elem.addEventListener('click', (e) => {
         e.stopPropagation();
-        const sku = cb.getAttribute('data-sku');
+        const cb = elem.classList.contains('picking-item-checkbox') ? elem : elem.querySelector('.picking-item-checkbox');
+        if (!cb) return;
+        const itemKey = elem.getAttribute('data-item-key') || cb.getAttribute('data-item-key') || cb.getAttribute('data-sku');
         const svg = cb.querySelector('svg');
-        if (tickedSKUs.has(sku)) {
-          tickedSKUs.delete(sku);
+        if (tickedSKUs.has(itemKey)) {
+          tickedSKUs.delete(itemKey);
           cb.classList.remove('checked');
           if (svg) svg.style.stroke = 'transparent';
         } else {
-          tickedSKUs.add(sku);
+          tickedSKUs.add(itemKey);
           cb.classList.add('checked');
           if (svg) svg.style.stroke = '#FFFFFF';
         }
 
         // Re-evaluate if all ticked and adjust sticky button live
         const allItems = typeof order.Items === 'string' ? JSON.parse(order.Items || '[]') : (order.Items || []);
-        const allTicked = tickedSKUs.size === allItems.length;
+        const allTicked = allItems.length > 0 && tickedSKUs.size === allItems.length;
 
         if (allTicked) {
           actionBtn.className = "picking-action-btn ready-mode"; // Green
