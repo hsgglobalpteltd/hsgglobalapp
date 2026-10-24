@@ -306,16 +306,17 @@ window.addEventListener('DOMContentLoaded', () => {
     versionSpan.textContent = `App Version : ${APP_VERSION}`;
   }
 
-  // Load from cache first, then fetch live data
-  loadCachedData();
-  fetchSupportData();
-  fetchData();
-
-  // Validate session on app open
+  // 1. Validate session on app open first
   const currentPickerName = getCachedAuth();
   if (!currentPickerName) {
     window.location.href = "../index.html";
+    return;
   }
+
+  // 2. Load from cache first, then fetch live data once authenticated
+  loadCachedData();
+  fetchSupportData();
+  fetchData();
 });
 
 function toggleDrawer() {
@@ -1686,13 +1687,28 @@ async function compressImageToMax250kb(file) {
 function getCachedAuth() {
   // 1. Check Centralized 30-day Main Portal session
   try {
-    const portalUserStr = localStorage.getItem('ib_auth_user');
+    const portalUserStr = localStorage.getItem('ib_auth_user') || localStorage.getItem('currentUser') || localStorage.getItem('user');
     const portalExpiryStr = localStorage.getItem('ib_session_expiry');
-    if (portalUserStr && portalExpiryStr) {
-      if (Date.now() < Number(portalExpiryStr)) {
-        const pUser = JSON.parse(portalUserStr);
-        return pUser.name || 'Picker';
+    if (portalUserStr) {
+      if (portalExpiryStr && !isNaN(Number(portalExpiryStr))) {
+        if (Date.now() > Number(portalExpiryStr)) {
+          // Session truly expired after 30 days
+          localStorage.removeItem('ib_auth_user');
+          localStorage.removeItem('ib_session_expiry');
+          localStorage.removeItem('auth_picker_name');
+          return null;
+        }
+      } else {
+        // Auto-heal missing expiry to ensure 30-day continuity
+        localStorage.setItem('ib_session_expiry', String(Date.now() + (30 * 24 * 60 * 60 * 1000)));
       }
+
+      const pUser = JSON.parse(portalUserStr);
+      const pickerName = pUser.name || pUser.Name || pUser.display_name || pUser.username || 'Picker';
+      if (!localStorage.getItem('auth_picker_name')) {
+        localStorage.setItem('auth_picker_name', pickerName);
+      }
+      return pickerName;
     }
   } catch (_) {}
 
